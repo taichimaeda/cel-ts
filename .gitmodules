@@ -1,0 +1,6 @@
+[submodule "test/conformance/cel-spec"]
+	path = test/conformance/cel-spec
+	url = https://github.com/google/cel-spec
+[submodule "test/conformance/protobuf"]
+	path = test/conformance/protobuf
+	url = https://github.com/protocolbuffers/protobuf

@@ -1,0 +1,16 @@
+# Examples
+
+Small, focused examples that show how to use the public `cel-ts` API.
+
+- `basic.ts`: compile and evaluate a simple expression with variables.
+- `constant.ts`: declare compile-time constants that are folded into the AST.
+- `environment-extend.ts`: extend an environment with additional variables.
+- `error-handling.ts`: handle parse and type errors.
+- `formatting.ts`: format expressions with the experimental formatter.
+- `linting.ts`: run the linter and print diagnostics.
+- `macro.ts`: use list macros like `exists` with standard library support.
+- `parse-check.ts`: parse first, then type-check later.
+- `struct-type.ts`: declare a struct type and type-check field access.
+- `protobuf-type.ts`: resolve message types via protobuf descriptors.
+- `global-overload.ts`: register a global overload.
+- `member-overload.ts`: register a member overload.
