@@ -1,0 +1,70 @@
+{
+  "name": "cel-ts",
+  "version": "0.1.0-alpha",
+  "description": "Common Expression Language (CEL) implementation in TypeScript - A fast, safe expression evaluator compatible with cel-go",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "LICENSE", "README.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
+    "version": "pnpm run build",
+    "clean": "rm -rf dist coverage docs/api",
+    "docs": "typedoc",
+    "docs:watch": "typedoc --watch"
+  },
+  "keywords": [
+    "cel",
+    "common-expression-language",
+    "expression",
+    "parser",
+    "evaluator",
+    "interpreter",
+    "google-cel",
+    "policy",
+    "rules-engine",
+    "dsl"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/example/cel-ts#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/example/cel-ts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/example/cel-ts/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@9.14.2",
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "bun-types": "1.1.34",
+    "fast-check": "4.4.0",
+    "tsup": "8.3.5",
+    "typedoc": "0.26.11",
+    "typescript": "5.6.3"
+  },
+  "dependencies": {
+    "antlr4": "4.13.2"
+  }
+}

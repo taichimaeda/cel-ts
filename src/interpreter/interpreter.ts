@@ -1,0 +1,425 @@
+// CEL Interpreter
+// Main interpreter implementation
+// Implementation based on cel-go's cel/program.go and interpreter/interpreter.go
+
+import {
+  CharStream,
+  CommonTokenStream,
+  type ErrorListener,
+  type Recognizer,
+  type Token,
+} from "antlr4";
+import { type CheckResult, Checker } from "../checker/checker";
+import { type FunctionDecl, VariableDecl } from "../checker/decls";
+import { CheckerEnv, Container } from "../checker/env";
+import { getStandardFunctions } from "../checker/stdlib";
+import { Type } from "../checker/types";
+import CELLexer from "../parser/gen/CELLexer.js";
+import CELParser, { type StartContext } from "../parser/gen/CELParser.js";
+import { type Activation, EmptyActivation, LazyActivation, MapActivation } from "./activation";
+import { DefaultDispatcher, type Dispatcher } from "./dispatcher";
+import { registerStandardFunctions } from "./functions";
+import type { Interpretable } from "./interpretable";
+import { Planner } from "./planner";
+import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, isError } from "./values";
+
+/**
+ * Program represents a compiled CEL expression.
+ */
+type ProgramInput = Activation | Map<string, Value> | Record<string, unknown>;
+
+export interface Program {
+  /**
+   * Evaluate the expression with the given variables.
+   */
+  eval(vars?: ProgramInput): EvalResult;
+
+  /**
+   * Get the type check result (if checked).
+   */
+  checkResult(): CheckResult | undefined;
+}
+
+/**
+ * Result of evaluating a CEL expression.
+ */
+export interface EvalResult {
+  /** The result value */
+  value: Value;
+  /** Whether evaluation succeeded */
+  success: boolean;
+  /** Error message if evaluation failed */
+  error?: string | undefined;
+}
+
+/**
+ * Declaration types for the environment.
+ */
+export type Declaration = VariableDecl | FunctionDecl;
+
+/**
+ * Environment options for creating an interpreter.
+ */
+export interface EnvOptions {
+  /** Variable declarations */
+  declarations?: Declaration[];
+  /** Custom functions */
+  functions?: Dispatcher;
+  /** Type adapter for native value conversion */
+  adapter?: TypeAdapter;
+  /** Disable type checking */
+  disableTypeChecking?: boolean;
+  /** Container name for type resolution */
+  container?: string;
+}
+
+/**
+ * CEL Environment for compiling and running expressions.
+ */
+export class Env {
+  private readonly checkerEnv: CheckerEnv;
+  private readonly dispatcher: Dispatcher;
+  private readonly adapter: TypeAdapter;
+  private readonly disableTypeChecking: boolean;
+  private readonly containerName: string;
+  private readonly declarationsList: Declaration[];
+
+  constructor(options: EnvOptions = {}) {
+    this.containerName = options.container ?? "";
+    this.declarationsList = options.declarations ?? [];
+    this.checkerEnv = new CheckerEnv(new Container(this.containerName));
+
+    // Add standard library functions
+    for (const fn of getStandardFunctions()) {
+      this.checkerEnv.addFunctions(fn);
+    }
+
+    // Add user declarations
+    for (const decl of this.declarationsList) {
+      if ("overloads" in decl) {
+        this.checkerEnv.addFunctions(decl as FunctionDecl);
+      } else {
+        this.checkerEnv.addIdents(decl as VariableDecl);
+      }
+    }
+
+    this.adapter = options.adapter ?? new DefaultTypeAdapter();
+    this.disableTypeChecking = options.disableTypeChecking ?? false;
+
+    // Initialize dispatcher
+    this.dispatcher = options.functions ?? new DefaultDispatcher();
+    registerStandardFunctions(this.dispatcher);
+  }
+
+  /**
+   * Compile a CEL expression into a Program.
+   */
+  compile(expression: string): CompileResult {
+    // Parse
+    const parseResult = this.parse(expression);
+    if (parseResult.error) {
+      return {
+        program: undefined,
+        error: parseResult.error,
+      };
+    }
+
+    const tree = parseResult.tree!;
+
+    // Type check (if enabled)
+    let checkResult: CheckResult | undefined;
+    if (!this.disableTypeChecking) {
+      const checker = new Checker(this.checkerEnv);
+      checkResult = checker.check(tree);
+
+      if (checkResult.errors.hasErrors()) {
+        return {
+          program: undefined,
+          error: checkResult.errors.toString(),
+        };
+      }
+    }
+
+    // Generate Interpretable with planner
+    const planner = new Planner({
+      dispatcher: this.dispatcher,
+      refMap: checkResult?.refMap,
+    });
+
+    const interpretable = planner.plan(tree);
+
+    // Create Program
+    const program = new InterpretableProgram(interpretable, checkResult, this.adapter);
+
+    return {
+      program,
+      error: undefined,
+    };
+  }
+
+  /**
+   * Parse a CEL expression.
+   */
+  private parse(expression: string): ParseResult {
+    try {
+      const chars = new CharStream(expression);
+      const lexer = new CELLexer(chars);
+      const tokens = new CommonTokenStream(lexer);
+      const parser = new CELParser(tokens);
+
+      // Set up error listener
+      const errors: string[] = [];
+      parser.removeErrorListeners();
+      // ANTLR4's ErrorListener interface may require additional methods
+      const errorListener = {
+        syntaxError: (
+          _recognizer: Recognizer<Token>,
+          _offendingSymbol: Token | null,
+          line: number,
+          column: number,
+          msg: string,
+          _e: unknown
+        ) => {
+          errors.push(`line ${line}:${column} ${msg}`);
+        },
+        reportAmbiguity: () => {
+          // Ignore ambiguity
+        },
+        reportAttemptingFullContext: () => {
+          // Ignore full context attempts
+        },
+        reportContextSensitivity: () => {
+          // Ignore context sensitivity
+        },
+      } as ErrorListener<Token>;
+      parser.addErrorListener(errorListener);
+
+      const tree = parser.start();
+
+      if (errors.length > 0) {
+        return {
+          tree: undefined,
+          error: errors.join("\n"),
+        };
+      }
+
+      return {
+        tree,
+        error: undefined,
+      };
+    } catch (e) {
+      return {
+        tree: undefined,
+        error: e instanceof Error ? e.message : String(e),
+      };
+    }
+  }
+
+  /**
+   * Add declarations to the environment.
+   */
+  extend(declarations: Declaration[]): Env {
+    const newEnv = new Env({
+      declarations: [...this.declarationsList, ...declarations],
+      functions: this.dispatcher,
+      adapter: this.adapter,
+      disableTypeChecking: this.disableTypeChecking,
+      container: this.containerName,
+    });
+    return newEnv;
+  }
+}
+
+/**
+ * Result of compiling a CEL expression.
+ */
+export interface CompileResult {
+  program: Program | undefined;
+  error: string | undefined;
+}
+
+/**
+ * Result of parsing a CEL expression.
+ */
+interface ParseResult {
+  tree: StartContext | undefined;
+  error: string | undefined;
+}
+
+/**
+ * Program implementation using Interpretable.
+ */
+class InterpretableProgram implements Program {
+  private readonly interpretable: Interpretable;
+  private readonly checkResultValue: CheckResult | undefined;
+  private readonly adapter: TypeAdapter;
+
+  constructor(
+    interpretable: Interpretable,
+    checkResult: CheckResult | undefined,
+    adapter: TypeAdapter
+  ) {
+    this.interpretable = interpretable;
+    this.checkResultValue = checkResult;
+    this.adapter = adapter;
+  }
+
+  eval(vars?: ProgramInput): EvalResult {
+    // Prepare activation
+    let activation: Activation;
+    if (!vars) {
+      activation = new EmptyActivation();
+    } else if (isActivation(vars)) {
+      activation = vars;
+    } else if (vars instanceof Map) {
+      activation = new MapActivation(vars);
+    } else {
+      activation = new LazyActivation(vars, this.adapter);
+    }
+
+    // Evaluate
+    try {
+      const value = this.interpretable.eval(activation);
+
+      if (isError(value)) {
+        return {
+          value,
+          success: false,
+          error: (value as ErrorValue).getMessage(),
+        };
+      }
+
+      return {
+        value,
+        success: true,
+      };
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      return {
+        value: ErrorValue.create(errorMessage),
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  checkResult(): CheckResult | undefined {
+    return this.checkResultValue;
+  }
+}
+
+function isActivation(value: unknown): value is Activation {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "resolve" in (value as Record<string, unknown>) &&
+    typeof (value as Activation).resolve === "function"
+  );
+}
+
+/**
+ * Create a new CEL environment.
+ */
+export function newEnv(options: EnvOptions = {}): Env {
+  return new Env(options);
+}
+
+/**
+ * Infer variable type from a JavaScript value.
+ */
+function inferType(value: unknown): Type {
+  if (value === null) {
+    return Type.Null;
+  }
+  switch (typeof value) {
+    case "boolean":
+      return Type.Bool;
+    case "number":
+      // JavaScript numbers are treated as double (distinguish integers)
+      return Number.isInteger(value) ? Type.Int : Type.Double;
+    case "bigint":
+      return Type.Int;
+    case "string":
+      return Type.String;
+    case "object":
+      if (Array.isArray(value)) {
+        // Infer list element type
+        if (value.length > 0) {
+          return Type.newListType(inferType(value[0]));
+        }
+        return Type.newListType(Type.Dyn);
+      }
+      if (value instanceof Uint8Array) {
+        return Type.Bytes;
+      }
+      if (value instanceof Date) {
+        return Type.Timestamp;
+      }
+      // Objects are treated as map<string, dyn>
+      return Type.newMapType(Type.String, Type.Dyn);
+    default:
+      return Type.Dyn;
+  }
+}
+
+/**
+ * Infer variable declarations from a vars object.
+ */
+function inferDeclarations(vars: Record<string, unknown>): VariableDecl[] {
+  return Object.entries(vars).map(([name, value]) => new VariableDecl(name, inferType(value)));
+}
+
+/**
+ * Convenience function to evaluate a CEL expression directly.
+ */
+export function evaluate(
+  expression: string,
+  vars?: Record<string, unknown>,
+  options?: EnvOptions
+): EvalResult {
+  // Infer variable declarations from vars (can be disabled via options)
+  const inferredDecls = vars && !options?.disableTypeChecking ? inferDeclarations(vars) : [];
+
+  const mergedOptions: EnvOptions = {
+    ...options,
+    declarations: [...inferredDecls, ...(options?.declarations ?? [])],
+  };
+
+  const env = newEnv(mergedOptions);
+  const result = env.compile(expression);
+
+  if (result.error || !result.program) {
+    return {
+      value: ErrorValue.create(result.error ?? "compilation failed"),
+      success: false,
+      error: result.error,
+    };
+  }
+
+  return result.program.eval(vars);
+}
+
+/**
+ * Parse and check a CEL expression without evaluating.
+ */
+export function checkExpression(expression: string, options?: EnvOptions): CheckResult | string {
+  const env = newEnv(options);
+  const result = env.compile(expression);
+
+  if (result.error) {
+    return result.error;
+  }
+
+  if (!result.program) {
+    return "compilation failed";
+  }
+
+  return (
+    result.program.checkResult() ?? {
+      type: {} as unknown as CheckResult["type"],
+      typeMap: new Map(),
+      refMap: new Map(),
+      errors: {} as unknown as CheckResult["errors"],
+    }
+  );
+}

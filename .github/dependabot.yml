@@ -1,0 +1,44 @@
+version: 2
+updates:
+  # npm依存関係の更新
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "s26057"
+    labels:
+      - "dependencies"
+      - "npm"
+    commit-message:
+      prefix: "deps(npm):"
+    groups:
+      # 開発依存関係をグループ化
+      dev-dependencies:
+        dependency-type: "development"
+        patterns:
+          - "*"
+      # 本番依存関係をグループ化
+      production-dependencies:
+        dependency-type: "production"
+        patterns:
+          - "*"
+
+  # GitHub Actionsの更新
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "deps(actions):"
