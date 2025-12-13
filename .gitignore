@@ -32,5 +32,14 @@ pnpm-debug.log*
 *.temp
 .cache/
 
+# Test artifacts
+.test-results/
+
+# TypeDoc output
+docs/api/
+
+# ANTLR generated files (tracked but can be regenerated)
+# src/parser/gen/
+
 # Claude
 .claude/

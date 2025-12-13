@@ -9,13 +9,14 @@ import {
   type Recognizer,
   type Token,
 } from "antlr4";
-import { type CheckResult, Checker } from "../checker/checker";
+import { type CheckResult, check as checkAST } from "../checker/checker";
 import { type FunctionDecl, VariableDecl } from "../checker/decls";
 import { CheckerEnv, Container } from "../checker/env";
 import { getStandardFunctions } from "../checker/stdlib";
 import { Type } from "../checker/types";
 import CELLexer from "../parser/gen/CELLexer.js";
 import CELParser, { type StartContext } from "../parser/gen/CELParser.js";
+import { parseToAST } from "../parser/helper";
 import { type Activation, EmptyActivation, LazyActivation, MapActivation } from "./activation";
 import { DefaultDispatcher, type Dispatcher } from "./dispatcher";
 import { registerStandardFunctions } from "./functions";
@@ -126,11 +127,13 @@ export class Env {
 
     const tree = parseResult.tree!;
 
+    // Convert ANTLR parse tree to our AST with macro expansion
+    const ast = parseToAST(tree, expression);
+
     // Type check (if enabled)
     let checkResult: CheckResult | undefined;
     if (!this.disableTypeChecking) {
-      const checker = new Checker(this.checkerEnv);
-      checkResult = checker.check(tree);
+      checkResult = checkAST(ast, this.checkerEnv);
 
       if (checkResult.errors.hasErrors()) {
         return {
@@ -143,10 +146,10 @@ export class Env {
     // Generate Interpretable with planner
     const planner = new Planner({
       dispatcher: this.dispatcher,
-      refMap: checkResult?.refMap,
+      refMap: checkResult ? ast.refMap : undefined,
     });
 
-    const interpretable = planner.plan(tree);
+    const interpretable = planner.plan(ast);
 
     // Create Program
     const program = new InterpretableProgram(interpretable, checkResult, this.adapter);
@@ -219,14 +222,13 @@ export class Env {
    * Add declarations to the environment.
    */
   extend(declarations: Declaration[]): Env {
-    const newEnv = new Env({
+    return new Env({
       declarations: [...this.declarationsList, ...declarations],
       functions: this.dispatcher,
       adapter: this.adapter,
       disableTypeChecking: this.disableTypeChecking,
       container: this.containerName,
     });
-    return newEnv;
   }
 }
 
@@ -318,13 +320,6 @@ function isActivation(value: unknown): value is Activation {
 }
 
 /**
- * Create a new CEL environment.
- */
-export function newEnv(options: EnvOptions = {}): Env {
-  return new Env(options);
-}
-
-/**
  * Infer variable type from a JavaScript value.
  */
 function inferType(value: unknown): Type {
@@ -385,7 +380,7 @@ export function evaluate(
     declarations: [...inferredDecls, ...(options?.declarations ?? [])],
   };
 
-  const env = newEnv(mergedOptions);
+  const env = new Env(mergedOptions);
   const result = env.compile(expression);
 
   if (result.error || !result.program) {
@@ -403,7 +398,7 @@ export function evaluate(
  * Parse and check a CEL expression without evaluating.
  */
 export function checkExpression(expression: string, options?: EnvOptions): CheckResult | string {
-  const env = newEnv(options);
+  const env = new Env(options);
   const result = env.compile(expression);
 
   if (result.error) {
@@ -414,12 +409,10 @@ export function checkExpression(expression: string, options?: EnvOptions): Check
     return "compilation failed";
   }
 
-  return (
-    result.program.checkResult() ?? {
-      type: {} as unknown as CheckResult["type"],
-      typeMap: new Map(),
-      refMap: new Map(),
-      errors: {} as unknown as CheckResult["errors"],
-    }
-  );
+  const checkResult = result.program.checkResult();
+  if (!checkResult) {
+    return "type checking not performed";
+  }
+
+  return checkResult;
 }

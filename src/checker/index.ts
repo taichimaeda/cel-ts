@@ -2,7 +2,11 @@
 // Exports for the checker module
 
 export { check, Checker } from "./checker";
-export type { CheckResult, ReferenceInfo } from "./checker";
+export type { CheckResult } from "./checker";
+
+// Re-export ReferenceInfo from common/ast
+export type { ReferenceInfo } from "../common/ast";
+export { createIdentReference, createFunctionReference } from "../common/ast";
 
 export { FunctionDecl, OverloadDecl, VariableDecl } from "./decls";
 

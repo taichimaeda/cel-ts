@@ -109,7 +109,6 @@ export {
   type CompileResult,
   type Declaration,
   Env,
-  newEnv,
   evaluate,
   checkExpression,
 } from "./interpreter";

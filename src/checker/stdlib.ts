@@ -30,6 +30,7 @@ export function getStandardFunctions(): FunctionDecl[] {
     matchesFunction(),
     // Collection functions
     inFunction(),
+    indexFunction(),
     // Comparison operators (built-in but declared for completeness)
     ...comparisonFunctions(),
     // Arithmetic operators
@@ -349,6 +350,38 @@ function inFunction(): FunctionDecl {
 }
 
 /**
+ * Index access operator (`_[_]`) providing list and map indexing.
+ */
+function indexFunction(): FunctionDecl {
+  const fn = new FunctionDecl("_[_]");
+
+  // list<T>[int] -> T
+  fn.addOverload(
+    new OverloadDecl(
+      "index_list",
+      [Type.newListType(Type.newTypeParamType("T")), Type.Int],
+      Type.newTypeParamType("T"),
+      ["T"]
+    )
+  );
+
+  // map<K, V>[K] -> V
+  fn.addOverload(
+    new OverloadDecl(
+      "index_map",
+      [
+        Type.newMapType(Type.newTypeParamType("K"), Type.newTypeParamType("V")),
+        Type.newTypeParamType("K"),
+      ],
+      Type.newTypeParamType("V"),
+      ["K", "V"]
+    )
+  );
+
+  return fn;
+}
+
+/**
  * Comparison operator functions
  */
 function comparisonFunctions(): FunctionDecl[] {
@@ -524,6 +557,14 @@ function logicalFunctions(): FunctionDecl[] {
     )
   );
   fns.push(condFn);
+
+  // @not_strictly_false - internal helper used in comprehension loop conditions.
+  // Accepts a bool and only returns false for strict false (errors count as true).
+  const notStrictlyFalseFn = new FunctionDecl("@not_strictly_false");
+  notStrictlyFalseFn.addOverload(
+    new OverloadDecl("not_strictly_false_bool", [Type.Bool], Type.Bool)
+  );
+  fns.push(notStrictlyFalseFn);
 
   return fns;
 }

@@ -149,6 +149,39 @@ export class NotValue implements Interpretable {
 }
 
 /**
+ * Evaluate @not_strictly_false.
+ * Treat error values as true and only return false for literal false.
+ * Used by comprehension loop conditions.
+ */
+export class NotStrictlyFalseValue implements Interpretable {
+  private readonly exprId: number;
+  private readonly operand: Interpretable;
+
+  constructor(exprId: number, operand: Interpretable) {
+    this.exprId = exprId;
+    this.operand = operand;
+  }
+
+  id(): number {
+    return this.exprId;
+  }
+
+  eval(activation: Activation): Value {
+    const val = this.operand.eval(activation);
+    // Treat errors as true (keeps the loop running)
+    if (val instanceof ErrorValue) {
+      return BoolValue.True;
+    }
+    // Only literal false returns false
+    if (val instanceof BoolValue) {
+      return val.value() === false ? BoolValue.False : BoolValue.True;
+    }
+    // Treat every other value as true
+    return BoolValue.True;
+  }
+}
+
+/**
  * Numeric negation interpretable.
  */
 export class NegValue implements Interpretable {
@@ -873,6 +906,42 @@ export class FieldValue implements Interpretable {
     }
 
     return ErrorValue.noSuchField(this.field);
+  }
+}
+
+/**
+ * Has field (presence test) interpretable.
+ * Returns true if the field exists on the operand.
+ */
+export class HasFieldValue implements Interpretable {
+  private readonly exprId: number;
+  private readonly operand: Interpretable;
+  private readonly field: string;
+
+  constructor(exprId: number, operand: Interpretable, field: string) {
+    this.exprId = exprId;
+    this.operand = operand;
+    this.field = field;
+  }
+
+  id(): number {
+    return this.exprId;
+  }
+
+  eval(activation: Activation): Value {
+    const obj = this.operand.eval(activation);
+    if (isErrorOrUnknown(obj)) {
+      return obj;
+    }
+
+    // Map presence test
+    if (obj instanceof MapValue) {
+      const key = StringValue.of(this.field);
+      return obj.contains(key);
+    }
+
+    // For other types, field doesn't exist
+    return BoolValue.False;
   }
 }
 

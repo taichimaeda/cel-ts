@@ -1,5 +1,6 @@
 # cel-ts
 
+[![CI](https://github.com/s26057/cel-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/s26057/cel-ts/actions/workflows/ci.yml)
 [![npm version](https://badge.fury.io/js/cel-ts.svg)](https://badge.fury.io/js/cel-ts)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -208,6 +209,17 @@ age >= 18 ? "adult" : "minor"
 int("42")              // 42
 string(123)            // "123"
 double(10)             // 10.0
+
+// Macros - List comprehensions
+[1, 2, 3, 4, 5].all(x, x > 0)           // true - all positive
+[1, 2, 3, 4, 5].exists(x, x > 3)        // true - any > 3
+[1, 2, 3, 4, 5].exists_one(x, x > 4)    // true - exactly one > 4
+[1, 2, 3].map(x, x * 2)                 // [2, 4, 6]
+[1, 2, 3, 4, 5].filter(x, x > 2)        // [3, 4, 5]
+[1, 2, 3, 4, 5].map(x, x > 2, x * 10)   // [30, 40, 50] - filter then map
+
+// Macros - Field presence
+has(request.auth)      // true if auth field exists
 ```
 
 ## Custom Functions
@@ -268,6 +280,7 @@ console.log(program.eval().value()); // "ababab - olleh"
 | `&&`, `\|\|`, `!`       | Logical             |
 | `in`                    | Membership          |
 | `? :`                   | Ternary conditional |
+| `[]`                    | Index access        |
 
 ### Functions
 
@@ -277,19 +290,40 @@ console.log(program.eval().value()); // "ababab - olleh"
 | `contains()`                                         | String contains substring             |
 | `startsWith()`                                       | String starts with prefix             |
 | `endsWith()`                                         | String ends with suffix               |
+| `matches()`                                          | String matches regex                  |
 | `type()`                                             | Get type of value                     |
 | `int()`, `uint()`, `double()`, `string()`, `bytes()` | Type conversions                      |
+
+### Macros
+
+| Macro                   | Description                               |
+| ----------------------- | ----------------------------------------- |
+| `has(e.f)`              | Test if field `f` exists on `e`           |
+| `e.all(x, p)`           | True if all elements satisfy predicate    |
+| `e.exists(x, p)`        | True if any element satisfies predicate   |
+| `e.exists_one(x, p)`    | True if exactly one element matches       |
+| `e.map(x, t)`           | Transform each element                    |
+| `e.map(x, p, t)`        | Filter by predicate, then transform       |
+| `e.filter(x, p)`        | Filter elements by predicate              |
 
 ## Architecture
 
 See [docs/cel-ts-architecture.md](docs/cel-ts-architecture.md) for detailed architecture documentation.
 
 ```
-Expression � Parse � Check � Plan � Eval � Result
-              �       �       �       �
-             AST   Typed   Inter-   Value
-                   AST    pretable
+Expression → Parse → AST → Check → Plan → Eval → Result
+               ↓       ↓       ↓       ↓       ↓
+            Parse   Common   Typed   Inter-   Value
+            Tree    AST      AST    pretable
+                   +Macros
 ```
+
+The architecture follows cel-go's design:
+1. **Parse**: ANTLR parses expression into parse tree
+2. **AST**: Convert to canonical AST with macro expansion
+3. **Check**: Type check and annotate the AST
+4. **Plan**: Convert to optimized Interpretable tree
+5. **Eval**: Evaluate with runtime bindings
 
 ## Development
 
@@ -325,7 +359,7 @@ pnpm docs
 | Integers         | `int64`                          | `bigint`    |
 | API Style        | Method chaining                  | Same        |
 | Standard Library | Full                             | Core subset |
-| Macros           | `all`, `exists`, `map`, `filter` | Planned     |
+| Macros           | `all`, `exists`, `map`, `filter` | Supported   |
 | Proto Support    | Full                             | Planned     |
 
 ## License

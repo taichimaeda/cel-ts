@@ -1,0 +1,924 @@
+// CEL Parser Helper
+// Converts ANTLR parse tree to CEL AST with macro expansion
+// Ported from cel-go/parser/helper.go
+
+import type { ParserRuleContext, TerminalNode } from "antlr4";
+import {
+  AST,
+  AccumulatorName,
+  type CallExpr,
+  type ComprehensionExpr,
+  type Expr,
+  ExprFactory,
+  type IdentExpr,
+  type ListExpr,
+  type MapEntry,
+  type SelectExpr,
+  SourceInfo,
+  type StructField,
+} from "../common/ast";
+import {
+  BoolFalseContext,
+  BoolTrueContext,
+  BytesContext,
+  type CalcContext,
+  type ConditionalAndContext,
+  type ConditionalOrContext,
+  ConstantLiteralContext,
+  CreateListContext,
+  CreateMessageContext,
+  CreateStructContext,
+  DoubleContext,
+  type EscapeIdentContext,
+  type ExprContext,
+  type ExprListContext,
+  GlobalCallContext,
+  IdentContext,
+  IndexContext,
+  IntContext,
+  LogicalNotContext,
+  MemberCallContext,
+  type MemberContext,
+  MemberExprContext,
+  NegateContext,
+  NestedContext,
+  NullContext,
+  type PrimaryContext,
+  PrimaryExprContext,
+  type RelationContext,
+  SelectContext,
+  type StartContext,
+  StringContext,
+  UintContext,
+  type UnaryContext,
+} from "./gen/CELParser.js";
+import { AllMacros, type Macro, MacroError, MacroRegistry } from "./macro";
+
+/**
+ * Operator names for CEL.
+ */
+export const Operators = {
+  // Arithmetic
+  Add: "_+_",
+  Subtract: "_-_",
+  Multiply: "_*_",
+  Divide: "_/_",
+  Modulo: "_%_",
+  Negate: "-_",
+
+  // Comparison
+  Equals: "_==_",
+  NotEquals: "_!=_",
+  Less: "_<_",
+  LessEquals: "_<=_",
+  Greater: "_>_",
+  GreaterEquals: "_>=_",
+  In: "_in_",
+
+  // Logical
+  LogicalAnd: "_&&_",
+  LogicalOr: "_||_",
+  LogicalNot: "!_",
+  NotStrictlyFalse: "@not_strictly_false",
+  Conditional: "_?_:_",
+
+  // Index
+  Index: "_[_]",
+
+  // Optional
+  OptIndex: "_[?_]",
+  OptSelect: "_?._",
+};
+
+/**
+ * Options for the parser helper.
+ */
+export interface ParserHelperOptions {
+  /** Macros to use (defaults to AllMacros) */
+  macros?: Macro[];
+  /** Whether to populate macro call info in source info */
+  populateMacroCalls?: boolean;
+}
+
+/**
+ * Parser helper that converts ANTLR parse tree to CEL AST.
+ */
+export class ParserHelper {
+  private readonly factory: ExprFactory;
+  private readonly sourceInfo: SourceInfo;
+  private readonly macroRegistry: MacroRegistry;
+  private readonly populateMacroCalls: boolean;
+
+  constructor(source: string, options: ParserHelperOptions = {}) {
+    this.factory = new ExprFactory();
+    this.sourceInfo = new SourceInfo(source);
+    this.macroRegistry = new MacroRegistry(options.macros ?? AllMacros);
+    this.populateMacroCalls = options.populateMacroCalls ?? true;
+  }
+
+  /**
+   * Parse a StartContext and produce an AST.
+   */
+  parse(tree: StartContext): AST {
+    const exprCtx = tree.expr();
+    if (!exprCtx) {
+      // Empty expression
+      const expr = this.factory.createUnspecified(this.factory.nextId());
+      return new AST(expr, this.sourceInfo);
+    }
+    const expr = this.buildExpr(exprCtx);
+    return new AST(expr, this.sourceInfo);
+  }
+
+  // ============================================================================
+  // Builder methods used by macro expansion
+  // ============================================================================
+
+  nextId(): number {
+    return this.factory.nextId();
+  }
+
+  createLiteral(value: boolean | bigint | number | string | null): Expr {
+    const id = this.nextId();
+    if (value === null) {
+      return this.factory.createNullLiteral(id);
+    }
+    if (typeof value === "boolean") {
+      return this.factory.createBoolLiteral(id, value);
+    }
+    if (typeof value === "bigint") {
+      return this.factory.createIntLiteral(id, value);
+    }
+    if (typeof value === "number") {
+      return this.factory.createDoubleLiteral(id, value);
+    }
+    return this.factory.createStringLiteral(id, value);
+  }
+
+  createIdent(name: string): IdentExpr {
+    return this.factory.createIdent(this.nextId(), name);
+  }
+
+  createCall(fn: string, ...args: Expr[]): CallExpr {
+    return this.factory.createCall(this.nextId(), fn, ...args);
+  }
+
+  createMemberCall(fn: string, target: Expr, ...args: Expr[]): CallExpr {
+    return this.factory.createMemberCall(this.nextId(), fn, target, ...args);
+  }
+
+  createList(...elements: Expr[]): ListExpr {
+    return this.factory.createList(this.nextId(), elements);
+  }
+
+  createComprehension(
+    iterRange: Expr,
+    iterVar: string,
+    accuVar: string,
+    accuInit: Expr,
+    loopCondition: Expr,
+    loopStep: Expr,
+    result: Expr
+  ): ComprehensionExpr {
+    return this.factory.createComprehension(
+      this.nextId(),
+      iterRange,
+      iterVar,
+      accuVar,
+      accuInit,
+      loopCondition,
+      loopStep,
+      result
+    );
+  }
+
+  createAccuIdent(): IdentExpr {
+    return this.createIdent(this.accuIdentName());
+  }
+
+  accuIdentName(): string {
+    return AccumulatorName;
+  }
+
+  createPresenceTest(operand: Expr, field: string): SelectExpr {
+    return this.factory.createPresenceTest(this.nextId(), operand, field);
+  }
+
+  createError(message: string): MacroError {
+    return new MacroError(message);
+  }
+
+  // ============================================================================
+  // AST Building from ANTLR contexts
+  // ============================================================================
+
+  private buildExpr(ctx: ExprContext): Expr {
+    const conditionalOr = ctx.conditionalOr(0);
+    if (!conditionalOr) {
+      return this.reportError(ctx, "missing expression");
+    }
+
+    let result = this.buildConditionalOr(conditionalOr);
+
+    // Check for ternary expression: e ? e1 : e2
+    const questionMark = ctx.QUESTIONMARK();
+    if (questionMark) {
+      const trueExpr = ctx.conditionalOr(1);
+      const falseExpr = ctx.expr();
+      if (!trueExpr || !falseExpr) {
+        return this.reportError(ctx, "invalid ternary expression");
+      }
+
+      const id = this.id(ctx);
+      const trueBranch = this.buildConditionalOr(trueExpr);
+      const falseBranch = this.buildExpr(falseExpr);
+
+      result = this.factory.createCall(id, Operators.Conditional, result, trueBranch, falseBranch);
+      this.setPosition(id, ctx);
+    }
+
+    return result;
+  }
+
+  private buildConditionalOr(ctx: ConditionalOrContext): Expr {
+    const andExprs = ctx.conditionalAnd_list();
+    if (andExprs.length === 0) {
+      return this.reportError(ctx, "missing conditionalAnd");
+    }
+
+    let result = this.buildConditionalAnd(andExprs[0]!);
+
+    for (let i = 1; i < andExprs.length; i++) {
+      const id = this.id(ctx);
+      const right = this.buildConditionalAnd(andExprs[i]!);
+      result = this.factory.createCall(id, Operators.LogicalOr, result, right);
+    }
+
+    return result;
+  }
+
+  private buildConditionalAnd(ctx: ConditionalAndContext): Expr {
+    const relations = ctx.relation_list();
+    if (relations.length === 0) {
+      return this.reportError(ctx, "missing relation");
+    }
+
+    let result = this.buildRelation(relations[0]!);
+
+    for (let i = 1; i < relations.length; i++) {
+      const id = this.id(ctx);
+      const right = this.buildRelation(relations[i]!);
+      result = this.factory.createCall(id, Operators.LogicalAnd, result, right);
+    }
+
+    return result;
+  }
+
+  private buildRelation(ctx: RelationContext): Expr {
+    const calcCtx = ctx.calc();
+    if (calcCtx) {
+      return this.buildCalc(calcCtx);
+    }
+
+    // Relational expression: relation op relation
+    const relations = ctx.relation_list();
+    if (relations.length !== 2) {
+      return this.reportError(ctx, "invalid relation");
+    }
+
+    const left = this.buildRelation(relations[0]!);
+    const right = this.buildRelation(relations[1]!);
+    const id = this.id(ctx);
+
+    // Determine operator
+    const op = this.getRelationOp(ctx);
+    const result = this.factory.createCall(id, op, left, right);
+    this.setPosition(id, ctx);
+    return result;
+  }
+
+  private getRelationOp(ctx: RelationContext): string {
+    if (ctx.LESS()) return Operators.Less;
+    if (ctx.LESS_EQUALS()) return Operators.LessEquals;
+    if (ctx.GREATER()) return Operators.Greater;
+    if (ctx.GREATER_EQUALS()) return Operators.GreaterEquals;
+    if (ctx.EQUALS()) return Operators.Equals;
+    if (ctx.NOT_EQUALS()) return Operators.NotEquals;
+    if (ctx.IN()) return Operators.In;
+    return Operators.Equals; // Default
+  }
+
+  private buildCalc(ctx: CalcContext): Expr {
+    const unaryCtx = ctx.unary();
+    if (unaryCtx) {
+      return this.buildUnary(unaryCtx);
+    }
+
+    // Binary calc expression
+    const calcs = ctx.calc_list();
+    if (calcs.length !== 2) {
+      return this.reportError(ctx, "invalid calc");
+    }
+
+    const left = this.buildCalc(calcs[0]!);
+    const right = this.buildCalc(calcs[1]!);
+    const id = this.id(ctx);
+
+    // Determine operator
+    const op = this.getCalcOp(ctx);
+    const result = this.factory.createCall(id, op, left, right);
+    this.setPosition(id, ctx);
+    return result;
+  }
+
+  private getCalcOp(ctx: CalcContext): string {
+    if (ctx.STAR()) return Operators.Multiply;
+    if (ctx.SLASH()) return Operators.Divide;
+    if (ctx.PERCENT()) return Operators.Modulo;
+    if (ctx.PLUS()) return Operators.Add;
+    if (ctx.MINUS()) return Operators.Subtract;
+    return Operators.Add; // Default
+  }
+
+  private buildUnary(ctx: UnaryContext): Expr {
+    if (ctx instanceof LogicalNotContext) {
+      const inner = this.buildMember(ctx.member());
+      const id = this.id(ctx);
+      // Handle multiple consecutive ! operators
+      let result = inner;
+      const notCount = ctx.EXCLAM_list().length;
+      for (let i = 0; i < notCount; i++) {
+        result = this.factory.createCall(this.factory.nextId(), Operators.LogicalNot, result);
+      }
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    if (ctx instanceof NegateContext) {
+      const inner = this.buildMember(ctx.member());
+      const id = this.id(ctx);
+      // Handle multiple consecutive - operators
+      let result = inner;
+      const negCount = ctx.MINUS_list().length;
+      for (let i = 0; i < negCount; i++) {
+        result = this.factory.createCall(this.factory.nextId(), Operators.Negate, result);
+      }
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    // MemberExprContext
+    if (ctx instanceof MemberExprContext) {
+      return this.buildMember(ctx.member());
+    }
+
+    return this.reportError(ctx, "unknown unary expression");
+  }
+
+  private buildMember(ctx: MemberContext): Expr {
+    // PrimaryExpr
+    if (ctx instanceof PrimaryExprContext) {
+      return this.buildPrimary(ctx.primary());
+    }
+
+    // SelectContext: member.field or member?.field
+    if (ctx instanceof SelectContext) {
+      const operand = this.buildMember(ctx.member());
+      const id = this.id(ctx);
+
+      // Get the field name from escapeIdent()
+      const field = this.getEscapeIdentName(ctx.escapeIdent());
+
+      // Check for optional select (member?.field)
+      const isOptional = ctx.QUESTIONMARK() !== null;
+
+      if (isOptional) {
+        const result = this.factory.createCall(
+          id,
+          Operators.OptSelect,
+          operand,
+          this.factory.createStringLiteral(this.factory.nextId(), field)
+        );
+        this.setPosition(id, ctx);
+        return result;
+      }
+
+      const result = this.factory.createSelect(id, operand, field);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    // MemberCallContext: member.method(args)
+    if (ctx instanceof MemberCallContext) {
+      const target = this.buildMember(ctx.member());
+      const id = this.id(ctx);
+
+      // Get method name - MemberCallContext has IDENTIFIER() not escapeIdent()
+      const methodName = ctx.IDENTIFIER()?.getText() ?? "";
+
+      // Build arguments
+      const args = this.buildExprListContext(ctx.exprList());
+
+      // Try macro expansion first
+      const expanded = this.expandMacro(id, methodName, target, args);
+      if (expanded) {
+        return expanded;
+      }
+
+      const result = this.factory.createMemberCall(id, methodName, target, ...args);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    // IndexContext: member[index]
+    if (ctx instanceof IndexContext) {
+      const operand = this.buildMember(ctx.member());
+      const id = this.id(ctx);
+      const index = this.buildExpr(ctx.expr());
+
+      // Check for optional index (member[?index])
+      const isOptional = ctx.QUESTIONMARK() !== null;
+      const op = isOptional ? Operators.OptIndex : Operators.Index;
+
+      const result = this.factory.createCall(id, op, operand, index);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    return this.reportError(ctx, "unknown member expression");
+  }
+
+  private buildPrimary(ctx: PrimaryContext): Expr {
+    // IdentContext
+    if (ctx instanceof IdentContext) {
+      const id = this.id(ctx);
+      const leadingDot = ctx.DOT() !== null;
+      // IdentContext has IDENTIFIER() not escapeIdent()
+      let name = ctx.IDENTIFIER()?.getText() ?? "";
+      if (leadingDot) {
+        name = "." + name;
+      }
+      const result = this.factory.createIdent(id, name);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    // NestedContext: (expr)
+    if (ctx instanceof NestedContext) {
+      return this.buildExpr(ctx.expr());
+    }
+
+    // GlobalCallContext: function(args)
+    if (ctx instanceof GlobalCallContext) {
+      const id = this.id(ctx);
+      const leadingDot = ctx.DOT() !== null;
+      // GlobalCallContext has IDENTIFIER() not escapeIdent()
+      let functionName = ctx.IDENTIFIER()?.getText() ?? "";
+      if (leadingDot) {
+        functionName = "." + functionName;
+      }
+
+      // Build arguments
+      const args = this.buildExprListContext(ctx.exprList());
+
+      // Try macro expansion first (global macros like has())
+      const expanded = this.expandMacro(id, functionName, null, args);
+      if (expanded) {
+        return expanded;
+      }
+
+      const result = this.factory.createCall(id, functionName, ...args);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    // CreateListContext: [...]
+    if (ctx instanceof CreateListContext) {
+      return this.buildCreateList(ctx);
+    }
+
+    // CreateStructContext: {...}
+    if (ctx instanceof CreateStructContext) {
+      return this.buildCreateStruct(ctx);
+    }
+
+    // CreateMessageContext: TypeName{...}
+    if (ctx instanceof CreateMessageContext) {
+      return this.buildCreateMessage(ctx);
+    }
+
+    // ConstantLiteralContext
+    if (ctx instanceof ConstantLiteralContext) {
+      return this.buildLiteral(ctx);
+    }
+
+    return this.reportError(ctx, "unknown primary expression");
+  }
+
+  private buildCreateList(ctx: CreateListContext): Expr {
+    const id = this.id(ctx);
+    const listInit = ctx.listInit();
+
+    if (!listInit) {
+      const result = this.factory.createList(id, []);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    const elements: Expr[] = [];
+    const optionalIndices: number[] = [];
+    const optExprs = listInit.optExpr_list();
+
+    for (let i = 0; i < optExprs.length; i++) {
+      const optExpr = optExprs[i]!;
+      const expr = this.buildExpr(optExpr.expr());
+      elements.push(expr);
+
+      // Check for optional marker (?)
+      if (optExpr.QUESTIONMARK()) {
+        optionalIndices.push(i);
+      }
+    }
+
+    const result = this.factory.createList(id, elements, optionalIndices);
+    this.setPosition(id, ctx);
+    return result;
+  }
+
+  private buildCreateStruct(ctx: CreateStructContext): Expr {
+    const id = this.id(ctx);
+    const mapInit = ctx.mapInitializerList();
+
+    if (!mapInit) {
+      const result = this.factory.createMap(id, []);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    const entries: MapEntry[] = [];
+    const keys = mapInit.optExpr_list(); // Keys are OptExprContext
+    const values = mapInit.expr_list(); // Values are ExprContext
+
+    // Keys and values are stored in separate lists
+    for (let i = 0; i < keys.length; i++) {
+      const keyOptExpr = keys[i];
+      const valueExpr = values[i];
+
+      if (!keyOptExpr || !valueExpr) continue;
+
+      const key = this.buildExpr(keyOptExpr.expr());
+      const value = this.buildExpr(valueExpr);
+      const optional = keyOptExpr.QUESTIONMARK() !== null;
+      const entryId = this.factory.nextId();
+
+      entries.push(this.factory.createMapEntry(entryId, key, value, optional));
+    }
+
+    const result = this.factory.createMap(id, entries);
+    this.setPosition(id, ctx);
+    return result;
+  }
+
+  private buildCreateMessage(ctx: CreateMessageContext): Expr {
+    const id = this.id(ctx);
+
+    // Get type name (possibly qualified) - uses IDENTIFIER_list()
+    const leadingDot = ctx.DOT(0) !== null;
+    const identParts = ctx.IDENTIFIER_list();
+    let typeName = identParts.map((part: TerminalNode) => part.getText()).join(".");
+    if (leadingDot) {
+      typeName = "." + typeName;
+    }
+
+    const fieldInit = ctx.fieldInitializerList();
+    if (!fieldInit) {
+      const result = this.factory.createStruct(id, typeName, []);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    // FieldInitializerListContext has optField_list() and expr_list() as separate arrays
+    const fields: StructField[] = [];
+    const optFields = fieldInit.optField_list();
+    const exprs = fieldInit.expr_list();
+
+    for (let i = 0; i < optFields.length; i++) {
+      const optField = optFields[i]!;
+      const fieldIdent = optField.escapeIdent();
+      const fieldName = this.getEscapeIdentName(fieldIdent);
+      const fieldExpr = exprs[i]
+        ? this.buildExpr(exprs[i]!)
+        : this.reportError(ctx, "missing field value");
+      const optional = optField.QUESTIONMARK() !== null;
+      const fieldId = this.factory.nextId();
+
+      fields.push(this.factory.createStructField(fieldId, fieldName, fieldExpr, optional));
+    }
+
+    const result = this.factory.createStruct(id, typeName, fields);
+    this.setPosition(id, ctx);
+    return result;
+  }
+
+  private buildLiteral(ctx: ConstantLiteralContext): Expr {
+    const literal = ctx.literal();
+    const id = this.id(ctx);
+
+    if (literal instanceof IntContext) {
+      const value = this.parseIntLiteral(literal.getText());
+      const result = this.factory.createIntLiteral(id, value);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    if (literal instanceof UintContext) {
+      const text = literal.getText();
+      // Remove trailing 'u' or 'U'
+      const value = this.parseUintLiteral(text.slice(0, -1));
+      const result = this.factory.createUintLiteral(id, value);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    if (literal instanceof DoubleContext) {
+      const value = this.parseDoubleLiteral(literal.getText());
+      const result = this.factory.createDoubleLiteral(id, value);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    if (literal instanceof StringContext) {
+      const value = this.parseStringLiteral(literal.getText());
+      const result = this.factory.createStringLiteral(id, value);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    if (literal instanceof BytesContext) {
+      const value = this.parseBytesLiteral(literal.getText());
+      const result = this.factory.createBytesLiteral(id, value);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    if (literal instanceof BoolTrueContext) {
+      const result = this.factory.createBoolLiteral(id, true);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    if (literal instanceof BoolFalseContext) {
+      const result = this.factory.createBoolLiteral(id, false);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    if (literal instanceof NullContext) {
+      const result = this.factory.createNullLiteral(id);
+      this.setPosition(id, ctx);
+      return result;
+    }
+
+    return this.reportError(ctx, "unknown literal type");
+  }
+
+  // ============================================================================
+  // Macro expansion
+  // ============================================================================
+
+  private expandMacro(
+    callId: number,
+    functionName: string,
+    target: Expr | null,
+    args: Expr[]
+  ): Expr | null {
+    const receiverStyle = target !== null;
+    const argCount = args.length;
+
+    const macro = this.macroRegistry.findMacro(functionName, argCount, receiverStyle);
+    if (!macro) {
+      return null;
+    }
+
+    try {
+      const expanded = macro.expander()(this, target, args);
+      if (expanded && this.populateMacroCalls) {
+        // Record the original call expression for unparsing
+        const originalCall = receiverStyle
+          ? this.factory.createMemberCall(callId, functionName, target!, ...args)
+          : this.factory.createCall(callId, functionName, ...args);
+        this.sourceInfo.setMacroCall(expanded.id, originalCall);
+      }
+      return expanded;
+    } catch (e) {
+      if (e instanceof MacroError) {
+        // Return an error placeholder - in a real implementation we'd report this properly
+        return null;
+      }
+      throw e;
+    }
+  }
+
+  // ============================================================================
+  // Helper methods
+  // ============================================================================
+
+  private buildExprListContext(ctx: ExprListContext | null): Expr[] {
+    if (!ctx) {
+      return [];
+    }
+    return ctx.expr_list().map((e) => this.buildExpr(e));
+  }
+
+  private getEscapeIdentName(ctx: EscapeIdentContext | null): string {
+    if (!ctx) {
+      return "";
+    }
+    // Get text and remove backticks if present (for escaped identifiers)
+    const text = ctx.getText();
+    return text.replace(/^`|`$/g, "");
+  }
+
+  private id(_ctx: ParserRuleContext): number {
+    return this.factory.nextId();
+  }
+
+  private setPosition(id: number, ctx: ParserRuleContext): void {
+    const start = ctx.start?.start ?? 0;
+    const stop = ctx.stop?.stop ?? start;
+    this.sourceInfo.setPosition(id, { start, end: stop + 1 });
+  }
+
+  private reportError(ctx: ParserRuleContext, message: string): Expr {
+    // Create an error placeholder expression
+    // In a full implementation, we'd collect errors
+    console.error(`Parse error at ${ctx.start?.line}:${ctx.start?.column}: ${message}`);
+    return this.factory.createUnspecified(this.factory.nextId());
+  }
+
+  // ============================================================================
+  // Literal parsing
+  // ============================================================================
+
+  private parseIntLiteral(text: string): bigint {
+    // Handle hex (0x...), octal (0...), and decimal
+    if (text.startsWith("0x") || text.startsWith("0X")) {
+      return BigInt(text);
+    }
+    if (text.startsWith("0") && text.length > 1 && !text.includes(".")) {
+      // Octal
+      return BigInt("0o" + text.slice(1));
+    }
+    return BigInt(text);
+  }
+
+  private parseUintLiteral(text: string): bigint {
+    return this.parseIntLiteral(text);
+  }
+
+  private parseDoubleLiteral(text: string): number {
+    return Number.parseFloat(text);
+  }
+
+  private parseStringLiteral(text: string): string {
+    // Remove quotes and handle escape sequences
+    let str = text;
+
+    // Handle raw strings (r"..." or r'...')
+    if (str.startsWith("r") || str.startsWith("R")) {
+      str = str.slice(1);
+      // Raw strings don't process escapes, just remove quotes
+      if (str.startsWith('"""') || str.startsWith("'''")) {
+        return str.slice(3, -3);
+      }
+      return str.slice(1, -1);
+    }
+
+    // Handle triple-quoted strings
+    if (str.startsWith('"""') || str.startsWith("'''")) {
+      str = str.slice(3, -3);
+    } else {
+      // Single or double quoted
+      str = str.slice(1, -1);
+    }
+
+    // Process escape sequences
+    return this.processEscapes(str);
+  }
+
+  private parseBytesLiteral(text: string): Uint8Array {
+    // Remove b prefix and quotes
+    let str = text.slice(1); // Remove 'b'
+
+    // Handle raw bytes (br"..." or rb"...")
+    if (str.startsWith("r") || str.startsWith("R")) {
+      str = str.slice(1);
+    }
+
+    // Handle triple-quoted
+    if (str.startsWith('"""') || str.startsWith("'''")) {
+      str = str.slice(3, -3);
+    } else {
+      str = str.slice(1, -1);
+    }
+
+    // Process escapes and convert to bytes
+    const processed = this.processEscapes(str);
+    return new TextEncoder().encode(processed);
+  }
+
+  private processEscapes(str: string): string {
+    let result = "";
+    let i = 0;
+
+    while (i < str.length) {
+      if (str[i] === "\\" && i + 1 < str.length) {
+        const next = str[i + 1];
+        switch (next) {
+          case "n":
+            result += "\n";
+            i += 2;
+            break;
+          case "r":
+            result += "\r";
+            i += 2;
+            break;
+          case "t":
+            result += "\t";
+            i += 2;
+            break;
+          case "\\":
+            result += "\\";
+            i += 2;
+            break;
+          case '"':
+            result += '"';
+            i += 2;
+            break;
+          case "'":
+            result += "'";
+            i += 2;
+            break;
+          case "x": {
+            // Hex escape \xNN
+            const hex = str.slice(i + 2, i + 4);
+            result += String.fromCharCode(Number.parseInt(hex, 16));
+            i += 4;
+            break;
+          }
+          case "u": {
+            // Unicode escape \uNNNN
+            const unicode = str.slice(i + 2, i + 6);
+            result += String.fromCharCode(Number.parseInt(unicode, 16));
+            i += 6;
+            break;
+          }
+          case "U": {
+            // Extended unicode escape \UNNNNNNNN
+            const extUnicode = str.slice(i + 2, i + 10);
+            result += String.fromCodePoint(Number.parseInt(extUnicode, 16));
+            i += 10;
+            break;
+          }
+          default:
+            // Octal escape or unknown
+            if (next !== undefined && next >= "0" && next <= "7") {
+              let octal = next;
+              let j = i + 2;
+              while (j < str.length && j < i + 4) {
+                const ch = str[j];
+                if (ch !== undefined && ch >= "0" && ch <= "7") {
+                  octal += ch;
+                  j++;
+                } else {
+                  break;
+                }
+              }
+              result += String.fromCharCode(Number.parseInt(octal, 8));
+              i = j;
+            } else {
+              result += str[i];
+              i++;
+            }
+        }
+      } else {
+        result += str[i];
+        i++;
+      }
+    }
+
+    return result;
+  }
+}
+
+/**
+ * Parse a CEL expression and return an AST.
+ */
+export function parseToAST(
+  tree: StartContext,
+  source: string,
+  options: ParserHelperOptions = {}
+): AST {
+  const helper = new ParserHelper(source, options);
+  return helper.parse(tree);
+}

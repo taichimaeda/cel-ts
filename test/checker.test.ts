@@ -11,24 +11,42 @@ import {
   VariableDecl,
   check,
   formatType,
+  getStandardFunctions,
   isAssignable,
   isDynOrError,
 } from "../src/checker";
-import { CELLexer, CELParser } from "../src/parser";
+import { CELLexer, CELParser, parseToAST } from "../src/parser";
 
 // Helper function: parse and type check an expression
-const parseAndCheck = (expression: string, env: CheckerEnv = new CheckerEnv()) => {
+const parseAndCheck = (expression: string, env: CheckerEnv = createDefaultEnv()) => {
   const chars = new CharStream(expression);
   const lexer = new CELLexer(chars);
   const tokens = new CommonTokenStream(lexer);
   const parser = new CELParser(tokens);
   const tree = parser.start();
-  return check(tree, env);
+  // Convert ANTLR parse tree to our AST with macro expansion
+  const ast = parseToAST(tree, expression);
+  const result = check(ast, env);
+  // Return type from the root expression
+  return {
+    errors: result.errors,
+    type: result.ast.typeMap.get(result.ast.expr.id) ?? Type.Dyn,
+  };
+};
+
+// Create a default environment with standard library
+const createDefaultEnv = () => {
+  const env = new CheckerEnv();
+  // Add standard library functions
+  for (const fn of getStandardFunctions()) {
+    env.addFunctions(fn);
+  }
+  return env;
 };
 
 // Create an environment with common declarations
 const createTestEnv = () => {
-  const env = new CheckerEnv();
+  const env = createDefaultEnv();
 
   // Add variable declarations
   env.addIdents(
@@ -40,15 +58,6 @@ const createTestEnv = () => {
     new VariableDecl("list", Type.newListType(Type.Int)),
     new VariableDecl("map", Type.newMapType(Type.String, Type.Int))
   );
-
-  // Add size function
-  const sizeFunc = new FunctionDecl("size");
-  sizeFunc.addOverload(new OverloadDecl("size_list", [Type.newListType(Type.Dyn)], Type.Int));
-  sizeFunc.addOverload(
-    new OverloadDecl("size_map", [Type.newMapType(Type.Dyn, Type.Dyn)], Type.Int)
-  );
-  sizeFunc.addOverload(new OverloadDecl("size_string", [Type.String], Type.Int));
-  env.addFunctions(sizeFunc);
 
   return env;
 };
@@ -157,7 +166,7 @@ describe("Checker - Variables", () => {
     const env = createTestEnv();
     const result = parseAndCheck("undeclared", env);
     expect(result.errors.hasErrors()).toBe(true);
-    expect(result.type.kind).toBe(TypeKind.Dyn);
+    expect(result.type.kind).toBe(TypeKind.Error);
   });
 });
 

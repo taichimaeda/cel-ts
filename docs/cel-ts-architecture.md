@@ -10,11 +10,16 @@ cel-ts/
 │   ├── index.ts              # Public API entry point
 │   ├── cel.ts                # High-level CEL API (cel-go compatible)
 │   ├── version.ts            # Version information
-│   ├── parser/               # Lexer and parser (ANTLR-based)
+│   ├── common/               # Shared types and utilities
+│   │   └── ast.ts            # Canonical AST representation
+│   ├── parser/               # Lexer, parser, and macro expansion
 │   │   ├── gen/              # Generated ANTLR code
 │   │   │   ├── CELLexer.ts
 │   │   │   ├── CELParser.ts
 │   │   │   └── CELVisitor.ts
+│   │   ├── parser.ts         # ANTLR parser wrapper
+│   │   ├── helper.ts         # Parse tree to AST conversion
+│   │   ├── macro.ts          # Macro definitions and expansion
 │   │   └── index.ts
 │   ├── checker/              # Type checking and validation
 │   │   ├── checker.ts        # Main type checker
@@ -45,11 +50,20 @@ cel-ts/
 ## Processing Pipeline
 
 ```
-Expression String → Parse → Check → Plan → Eval → Result
-                     ↓       ↓       ↓       ↓
-                   AST    Typed    Inter-   Value
-                          AST     pretable
+Expression String → Parse → AST → Check → Plan → Eval → Result
+                     ↓        ↓       ↓        ↓       ↓
+                  Parse    Common   Typed    Inter-   Value
+                  Tree     AST      AST     pretable
+                           + Macros
 ```
+
+The cel-ts architecture follows the cel-go design pattern where:
+
+1. **Parse**: ANTLR parses expression into a parse tree
+2. **AST Conversion**: Parse tree is converted to a canonical AST representation with macro expansion
+3. **Check**: Type checker validates and annotates the AST
+4. **Plan**: Planner converts AST to optimized Interpretable tree
+5. **Eval**: Interpreter evaluates the Interpretable with runtime bindings
 
 ### Step 1: Environment Setup
 
@@ -83,15 +97,74 @@ console.log(result.value()); // "Alice is 30"
 
 ## Core Components
 
-### 1. Parser (`/src/parser/`)
+### 1. Common AST (`/src/common/ast.ts`)
+
+The canonical AST representation used throughout the system. All components (parser, checker, planner) work with this unified AST.
+
+**Expression Kinds**:
+```
+ExprKind:
+├── Literal      # Constants (int, string, bool, etc.)
+├── Ident        # Variable references
+├── Select       # Field access (obj.field)
+├── Call         # Function calls
+├── List         # List literals
+├── Map          # Map literals
+├── Struct       # Struct literals
+└── Comprehension # Macro-expanded loops (all, exists, map, filter)
+```
+
+**Key Types**:
+- `Expr`: Base expression type with `id` and `kind`
+- `AST`: Container for root expression, source info, type map, and reference map
+- `SourceInfo`: Position information for error reporting
+- `ReferenceInfo`: Resolved references (variables, functions)
+
+### 2. Parser (`/src/parser/`)
 
 - **ANTLR4-based**: Uses generated lexer and parser from CEL.g4 grammar
 - **Components**:
   - `CELLexer`: Tokenizes source code
   - `CELParser`: Builds parse tree from tokens
-  - `CELVisitor`: Visitor pattern for AST traversal
+  - `ParserHelper`: Converts parse tree to canonical AST
+  - `MacroRegistry`: Manages macro definitions and expansion
 
-### 2. Type System (`/src/checker/types.ts`)
+**Parse Flow**:
+```
+Source → ANTLR Lexer → Tokens → ANTLR Parser → Parse Tree → ParserHelper → AST
+                                                                    ↓
+                                                              Macro Expansion
+```
+
+### 3. Macros (`/src/parser/macro.ts`)
+
+Macros are expanded at parse time into comprehension expressions.
+
+**Standard Macros**:
+| Macro | Expansion | Description |
+|-------|-----------|-------------|
+| `has(m.field)` | Presence test | Check if field exists |
+| `list.all(x, pred)` | Comprehension | All elements match predicate |
+| `list.exists(x, pred)` | Comprehension | Any element matches predicate |
+| `list.exists_one(x, pred)` | Comprehension | Exactly one element matches |
+| `list.map(x, expr)` | Comprehension | Transform each element |
+| `list.map(x, pred, expr)` | Comprehension | Filter then transform |
+| `list.filter(x, pred)` | Comprehension | Filter elements |
+
+**Comprehension Structure**:
+```typescript
+interface ComprehensionExpr {
+  iterRange: Expr;     // Collection to iterate
+  iterVar: string;     // Loop variable name
+  accuVar: string;     // Accumulator variable name
+  accuInit: Expr;      // Initial accumulator value
+  loopCondition: Expr; // Continue condition
+  loopStep: Expr;      // Update accumulator
+  result: Expr;        // Final result
+}
+```
+
+### 4. Type System (`/src/checker/types.ts`)
 
 ```
 Type Kinds:
@@ -107,31 +180,42 @@ Type Kinds:
 - Type parameter support for generic functions
 - Type traits for capability checking (Adder, Comparer, Indexer, etc.)
 
-### 3. Type Checker (`/src/checker/checker.ts`)
+### 5. Type Checker (`/src/checker/checker.ts`)
 
 - **Purpose**: Validate expression types and build type annotations
 - **Process**:
   1. Traverse AST from root to leaves
   2. Infer types based on operators and operands
-  3. Validate operations against type traits
-  4. Build type map: `Map<nodeId, Type>`
+  3. Handle comprehension scoping (iteration and accumulator variables)
+  4. Validate operations against type traits
+  5. Build type map: `Map<nodeId, Type>`
+  6. Build reference map: `Map<nodeId, ReferenceInfo>`
 
-### 4. Interpreter (`/src/interpreter/`)
+**Comprehension Type Checking**:
+- Iteration variable type inferred from range (list element or map key)
+- Accumulator type inferred from initializer
+- Both variables scoped within the comprehension
+
+### 6. Interpreter (`/src/interpreter/`)
 
 #### Planner (`planner.ts`)
 Converts type-checked AST into optimized `Interpretable` tree:
 - Constant folding
 - Operator specialization
 - Short-circuit optimization setup
+- Comprehension to iterative evaluation
 
 #### Interpretable (`interpretable.ts`)
 Evaluable expression nodes:
-- `InterpretableConst`: Constant values
-- `InterpretableAttribute`: Variable/field access
-- `InterpretableCall`: Function invocations
-- `InterpretableConstructor`: List/map creation
-- `InterpretableAnd/Or`: Short-circuit logical ops
-- `InterpretableTernary`: Conditional expressions
+- `ConstValue`: Constant values
+- `IdentValue`: Variable access
+- `FieldValue` / `HasFieldValue`: Field access and presence tests
+- `CallValue` / `BinaryValue`: Function invocations
+- `CreateListValue` / `CreateMapValue`: Collection creation
+- `AndValue` / `OrValue`: Short-circuit logical ops
+- `ConditionalValue`: Ternary expressions
+- `ComprehensionValue`: Macro-expanded iterations
+- `NotStrictlyFalseValue`: Internal comprehension helper
 
 #### Activation (`activation.ts`)
 Runtime variable bindings:
@@ -152,7 +236,7 @@ interface Value {
 
 **Value Types**: `IntValue`, `StringValue`, `BoolValue`, `ListValue`, `MapValue`, etc.
 
-### 5. Function Dispatcher (`/src/interpreter/dispatcher.ts`)
+### 7. Function Dispatcher (`/src/interpreter/dispatcher.ts`)
 
 - Resolves function calls to implementations
 - Supports multiple overloads per function
@@ -229,10 +313,22 @@ class ParseError extends CELError { }
 
 | Category | Functions |
 |----------|-----------|
-| Type | `type()`, `has()` |
-| String | `size()`, `contains()`, `startsWith()`, `endsWith()` |
+| Type | `type()` |
+| String | `size()`, `contains()`, `startsWith()`, `endsWith()`, `matches()` |
 | Collection | `size()` |
 | Conversion | `int()`, `uint()`, `double()`, `string()`, `bytes()` |
+
+### Macros
+
+| Macro | Description |
+|-------|-------------|
+| `has(e.f)` | Test field presence |
+| `e.all(x, p)` | True if all elements satisfy predicate |
+| `e.exists(x, p)` | True if any element satisfies predicate |
+| `e.exists_one(x, p)` | True if exactly one element satisfies predicate |
+| `e.map(x, t)` | Transform elements |
+| `e.map(x, p, t)` | Filter then transform |
+| `e.filter(x, p)` | Filter elements by predicate |
 
 ## Design Patterns
 
@@ -242,14 +338,14 @@ class ParseError extends CELError { }
 | Visitor | Parse tree traversal, AST evaluation |
 | Strategy | Function overloads, type adapters |
 | Builder | `EnvOption` functional options |
-| Pipeline | Parse → Check → Plan → Eval |
+| Pipeline | Parse → AST → Check → Plan → Eval |
 
 ## Type Safety
 
 cel-ts leverages TypeScript's type system:
 
 - Generic type parameters for collections
-- Discriminated unions for AST nodes
+- Discriminated unions for AST nodes (`ExprKind`)
 - Strict null checks
 - Interface-based polymorphism
 
@@ -259,6 +355,7 @@ cel-ts leverages TypeScript's type system:
 2. **Constant Folding**: Pre-compute constant expressions during planning
 3. **Short-Circuit Evaluation**: `&&` and `||` avoid unnecessary evaluation
 4. **Lazy Activation**: Variables resolved only when accessed
+5. **Comprehension Optimization**: Early termination for `all`/`exists`
 
 ## Example Usage
 
@@ -299,9 +396,29 @@ const result = program.eval({
 console.log(result.value()); // "Alice is adult: true"
 ```
 
+### Macro Example
+
+```typescript
+import { Env, Variable, ListType, IntType } from "cel-ts";
+
+const env = new Env(
+  Variable("numbers", ListType(IntType))
+);
+
+// Filter positive numbers and double them
+const ast = env.compile('numbers.filter(x, x > 0).map(x, x * 2)');
+const program = env.program(ast);
+
+const result = program.eval({
+  numbers: [-1, 2, -3, 4, 5]
+});
+
+console.log(result.value()); // [4, 8, 10]
+```
+
 ## Future Enhancements
 
-- [ ] Macro support (`all()`, `exists()`, `map()`, `filter()`)
+- [x] Macro support (`all()`, `exists()`, `map()`, `filter()`, `has()`)
 - [ ] Optional field syntax (`?.field`, `[?index]`)
 - [ ] Protocol Buffer message support
 - [ ] Expression cost tracking

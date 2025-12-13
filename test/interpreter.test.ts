@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { VariableDecl } from "../src/checker";
+import { FunctionDecl, OverloadDecl, VariableDecl } from "../src/checker";
 import { Type } from "../src/checker/types";
 import {
   BoolValue,
   BytesValue,
+  DefaultDispatcher,
   DoubleValue,
+  Env,
   ErrorValue,
   IntValue,
   ListValue,
@@ -12,8 +14,10 @@ import {
   NullValue,
   StringValue,
   UintValue,
+  binaryOverload,
   evaluate,
-  newEnv,
+  functionOverload,
+  unaryOverload,
 } from "../src/interpreter";
 
 describe("CEL Interpreter", () => {
@@ -417,28 +421,6 @@ describe("CEL Interpreter", () => {
     });
   });
 
-  describe("Environment and Programs", () => {
-    test("should compile and evaluate with environment", () => {
-      const env = newEnv({
-        declarations: [new VariableDecl("x", Type.Int), new VariableDecl("y", Type.Int)],
-      });
-
-      const compileResult = env.compile("x + y");
-      expect(compileResult.error).toBeUndefined();
-      expect(compileResult.program).toBeDefined();
-
-      const evalResult = compileResult.program!.eval({ x: 10, y: 20 });
-      expect(evalResult.success).toBe(true);
-      expect((evalResult.value as IntValue).value()).toBe(30n);
-    });
-
-    test("should report compilation errors", () => {
-      const env = newEnv();
-      const result = env.compile("1 + + 2");
-      expect(result.error).toBeDefined();
-    });
-  });
-
   describe("Complex Expressions", () => {
     test("should evaluate complex boolean expressions", () => {
       const result = evaluate("(1 < 2) && (3 > 2) || false");
@@ -462,6 +444,462 @@ describe("CEL Interpreter", () => {
       });
       expect(result.success).toBe(true);
       expect((result.value as IntValue).value()).toBe(28n);
+    });
+  });
+
+  describe("Environment with Custom Variables", () => {
+    test("should compile and evaluate with environment", () => {
+      const env = new Env({
+        declarations: [new VariableDecl("x", Type.Int), new VariableDecl("y", Type.Int)],
+      });
+
+      const compileResult = env.compile("x + y");
+      expect(compileResult.error).toBeUndefined();
+      expect(compileResult.program).toBeDefined();
+
+      const evalResult = compileResult.program!.eval({ x: 10, y: 20 });
+      expect(evalResult.success).toBe(true);
+      expect((evalResult.value as IntValue).value()).toBe(30n);
+    });
+
+    test("should report compilation errors", () => {
+      const env = new Env();
+      const result = env.compile("1 + + 2");
+      expect(result.error).toBeDefined();
+    });
+  });
+
+  describe("Environment with Custom Functions", () => {
+    describe("Global functions with unary binding", () => {
+      test("should evaluate custom unary function", () => {
+        const greetFn = new FunctionDecl("greet");
+        greetFn.addOverload(new OverloadDecl("greet_string", [Type.String], Type.String));
+
+        const dispatcher = new DefaultDispatcher();
+        dispatcher.add(
+          unaryOverload("greet_string", (arg) => new StringValue(`Hello, ${arg.value()}!`))
+        );
+
+        const env = new Env({
+          declarations: [greetFn],
+          functions: dispatcher,
+        });
+
+        const compileResult = env.compile('greet("world")');
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval();
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as StringValue).value()).toBe("Hello, world!");
+      });
+
+      test("should evaluate custom function returning int", () => {
+        const doubleItFn = new FunctionDecl("doubleIt");
+        doubleItFn.addOverload(new OverloadDecl("doubleIt_int", [Type.Int], Type.Int));
+
+        const dispatcher = new DefaultDispatcher();
+        dispatcher.add(
+          unaryOverload("doubleIt_int", (arg) => IntValue.of((arg.value() as bigint) * 2n))
+        );
+
+        const env = new Env({
+          declarations: [doubleItFn],
+          functions: dispatcher,
+        });
+
+        const compileResult = env.compile("doubleIt(21)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval();
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as IntValue).value()).toBe(42n);
+      });
+    });
+
+    describe("Global functions with binary binding", () => {
+      test("should evaluate custom binary function", () => {
+        const addFn = new FunctionDecl("myAdd");
+        addFn.addOverload(new OverloadDecl("myAdd_int_int", [Type.Int, Type.Int], Type.Int));
+
+        const dispatcher = new DefaultDispatcher();
+        dispatcher.add(
+          binaryOverload("myAdd_int_int", (lhs, rhs) =>
+            IntValue.of((lhs.value() as bigint) + (rhs.value() as bigint))
+          )
+        );
+
+        const env = new Env({
+          declarations: [addFn],
+          functions: dispatcher,
+        });
+
+        const compileResult = env.compile("myAdd(10, 32)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval();
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as IntValue).value()).toBe(42n);
+      });
+
+      test("should evaluate custom string concat function", () => {
+        const concatFn = new FunctionDecl("concat");
+        concatFn.addOverload(
+          new OverloadDecl("concat_string_string", [Type.String, Type.String], Type.String)
+        );
+
+        const dispatcher = new DefaultDispatcher();
+        dispatcher.add(
+          binaryOverload(
+            "concat_string_string",
+            (lhs, rhs) => new StringValue(`${lhs.value()}${rhs.value()}`)
+          )
+        );
+
+        const env = new Env({
+          declarations: [concatFn],
+          functions: dispatcher,
+        });
+
+        const compileResult = env.compile('concat("hello", "world")');
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval();
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as StringValue).value()).toBe("helloworld");
+      });
+    });
+
+    describe("Global functions with n-ary binding", () => {
+      test("should evaluate custom function with 3 arguments", () => {
+        const sumFn = new FunctionDecl("sum3");
+        sumFn.addOverload(
+          new OverloadDecl("sum3_int_int_int", [Type.Int, Type.Int, Type.Int], Type.Int)
+        );
+
+        const dispatcher = new DefaultDispatcher();
+        dispatcher.add(
+          functionOverload("sum3_int_int_int", (args) => {
+            const a = args[0]!.value() as bigint;
+            const b = args[1]!.value() as bigint;
+            const c = args[2]!.value() as bigint;
+            return IntValue.of(a + b + c);
+          })
+        );
+
+        const env = new Env({
+          declarations: [sumFn],
+          functions: dispatcher,
+        });
+
+        const compileResult = env.compile("sum3(10, 20, 12)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval();
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as IntValue).value()).toBe(42n);
+      });
+    });
+
+    describe("Member functions", () => {
+      test("should evaluate custom member function (unary)", () => {
+        const reverseFn = new FunctionDecl("reverse");
+        reverseFn.addOverload(
+          new OverloadDecl("string_reverse", [Type.String], Type.String, [], true)
+        );
+
+        const dispatcher = new DefaultDispatcher();
+        dispatcher.add(
+          unaryOverload(
+            "string_reverse",
+            (arg) => new StringValue(String(arg.value()).split("").reverse().join(""))
+          )
+        );
+
+        const env = new Env({
+          declarations: [reverseFn],
+          functions: dispatcher,
+        });
+
+        const compileResult = env.compile('"hello".reverse()');
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval();
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as StringValue).value()).toBe("olleh");
+      });
+
+      test("should evaluate custom member function (binary)", () => {
+        const repeatFn = new FunctionDecl("repeat");
+        repeatFn.addOverload(
+          new OverloadDecl("string_repeat_int", [Type.String, Type.Int], Type.String, [], true)
+        );
+
+        const dispatcher = new DefaultDispatcher();
+        dispatcher.add(
+          binaryOverload(
+            "string_repeat_int",
+            (str, count) => new StringValue(String(str.value()).repeat(Number(count.value())))
+          )
+        );
+
+        const env = new Env({
+          declarations: [repeatFn],
+          functions: dispatcher,
+        });
+
+        const compileResult = env.compile('"ab".repeat(3)');
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval();
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as StringValue).value()).toBe("ababab");
+      });
+    });
+
+    describe("Custom functions with variables", () => {
+      test("should use custom function with variable arguments", () => {
+        const isPositiveFn = new FunctionDecl("isPositive");
+        isPositiveFn.addOverload(new OverloadDecl("isPositive_int", [Type.Int], Type.Bool));
+
+        const dispatcher = new DefaultDispatcher();
+        dispatcher.add(
+          unaryOverload("isPositive_int", (arg) => BoolValue.of((arg.value() as bigint) > 0n))
+        );
+
+        const env = new Env({
+          declarations: [isPositiveFn, new VariableDecl("x", Type.Int)],
+          functions: dispatcher,
+        });
+
+        const compileResult = env.compile("isPositive(x)");
+        expect(compileResult.error).toBeUndefined();
+
+        const result1 = compileResult.program!.eval({ x: 10 });
+        expect(result1.success).toBe(true);
+        expect((result1.value as BoolValue).value()).toBe(true);
+
+        const result2 = compileResult.program!.eval({ x: -5 });
+        expect(result2.success).toBe(true);
+        expect((result2.value as BoolValue).value()).toBe(false);
+      });
+    });
+
+    describe("Custom function error handling", () => {
+      test("should return error from custom function", () => {
+        const safeDivFn = new FunctionDecl("safeDiv");
+        safeDivFn.addOverload(new OverloadDecl("safeDiv_int_int", [Type.Int, Type.Int], Type.Int));
+
+        const dispatcher = new DefaultDispatcher();
+        dispatcher.add(
+          binaryOverload("safeDiv_int_int", (lhs, rhs) => {
+            const divisor = rhs.value() as bigint;
+            if (divisor === 0n) {
+              return ErrorValue.create("division by zero");
+            }
+            return IntValue.of((lhs.value() as bigint) / divisor);
+          })
+        );
+
+        const env = new Env({
+          declarations: [safeDivFn],
+          functions: dispatcher,
+        });
+
+        const compileResult = env.compile("safeDiv(10, 0)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval();
+        expect(evalResult.success).toBe(false);
+        expect(evalResult.error).toContain("division by zero");
+      });
+    });
+  });
+
+  describe("Macros", () => {
+    describe("has() macro", () => {
+      test("should return true for existing map key", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("m", Type.newMapType(Type.String, Type.Int))],
+        });
+        const compileResult = env.compile("has(m.foo)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ m: { foo: 42 } });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(true);
+      });
+
+      test("should return false for missing map key", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("m", Type.newMapType(Type.String, Type.Int))],
+        });
+        const compileResult = env.compile("has(m.bar)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ m: { foo: 42 } });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(false);
+      });
+    });
+
+    describe("all() macro", () => {
+      test("should return true when all elements match predicate", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.all(x, x > 0)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, 3, 4, 5] });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(true);
+      });
+
+      test("should return false when some elements do not match", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.all(x, x > 0)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, -1, 4, 5] });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(false);
+      });
+
+      test("should return true for empty list", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.all(x, x > 0)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [] });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(true);
+      });
+    });
+
+    describe("exists() macro", () => {
+      test("should return true when any element matches predicate", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.exists(x, x > 3)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, 3, 4, 5] });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(true);
+      });
+
+      test("should return false when no elements match", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.exists(x, x > 10)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, 3, 4, 5] });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(false);
+      });
+
+      test("should return false for empty list", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.exists(x, x > 0)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [] });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(false);
+      });
+    });
+
+    describe("exists_one() macro", () => {
+      test("should return true when exactly one element matches", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.exists_one(x, x > 4)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, 3, 4, 5] });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(true);
+      });
+
+      test("should return false when zero elements match", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.exists_one(x, x > 10)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, 3, 4, 5] });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(false);
+      });
+
+      test("should return false when multiple elements match", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.exists_one(x, x > 3)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, 3, 4, 5] });
+        expect(evalResult.success).toBe(true);
+        expect((evalResult.value as BoolValue).value()).toBe(false);
+      });
+    });
+
+    describe("map() macro", () => {
+      test("should transform list elements", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.map(x, x * 2)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, 3] });
+        expect(evalResult.success).toBe(true);
+        expect(evalResult.value).toBeInstanceOf(ListValue);
+        const resultList = evalResult.value as ListValue;
+        expect(resultList.size().value()).toBe(3n);
+        expect((resultList.get(IntValue.of(0n)) as IntValue).value()).toBe(2n);
+        expect((resultList.get(IntValue.of(1n)) as IntValue).value()).toBe(4n);
+        expect((resultList.get(IntValue.of(2n)) as IntValue).value()).toBe(6n);
+      });
+
+      test("should handle map with filter", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.map(x, x > 2, x * 10)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, 3, 4, 5] });
+        expect(evalResult.success).toBe(true);
+        expect(evalResult.value).toBeInstanceOf(ListValue);
+        const resultList = evalResult.value as ListValue;
+        expect(resultList.size().value()).toBe(3n);
+        expect((resultList.get(IntValue.of(0n)) as IntValue).value()).toBe(30n);
+        expect((resultList.get(IntValue.of(1n)) as IntValue).value()).toBe(40n);
+        expect((resultList.get(IntValue.of(2n)) as IntValue).value()).toBe(50n);
+      });
+    });
+
+    describe("filter() macro", () => {
+      test("should filter list elements", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.filter(x, x > 2)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, 3, 4, 5] });
+        expect(evalResult.success).toBe(true);
+        expect(evalResult.value).toBeInstanceOf(ListValue);
+        const resultList = evalResult.value as ListValue;
+        expect(resultList.size().value()).toBe(3n);
+        expect((resultList.get(IntValue.of(0n)) as IntValue).value()).toBe(3n);
+        expect((resultList.get(IntValue.of(1n)) as IntValue).value()).toBe(4n);
+        expect((resultList.get(IntValue.of(2n)) as IntValue).value()).toBe(5n);
+      });
+
+      test("should return empty list when no elements match", () => {
+        const env = new Env({
+          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+        });
+        const compileResult = env.compile("list.filter(x, x > 10)");
+        expect(compileResult.error).toBeUndefined();
+        const evalResult = compileResult.program!.eval({ list: [1, 2, 3, 4, 5] });
+        expect(evalResult.success).toBe(true);
+        expect(evalResult.value).toBeInstanceOf(ListValue);
+        const resultList = evalResult.value as ListValue;
+        expect(resultList.size().value()).toBe(0n);
+      });
     });
   });
 });

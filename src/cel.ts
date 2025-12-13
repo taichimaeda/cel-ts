@@ -2,12 +2,13 @@
 // TypeScript-native top-level API
 // Based on cel-go's cel/cel.go, cel/env.go, cel/program.go
 
-import { type CheckResult, Checker } from "./checker/checker";
+import { check as checkAST } from "./checker/checker";
 import { FunctionDecl, OverloadDecl, VariableDecl } from "./checker/decls";
 import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
 import type { CheckerError } from "./checker/errors";
 import { getStandardFunctions } from "./checker/stdlib";
 import { Type } from "./checker/types";
+import type { AST as CommonAST } from "./common/ast";
 import {
   type Activation,
   EmptyActivation,
@@ -28,8 +29,7 @@ import {
   type Value,
   isError,
 } from "./interpreter/values";
-import { Parser } from "./parser";
-import type { StartContext } from "./parser/gen/CELParser.js";
+import { Parser, parseToAST } from "./parser";
 
 // ============================================================================
 // Errors - CEL Error Types
@@ -194,28 +194,36 @@ export class Issues {
  * Ast represents a parsed and optionally type-checked CEL expression.
  */
 export class Ast {
-  readonly tree: StartContext;
+  readonly ast: CommonAST;
   readonly source: string;
-  readonly checkResult: CheckResult | undefined;
+  private _isChecked: boolean;
 
-  constructor(tree: StartContext, source: string, checkResult?: CheckResult) {
-    this.tree = tree;
+  constructor(ast: CommonAST, source: string, isChecked = false) {
+    this.ast = ast;
     this.source = source;
-    this.checkResult = checkResult;
+    this._isChecked = isChecked;
   }
 
   /**
    * Returns true if the AST has been type-checked.
    */
   get isChecked(): boolean {
-    return this.checkResult !== undefined;
+    return this._isChecked;
   }
 
   /**
    * Returns the output type of the expression (if type-checked).
    */
   get outputType(): Type | undefined {
-    return this.checkResult?.type;
+    if (!this._isChecked) return undefined;
+    return this.ast.typeMap.get(this.ast.expr.id);
+  }
+
+  /**
+   * Mark this AST as checked.
+   */
+  markChecked(): void {
+    this._isChecked = true;
   }
 }
 
@@ -545,7 +553,10 @@ export class Env {
     if (!parseResult.tree) {
       throw new ParseError(parseResult.error ?? "failed to parse expression");
     }
-    return new Ast(parseResult.tree, expression);
+
+    // Convert ANTLR parse tree to our AST with macro expansion
+    const ast = parseToAST(parseResult.tree, expression);
+    return new Ast(ast, expression);
   }
 
   /**
@@ -558,53 +569,53 @@ export class Env {
       throw new ParseError(parseResult.error ?? "failed to parse expression");
     }
 
-    const tree = parseResult.tree;
+    // Convert ANTLR parse tree to our AST with macro expansion
+    const ast = parseToAST(parseResult.tree, expression);
 
     if (this.config.disableTypeChecking) {
-      return new Ast(tree, expression);
+      return new Ast(ast, expression);
     }
 
-    const checker = this.createChecker();
-    const checkResult = checker.check(tree);
+    const checkResult = checkAST(ast, this.checkerEnv);
 
     if (checkResult.errors.hasErrors()) {
       const issues = new Issues(checkResult.errors.getErrors().slice(), expression);
       throw new CompileError(issues.toString(), issues);
     }
 
-    return new Ast(tree, expression, checkResult);
+    return new Ast(ast, expression, true);
   }
 
   /**
    * Type-check a parsed Ast.
    * Throws CompileError on failure.
    */
-  check(ast: Ast): Ast {
+  check(celAst: Ast): Ast {
     if (this.config.disableTypeChecking) {
-      return ast;
+      return celAst;
     }
 
-    const checker = this.createChecker();
-    const checkResult = checker.check(ast.tree);
+    const checkResult = checkAST(celAst.ast, this.checkerEnv);
 
     if (checkResult.errors.hasErrors()) {
-      const issues = new Issues(checkResult.errors.getErrors().slice(), ast.source);
+      const issues = new Issues(checkResult.errors.getErrors().slice(), celAst.source);
       throw new CompileError(issues.toString(), issues);
     }
 
-    return new Ast(ast.tree, ast.source, checkResult);
+    celAst.markChecked();
+    return celAst;
   }
 
   /**
    * Create a Program from an Ast.
    */
-  program(ast: Ast): Program {
+  program(celAst: Ast): Program {
     const planner = new Planner({
       dispatcher: this.dispatcher,
-      refMap: ast.checkResult?.refMap,
+      refMap: celAst.isChecked ? celAst.ast.refMap : undefined,
     });
 
-    const interpretable = planner.plan(ast.tree);
+    const interpretable = planner.plan(celAst.ast);
     return new Program(interpretable, this.config.adapter);
   }
 
@@ -624,10 +635,6 @@ export class Env {
     }
 
     return Env.fromConfig(newConfig);
-  }
-
-  private createChecker(): Checker {
-    return new Checker(this.checkerEnv);
   }
 
   private initialize(config: EnvConfig): void {
