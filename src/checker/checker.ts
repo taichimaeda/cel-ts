@@ -18,9 +18,10 @@ import {
   createFunctionReference,
   createIdentReference,
 } from "../common/ast";
+import type { SourceInfo } from "../common/ast";
 import { type OverloadDecl, VariableDecl } from "./decls";
 import type { CheckerEnv } from "./env";
-import { CheckerErrors } from "./errors";
+import { CheckerErrors, type Location } from "./errors";
 import { TypeMapping, isAssignableWithMapping, joinTypes, substitute } from "./mapping";
 import { Type, TypeKind, isAssignable, isDynOrError } from "./types";
 
@@ -42,6 +43,7 @@ export class Checker {
   private readonly errors: CheckerErrors;
   private readonly typeMap: Map<number, Type>;
   private readonly refMap: Map<number, ReferenceInfo>;
+  private sourceInfo!: SourceInfo;
   private mapping: TypeMapping = new TypeMapping();
   private typeVarCounter = 0;
 
@@ -56,6 +58,7 @@ export class Checker {
    * Check an AST expression
    */
   check(ast: AST): CheckResult {
+    this.sourceInfo = ast.sourceInfo;
     this.checkExpr(ast.expr);
 
     // Substitute type parameters in final type map
@@ -150,7 +153,12 @@ export class Checker {
     }
 
     this.setType(e.id, Type.Error);
-    this.errors.reportUndeclaredReference(e.id, this.env.getContainer().name, identName);
+    this.errors.reportUndeclaredReference(
+      e.id,
+      this.env.getContainer().name,
+      identName,
+      this.getLocation(e.id)
+    );
   }
 
   /**
@@ -202,7 +210,7 @@ export class Checker {
         if (fieldType) {
           resultType = fieldType;
         } else {
-          this.errors.reportUndefinedField(id, field);
+          this.errors.reportUndefinedField(id, field, this.getLocation(id));
         }
         break;
 
@@ -215,7 +223,7 @@ export class Checker {
       default:
         // Dynamic/error values are treated as dyn
         if (!isDynOrError(targetType)) {
-          this.errors.reportUnexpectedType(id, "struct or map", targetType);
+          this.errors.reportUnexpectedType(id, "struct or map", targetType, this.getLocation(id));
         }
         resultType = Type.Dyn;
     }
@@ -227,14 +235,6 @@ export class Checker {
    * Check a call expression
    */
   private checkCall(e: CallExpr): void {
-    const fnName = e.function;
-
-    // Handle optional select
-    if (fnName === "_?._") {
-      this.checkOptSelect(e);
-      return;
-    }
-
     // Check arguments
     for (const arg of e.args) {
       this.checkExpr(arg);
@@ -264,7 +264,12 @@ export class Checker {
     // Check function exists
     const fn = this.env.lookupFunction(fnName);
     if (!fn) {
-      this.errors.reportUndeclaredReference(e.id, this.env.getContainer().name, fnName);
+      this.errors.reportUndeclaredReference(
+        e.id,
+        this.env.getContainer().name,
+        fnName,
+        this.getLocation(e.id)
+      );
       this.setType(e.id, Type.Error);
       return;
     }
@@ -287,7 +292,12 @@ export class Checker {
     // Condition must be bool
     const condType = this.getType(condArg.id);
     if (!this.isAssignable(Type.Bool, condType)) {
-      this.errors.reportTypeMismatch(condArg.id, Type.Bool, condType);
+      this.errors.reportTypeMismatch(
+        condArg.id,
+        Type.Bool,
+        condType,
+        this.getLocation(condArg.id)
+      );
     }
 
     // Retrieve branch types and join them
@@ -340,44 +350,13 @@ export class Checker {
       return;
     }
 
-    this.errors.reportUndeclaredReference(e.id, this.env.getContainer().name, fnName);
+    this.errors.reportUndeclaredReference(
+      e.id,
+      this.env.getContainer().name,
+      fnName,
+      this.getLocation(e.id)
+    );
     this.setType(e.id, Type.Error);
-  }
-
-  /**
-   * Check optional select
-   */
-  private checkOptSelect(e: CallExpr): void {
-    if (e.args.length !== 2) {
-      this.setType(e.id, Type.Error);
-      return;
-    }
-
-    const operand = e.args[0]!;
-    const field = e.args[1]!;
-
-    this.checkExpr(operand);
-    this.checkExpr(field);
-
-    // Field should be a string literal
-    if (field.kind !== ExprKind.Literal) {
-      this.setType(e.id, Type.Error);
-      return;
-    }
-
-    const lit = field as LiteralExpr;
-    if (lit.value.kind !== "string") {
-      this.setType(e.id, Type.Error);
-      return;
-    }
-
-    const fieldName = lit.value.value as string;
-    const operandType = substitute(this.getType(operand.id), this.mapping, false);
-    const resultType = this.checkSelectField(e.id, operandType, fieldName);
-
-    // Optional select returns optional type
-    this.setType(e.id, Type.newOptionalType(resultType));
-    this.setRef(e.id, createFunctionReference("select_optional_field"));
   }
 
   /**
@@ -444,7 +423,7 @@ export class Checker {
     // Look up struct type
     const structType = this.env.getProvider().findStructType(typeName);
     if (!structType) {
-      this.errors.reportNotAMessageType(e.id, typeName);
+      this.errors.reportNotAMessageType(e.id, typeName, this.getLocation(e.id));
       this.setType(e.id, Type.Dyn);
       return;
     }
@@ -456,11 +435,16 @@ export class Checker {
       // Validate field exists
       const fieldType = this.env.lookupFieldType(structType, field.name);
       if (!fieldType) {
-        this.errors.reportUndefinedField(field.id, field.name);
+        this.errors.reportUndefinedField(field.id, field.name, this.getLocation(field.id));
       } else {
         const valueType = this.getType(field.value.id);
         if (!isDynOrError(valueType) && !isAssignable(fieldType, valueType)) {
-          this.errors.reportTypeMismatch(field.id, fieldType, valueType);
+          this.errors.reportTypeMismatch(
+            field.id,
+            fieldType,
+            valueType,
+            this.getLocation(field.id)
+          );
         }
       }
     }
@@ -499,7 +483,12 @@ export class Checker {
     this.checkExpr(e.loopCondition);
     const condType = this.getType(e.loopCondition.id);
     if (!isDynOrError(condType) && condType.kind !== TypeKind.Bool) {
-      this.errors.reportTypeMismatch(e.loopCondition.id, Type.Bool, condType);
+      this.errors.reportTypeMismatch(
+        e.loopCondition.id,
+        Type.Bool,
+        condType,
+        this.getLocation(e.loopCondition.id)
+      );
     }
 
     // Check loop step
@@ -507,7 +496,12 @@ export class Checker {
     const stepType = this.getType(e.loopStep.id);
     if (!isDynOrError(stepType) && !isDynOrError(accuType)) {
       if (!isAssignable(accuType, stepType)) {
-        this.errors.reportTypeMismatch(e.loopStep.id, accuType, stepType);
+        this.errors.reportTypeMismatch(
+          e.loopStep.id,
+          accuType,
+          stepType,
+          this.getLocation(e.loopStep.id)
+        );
       }
     }
 
@@ -531,7 +525,13 @@ export class Checker {
   ): void {
     const resolved = this.resolveOverload(overloads, argTypes, isMemberCall);
     if (!resolved) {
-      this.errors.reportNoMatchingOverload(e.id, e.function, argTypes, isMemberCall);
+      this.errors.reportNoMatchingOverload(
+        e.id,
+        e.function,
+        argTypes,
+        isMemberCall,
+        this.getLocation(e.id)
+      );
       this.setType(e.id, Type.Error);
       return;
     }
@@ -695,6 +695,19 @@ export class Checker {
 
   private setRef(id: number, ref: ReferenceInfo): void {
     this.refMap.set(id, ref);
+  }
+
+  private getLocation(exprId: number): Location | undefined {
+    const position = this.sourceInfo.getPosition(exprId);
+    if (!position) {
+      return undefined;
+    }
+    const { line, column } = this.sourceInfo.getLocation(position.start);
+    return {
+      line,
+      column,
+      offset: position.start,
+    };
   }
 }
 

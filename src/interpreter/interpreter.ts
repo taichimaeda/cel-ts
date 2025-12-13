@@ -14,9 +14,10 @@ import { type FunctionDecl, VariableDecl } from "../checker/decls";
 import { CheckerEnv, Container } from "../checker/env";
 import { getStandardFunctions } from "../checker/stdlib";
 import { Type } from "../checker/types";
+import type { SourceInfo } from "../common/ast";
 import CELLexer from "../parser/gen/CELLexer.js";
 import CELParser, { type StartContext } from "../parser/gen/CELParser.js";
-import { parseToAST } from "../parser/helper";
+import { ParserHelper } from "../parser/helper";
 import { type Activation, EmptyActivation, LazyActivation, MapActivation } from "./activation";
 import { DefaultDispatcher, type Dispatcher } from "./dispatcher";
 import { registerStandardFunctions } from "./functions";
@@ -128,7 +129,8 @@ export class Env {
     const tree = parseResult.tree!;
 
     // Convert ANTLR parse tree to our AST with macro expansion
-    const ast = parseToAST(tree, expression);
+    const helper = new ParserHelper(expression);
+    const ast = helper.parse(tree);
 
     // Type check (if enabled)
     let checkResult: CheckResult | undefined;
@@ -152,7 +154,12 @@ export class Env {
     const interpretable = planner.plan(ast);
 
     // Create Program
-    const program = new InterpretableProgram(interpretable, checkResult, this.adapter);
+    const program = new InterpretableProgram(
+      interpretable,
+      checkResult,
+      this.adapter,
+      ast.sourceInfo
+    );
 
     return {
       program,
@@ -255,15 +262,18 @@ class InterpretableProgram implements Program {
   private readonly interpretable: Interpretable;
   private readonly checkResultValue: CheckResult | undefined;
   private readonly adapter: TypeAdapter;
+  private readonly sourceInfo: SourceInfo;
 
   constructor(
     interpretable: Interpretable,
     checkResult: CheckResult | undefined,
-    adapter: TypeAdapter
+    adapter: TypeAdapter,
+    sourceInfo: SourceInfo
   ) {
     this.interpretable = interpretable;
     this.checkResultValue = checkResult;
     this.adapter = adapter;
+    this.sourceInfo = sourceInfo;
   }
 
   eval(vars?: ProgramInput): EvalResult {
@@ -284,10 +294,11 @@ class InterpretableProgram implements Program {
       const value = this.interpretable.eval(activation);
 
       if (isError(value)) {
+        const formatted = formatRuntimeError(value as ErrorValue, this.sourceInfo);
         return {
           value,
           success: false,
-          error: (value as ErrorValue).getMessage(),
+          error: formatted,
         };
       }
 
@@ -317,6 +328,19 @@ function isActivation(value: unknown): value is Activation {
     "resolve" in (value as Record<string, unknown>) &&
     typeof (value as Activation).resolve === "function"
   );
+}
+
+function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): string {
+  const exprId = error.getExprId();
+  if (exprId === undefined) {
+    return error.getMessage();
+  }
+  const position = sourceInfo.getPosition(exprId);
+  if (!position) {
+    return error.getMessage();
+  }
+  const { line, column } = sourceInfo.getLocation(position.start);
+  return `${line}:${column}: ${error.getMessage()}`;
 }
 
 /**
@@ -392,27 +416,4 @@ export function evaluate(
   }
 
   return result.program.eval(vars);
-}
-
-/**
- * Parse and check a CEL expression without evaluating.
- */
-export function checkExpression(expression: string, options?: EnvOptions): CheckResult | string {
-  const env = new Env(options);
-  const result = env.compile(expression);
-
-  if (result.error) {
-    return result.error;
-  }
-
-  if (!result.program) {
-    return "compilation failed";
-  }
-
-  const checkResult = result.program.checkResult();
-  if (!checkResult) {
-    return "type checking not performed";
-  }
-
-  return checkResult;
 }

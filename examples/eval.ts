@@ -1,6 +1,6 @@
-import { Env, StringType, Variable } from "../src/cel";
+import { Env, StringType, VariableOption } from "../src/cel";
 
-const env = new Env(Variable("name", StringType));
+const env = new Env(new VariableOption("name", StringType));
 const ast = env.compile(`"Hello world! I'm " + name + "."`);
 const program = env.program(ast);
 

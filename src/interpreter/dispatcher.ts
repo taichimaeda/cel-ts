@@ -39,6 +39,51 @@ export interface Overload {
   nonStrict?: boolean | undefined;
 }
 
+/**
+ * Represents a unary dispatcher overload.
+ */
+export class UnaryDispatcherOverload implements Overload {
+  readonly id: string;
+  readonly unary: UnaryOp;
+  readonly operandTrait?: number | undefined;
+
+  constructor(id: string, op: UnaryOp, operandTrait?: number) {
+    this.id = id;
+    this.unary = op;
+    this.operandTrait = operandTrait;
+  }
+}
+
+/**
+ * Represents a binary dispatcher overload.
+ */
+export class BinaryDispatcherOverload implements Overload {
+  readonly id: string;
+  readonly binary: BinaryOp;
+  readonly operandTrait?: number | undefined;
+
+  constructor(id: string, op: BinaryOp, operandTrait?: number) {
+    this.id = id;
+    this.binary = op;
+    this.operandTrait = operandTrait;
+  }
+}
+
+/**
+ * Represents a variadic dispatcher overload.
+ */
+export class VariadicDispatcherOverload implements Overload {
+  readonly id: string;
+  readonly nary: FunctionOp;
+  readonly nonStrict?: boolean;
+
+  constructor(id: string, op: FunctionOp, options: { nonStrict?: boolean } = {}) {
+    this.id = id;
+    this.nary = op;
+    this.nonStrict = options.nonStrict ?? false;
+  }
+}
+
 function invokeOverload(overload: Overload, args: Value[]): Value | undefined {
   if (overload.unary && args.length === 1) {
     const [arg] = args;
@@ -324,37 +369,4 @@ export class FunctionResolver {
 
     return false;
   }
-}
-
-/**
- * Create a unary overload.
- */
-export function unaryOverload(id: string, op: UnaryOp, operandTrait?: number): Overload {
-  return {
-    id,
-    unary: op,
-    operandTrait,
-  };
-}
-
-/**
- * Create a binary overload.
- */
-export function binaryOverload(id: string, op: BinaryOp, operandTrait?: number): Overload {
-  return {
-    id,
-    binary: op,
-    operandTrait,
-  };
-}
-
-/**
- * Create a function overload.
- */
-export function functionOverload(id: string, op: FunctionOp, nonStrict = false): Overload {
-  return {
-    id,
-    nary: op,
-    nonStrict,
-  };
 }

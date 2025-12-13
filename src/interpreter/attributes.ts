@@ -141,9 +141,9 @@ export class StringQualifier implements Qualifier {
         return obj.get(key);
       }
       if (this.optional) {
-        return ErrorValue.noSuchKey(key);
+        return ErrorValue.noSuchKey(key, this.exprId);
       }
-      return ErrorValue.noSuchKey(key);
+      return ErrorValue.noSuchKey(key, this.exprId);
     }
 
     // Object access (when converted from native JS value)
@@ -155,7 +155,7 @@ export class StringQualifier implements Qualifier {
       }
     }
 
-    return ErrorValue.noSuchField(this.field);
+    return ErrorValue.noSuchField(this.field, this.exprId);
   }
 
   isConstant(): boolean {
@@ -197,7 +197,7 @@ export class IndexQualifier implements Qualifier {
           this.index instanceof IntValue ? this.index : IntValue.of(Number(this.index.value()));
         return obj.get(idx);
       }
-      return ErrorValue.typeMismatch("int or uint", this.index);
+      return ErrorValue.typeMismatch("int or uint", this.index, this.exprId);
     }
 
     // Map access
@@ -207,9 +207,9 @@ export class IndexQualifier implements Qualifier {
         return obj.get(this.index);
       }
       if (this.optional) {
-        return ErrorValue.noSuchKey(this.index);
+        return ErrorValue.noSuchKey(this.index, this.exprId);
       }
-      return ErrorValue.noSuchKey(this.index);
+      return ErrorValue.noSuchKey(this.index, this.exprId);
     }
 
     // String access
@@ -217,10 +217,10 @@ export class IndexQualifier implements Qualifier {
       if (this.index instanceof IntValue) {
         return obj.charAt(this.index);
       }
-      return ErrorValue.typeMismatch("int", this.index);
+      return ErrorValue.typeMismatch("int", this.index, this.exprId);
     }
 
-    return ErrorValue.create(`type '${obj.type()}' does not support indexing`);
+    return ErrorValue.create(`type '${obj.type()}' does not support indexing`, this.exprId);
   }
 
   isConstant(): boolean {
@@ -312,7 +312,7 @@ export class AbsoluteAttribute implements Attribute {
       const fullName = this.namePath.join(".");
       value = activation.resolve(fullName);
       if (value === undefined) {
-        return ErrorValue.create(`undeclared variable: ${rootName}`);
+        return ErrorValue.create(`undeclared variable: ${rootName}`, this.exprId);
       }
     } else {
       // Apply remaining path elements as qualifiers
@@ -438,7 +438,7 @@ export class ConditionalAttribute implements Attribute {
       return condValue.value() ? this.truthy.resolve(activation) : this.falsy.resolve(activation);
     }
 
-    return ErrorValue.typeMismatch("bool", condValue);
+    return ErrorValue.typeMismatch("bool", condValue, this.exprId);
   }
 }
 
@@ -490,7 +490,7 @@ export class MaybeAttribute implements Attribute {
       return this.candidates[this.candidates.length - 1]!.resolve(activation);
     }
 
-    return ErrorValue.create("no candidates for maybe attribute");
+    return ErrorValue.create("no candidates for maybe attribute", this.exprId);
   }
 }
 

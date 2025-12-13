@@ -1,25 +1,24 @@
 import {
   Env,
-  Function,
-  GlobalOverload,
+  FunctionOption,
+  FunctionOverload,
   StringType,
   StringValue,
-  type Value,
-  Variable,
+  VariableOption,
 } from "../src/cel";
 
 const env = new Env(
-  Variable("i", StringType),
-  Variable("you", StringType),
-  Function(
+  new VariableOption("i", StringType),
+  new VariableOption("you", StringType),
+  new FunctionOption(
     "shake_hands",
-    GlobalOverload(
+    FunctionOverload.global(
       "shake_hands_string_string",
       [StringType, StringType],
       StringType,
-      (args: Value[]) =>
+      (lhs, rhs) =>
         new StringValue(
-          `${String(args[0].value())} and ${String(args[1].value())} are shaking hands.`
+          `${String(lhs.value())} and ${String(rhs.value())} are shaking hands.`
         )
     )
   )

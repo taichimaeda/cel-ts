@@ -68,11 +68,11 @@ The cel-ts architecture follows the cel-go design pattern where:
 ### Step 1: Environment Setup
 
 ```typescript
-import { Env, Variable, IntType, StringType } from "cel-ts";
+import { Env, IntType, StringType, VariableOption } from "cel-ts";
 
 const env = new Env(
-  Variable("name", StringType),
-  Variable("age", IntType)
+  new VariableOption("name", StringType),
+  new VariableOption("age", IntType)
 );
 ```
 
@@ -248,25 +248,23 @@ interface Value {
 
 ```typescript
 // Variable declaration
-Variable(name: string, type: Type): EnvOption
+new VariableOption(name: string, type: Type): EnvOption
 
 // Function declaration with overloads
-Function(name: string, ...overloads: OverloadOption[]): EnvOption
+new FunctionOption(name: string, ...overloads: FunctionOverload[]): EnvOption
 
-// Function overload
-Overload(id: string, argTypes: Type[], resultType: Type, binding?: Function): OverloadOption
-
-// Member function overload
-MemberOverload(id: string, argTypes: Type[], resultType: Type, binding?: Function): OverloadOption
+// Function overload helpers
+FunctionOverload.global(id, argTypes, resultType, binding?)
+FunctionOverload.member(id, argTypes, resultType, binding?)
 
 // Container for qualified names
-Container(name: string): EnvOption
+new ContainerOption(name: string): EnvOption
 
 // Disable standard library
-DisableStandardLibrary(): EnvOption
+new DisableStandardLibraryOption(): EnvOption
 
 // Disable type checking
-DisableTypeChecking(): EnvOption
+new DisableTypeCheckingOption(): EnvOption
 ```
 
 ### Type Helpers
@@ -276,9 +274,9 @@ DisableTypeChecking(): EnvOption
 BoolType, IntType, UintType, DoubleType, StringType, BytesType
 DurationType, TimestampType, NullType, DynType, AnyType
 
-// Parameterized types
-ListType(elemType: Type): Type
-MapType(keyType: Type, valueType: Type): Type
+// Parameterized types via builder
+Types.list(elemType: Type): Type
+Types.map(keyType: Type, valueType: Type): Type
 ```
 
 ### Error Handling
@@ -364,23 +362,22 @@ import {
   BoolType,
   BoolValue,
   Env,
-  Function,
-  GlobalOverload,
+  FunctionOption,
+  FunctionOverload,
   IntType,
   StringType,
-  Variable
+  VariableOption
 } from "cel-ts";
 
 // Create environment with custom function
 const env = new Env(
-  Variable("user", StringType),
-  Variable("age", IntType),
-  Function(
+  new VariableOption("user", StringType),
+  new VariableOption("age", IntType),
+  new FunctionOption(
     "isAdult",
-    GlobalOverload("isAdult_int", [IntType], BoolType, (args) => {
-      const [value] = args;
-      return new BoolValue(value.value() >= 18n);
-    })
+    FunctionOverload.global("isAdult_int", [IntType], BoolType, (value) =>
+      new BoolValue(value.value() >= 18n)
+    )
   )
 );
 
@@ -399,10 +396,10 @@ console.log(result.value()); // "Alice is adult: true"
 ### Macro Example
 
 ```typescript
-import { Env, Variable, ListType, IntType } from "cel-ts";
+import { Env, IntType, Types, VariableOption } from "cel-ts";
 
 const env = new Env(
-  Variable("numbers", ListType(IntType))
+  new VariableOption("numbers", Types.list(IntType))
 );
 
 // Filter positive numbers and double them

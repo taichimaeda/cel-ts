@@ -67,9 +67,9 @@ export {
   DefaultDispatcher,
   ResolvedCall,
   FunctionResolver,
-  unaryOverload,
-  binaryOverload,
-  functionOverload,
+  UnaryDispatcherOverload,
+  BinaryDispatcherOverload,
+  VariadicDispatcherOverload,
 } from "./dispatcher";
 
 // Interpretable - Evaluatable expressions
@@ -110,7 +110,6 @@ export {
   type Declaration,
   Env,
   evaluate,
-  checkExpression,
 } from "./interpreter";
 
 // Functions - Standard functions

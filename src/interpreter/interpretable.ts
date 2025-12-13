@@ -87,7 +87,7 @@ export class IdentValue implements Interpretable {
   eval(activation: Activation): Value {
     const value = activation.resolve(this.name);
     if (value === undefined) {
-      return ErrorValue.create(`undeclared variable: ${this.name}`);
+      return ErrorValue.create(`undeclared variable: ${this.name}`, this.exprId);
     }
     return value;
   }
@@ -144,7 +144,7 @@ export class NotValue implements Interpretable {
     if (val instanceof BoolValue) {
       return val.negate();
     }
-    return ErrorValue.typeMismatch("bool", val);
+    return ErrorValue.typeMismatch("bool", val, this.exprId);
   }
 }
 
@@ -208,7 +208,7 @@ export class NegValue implements Interpretable {
     if (val instanceof DoubleValue) {
       return val.negate();
     }
-    return ErrorValue.typeMismatch("int or double", val);
+    return ErrorValue.typeMismatch("int or double", val, this.exprId);
   }
 }
 
@@ -253,7 +253,7 @@ export class AndValue implements Interpretable {
       if (isErrorOrUnknown(rhsVal)) {
         return rhsVal;
       }
-      return ErrorValue.typeMismatch("bool", rhsVal);
+      return ErrorValue.typeMismatch("bool", rhsVal, this.rhs.id());
     }
 
     // lhs is error or unknown
@@ -267,7 +267,7 @@ export class AndValue implements Interpretable {
       return lhsVal;
     }
 
-    return ErrorValue.typeMismatch("bool", lhsVal);
+    return ErrorValue.typeMismatch("bool", lhsVal, this.lhs.id());
   }
 }
 
@@ -312,7 +312,7 @@ export class OrValue implements Interpretable {
       if (isErrorOrUnknown(rhsVal)) {
         return rhsVal;
       }
-      return ErrorValue.typeMismatch("bool", rhsVal);
+      return ErrorValue.typeMismatch("bool", rhsVal, this.rhs.id());
     }
 
     // lhs is error or unknown
@@ -326,7 +326,7 @@ export class OrValue implements Interpretable {
       return lhsVal;
     }
 
-    return ErrorValue.typeMismatch("bool", lhsVal);
+    return ErrorValue.typeMismatch("bool", lhsVal, this.lhs.id());
   }
 }
 
@@ -379,7 +379,7 @@ export class ConditionalValue implements Interpretable {
       return condVal.value() ? this.truthy.eval(activation) : this.falsy.eval(activation);
     }
 
-    return ErrorValue.typeMismatch("bool", condVal);
+    return ErrorValue.typeMismatch("bool", condVal, this.exprId);
   }
 }
 
@@ -449,7 +449,7 @@ export class BinaryValue implements Interpretable {
       case "in":
         return this.contains(rhs, lhs);
       default:
-        return ErrorValue.create(`unknown operator: ${this.operator}`);
+        return ErrorValue.create(`unknown operator: ${this.operator}`, this.exprId);
     }
   }
 
@@ -472,7 +472,7 @@ export class BinaryValue implements Interpretable {
     if (lhs instanceof ListValue && rhs instanceof ListValue) {
       return lhs.add(rhs);
     }
-    return ErrorValue.create(`cannot add ${lhs.type()} and ${rhs.type()}`);
+    return ErrorValue.create(`cannot add ${lhs.type()} and ${rhs.type()}`, this.exprId);
   }
 
   private subtract(lhs: Value, rhs: Value): Value {
@@ -485,7 +485,10 @@ export class BinaryValue implements Interpretable {
     if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
       return lhs.subtract(rhs);
     }
-    return ErrorValue.create(`cannot subtract ${rhs.type()} from ${lhs.type()}`);
+    return ErrorValue.create(
+      `cannot subtract ${rhs.type()} from ${lhs.type()}`,
+      this.exprId
+    );
   }
 
   private multiply(lhs: Value, rhs: Value): Value {
@@ -498,7 +501,7 @@ export class BinaryValue implements Interpretable {
     if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
       return lhs.multiply(rhs);
     }
-    return ErrorValue.create(`cannot multiply ${lhs.type()} and ${rhs.type()}`);
+    return ErrorValue.create(`cannot multiply ${lhs.type()} and ${rhs.type()}`, this.exprId);
   }
 
   private divide(lhs: Value, rhs: Value): Value {
@@ -511,7 +514,7 @@ export class BinaryValue implements Interpretable {
     if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
       return lhs.divide(rhs);
     }
-    return ErrorValue.create(`cannot divide ${lhs.type()} by ${rhs.type()}`);
+    return ErrorValue.create(`cannot divide ${lhs.type()} by ${rhs.type()}`, this.exprId);
   }
 
   private modulo(lhs: Value, rhs: Value): Value {
@@ -521,7 +524,7 @@ export class BinaryValue implements Interpretable {
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
       return lhs.modulo(rhs);
     }
-    return ErrorValue.create(`cannot modulo ${lhs.type()} by ${rhs.type()}`);
+    return ErrorValue.create(`cannot modulo ${lhs.type()} by ${rhs.type()}`, this.exprId);
   }
 
   private compare(lhs: Value, rhs: Value, predicate: (cmp: number) => boolean): Value {
@@ -567,7 +570,7 @@ export class BinaryValue implements Interpretable {
       const cmp = lhsNum < rhsNum ? -1 : lhsNum > rhsNum ? 1 : 0;
       return BoolValue.of(predicate(cmp));
     }
-    return ErrorValue.create(`cannot compare ${lhs.type()} and ${rhs.type()}`);
+    return ErrorValue.create(`cannot compare ${lhs.type()} and ${rhs.type()}`, this.exprId);
   }
 
   private toNumber(val: Value): number {
@@ -593,7 +596,10 @@ export class BinaryValue implements Interpretable {
     if (container instanceof StringValue && elem instanceof StringValue) {
       return container.contains(elem);
     }
-    return ErrorValue.create(`type '${container.type()}' does not support 'in' operator`);
+    return ErrorValue.create(
+      `type '${container.type()}' does not support 'in' operator`,
+      this.exprId
+    );
   }
 }
 
@@ -645,7 +651,10 @@ export class CallValue implements Interpretable {
       if (byName) {
         return byName.invoke(argValues);
       }
-      return ErrorValue.create(`no such overload: ${this.functionName}/${this.overloadId}`);
+      return ErrorValue.create(
+        `no such overload: ${this.functionName}/${this.overloadId}`,
+        this.exprId
+      );
     }
 
     return call.invoke(argValues);
@@ -837,7 +846,7 @@ export class IndexValue implements Interpretable {
         const i = idx instanceof IntValue ? idx : IntValue.of(Number(idx.value()));
         return obj.get(i);
       }
-      return ErrorValue.typeMismatch("int or uint", idx);
+      return ErrorValue.typeMismatch("int or uint", idx, this.index.id());
     }
 
     // Map access
@@ -849,7 +858,7 @@ export class IndexValue implements Interpretable {
       if (this.optional) {
         return OptionalValue.none();
       }
-      return ErrorValue.noSuchKey(idx);
+      return ErrorValue.noSuchKey(idx, this.exprId);
     }
 
     // String access
@@ -862,7 +871,7 @@ export class IndexValue implements Interpretable {
       return obj.byteAt(idx);
     }
 
-    return ErrorValue.create(`type '${obj.type()}' does not support indexing`);
+    return ErrorValue.create(`type '${obj.type()}' does not support indexing`, this.exprId);
   }
 }
 
@@ -902,10 +911,10 @@ export class FieldValue implements Interpretable {
       if (this.optional) {
         return OptionalValue.none();
       }
-      return ErrorValue.noSuchField(this.field);
+      return ErrorValue.noSuchField(this.field, this.exprId);
     }
 
-    return ErrorValue.noSuchField(this.field);
+    return ErrorValue.noSuchField(this.field, this.exprId);
   }
 }
 
@@ -1006,7 +1015,7 @@ export class ComprehensionValue implements Interpretable {
     } else if (range instanceof MapValue) {
       iterator = range.keys();
     } else {
-      return ErrorValue.create(`cannot iterate over ${range.type()}`);
+      return ErrorValue.create(`cannot iterate over ${range.type()}`, this.exprId);
     }
 
     for (const elem of iterator) {
@@ -1077,7 +1086,7 @@ export class TypeConversionValue implements Interpretable {
       case "dyn":
         return val;
       default:
-        return ErrorValue.create(`unknown type conversion: ${this.targetType}`);
+        return ErrorValue.create(`unknown type conversion: ${this.targetType}`, this.exprId);
     }
   }
 
@@ -1091,7 +1100,7 @@ export class TypeConversionValue implements Interpretable {
     if (val instanceof DoubleValue) {
       const d = val.value();
       if (!Number.isFinite(d)) {
-        return ErrorValue.create("cannot convert infinity or NaN to int");
+        return ErrorValue.create("cannot convert infinity or NaN to int", this.exprId);
       }
       return IntValue.of(Math.trunc(d));
     }
@@ -1100,10 +1109,10 @@ export class TypeConversionValue implements Interpretable {
         const n = BigInt(val.value());
         return IntValue.of(n);
       } catch {
-        return ErrorValue.create(`cannot parse '${val.value()}' as int`);
+        return ErrorValue.create(`cannot parse '${val.value()}' as int`, this.exprId);
       }
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to int`);
+    return ErrorValue.create(`cannot convert ${val.type()} to int`, this.exprId);
   }
 
   private toUint(val: Value): Value {
@@ -1113,14 +1122,14 @@ export class TypeConversionValue implements Interpretable {
     if (val instanceof IntValue) {
       const n = val.value();
       if (n < 0n) {
-        return ErrorValue.create("cannot convert negative int to uint");
+        return ErrorValue.create("cannot convert negative int to uint", this.exprId);
       }
       return UintValue.of(n);
     }
     if (val instanceof DoubleValue) {
       const d = val.value();
       if (!Number.isFinite(d) || d < 0) {
-        return ErrorValue.create("cannot convert to uint");
+        return ErrorValue.create("cannot convert to uint", this.exprId);
       }
       return UintValue.of(Math.trunc(d));
     }
@@ -1128,14 +1137,14 @@ export class TypeConversionValue implements Interpretable {
       try {
         const n = BigInt(val.value());
         if (n < 0n) {
-          return ErrorValue.create("cannot parse negative number as uint");
+          return ErrorValue.create("cannot parse negative number as uint", this.exprId);
         }
         return UintValue.of(n);
       } catch {
-        return ErrorValue.create(`cannot parse '${val.value()}' as uint`);
+        return ErrorValue.create(`cannot parse '${val.value()}' as uint`, this.exprId);
       }
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to uint`);
+    return ErrorValue.create(`cannot convert ${val.type()} to uint`, this.exprId);
   }
 
   private toDouble(val: Value): Value {
@@ -1151,11 +1160,11 @@ export class TypeConversionValue implements Interpretable {
     if (val instanceof StringValue) {
       const d = Number.parseFloat(val.value());
       if (Number.isNaN(d)) {
-        return ErrorValue.create(`cannot parse '${val.value()}' as double`);
+        return ErrorValue.create(`cannot parse '${val.value()}' as double`, this.exprId);
       }
       return DoubleValue.of(d);
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to double`);
+    return ErrorValue.create(`cannot convert ${val.type()} to double`, this.exprId);
   }
 
   private toString(val: Value): Value {
@@ -1176,13 +1185,13 @@ export class TypeConversionValue implements Interpretable {
       try {
         return StringValue.of(decoder.decode(val.value()));
       } catch {
-        return ErrorValue.create("invalid UTF-8 in bytes");
+        return ErrorValue.create("invalid UTF-8 in bytes", this.exprId);
       }
     }
     if (val instanceof BoolValue) {
       return StringValue.of(val.value() ? "true" : "false");
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to string`);
+    return ErrorValue.create(`cannot convert ${val.type()} to string`, this.exprId);
   }
 
   private toBytes(val: Value): Value {
@@ -1192,7 +1201,7 @@ export class TypeConversionValue implements Interpretable {
     if (val instanceof StringValue) {
       return BytesValue.fromString(val.value());
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to bytes`);
+    return ErrorValue.create(`cannot convert ${val.type()} to bytes`, this.exprId);
   }
 
   private toBool(val: Value): Value {
@@ -1207,9 +1216,9 @@ export class TypeConversionValue implements Interpretable {
       if (s === "false") {
         return BoolValue.False;
       }
-      return ErrorValue.create(`cannot parse '${val.value()}' as bool`);
+      return ErrorValue.create(`cannot parse '${val.value()}' as bool`, this.exprId);
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to bool`);
+    return ErrorValue.create(`cannot convert ${val.type()} to bool`, this.exprId);
   }
 
   private getType(val: Value): Value {

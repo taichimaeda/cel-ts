@@ -1,11 +1,18 @@
-import { Env, Function, MemberOverload, StringType, StringValue, Variable } from "../src/cel";
+import {
+  Env,
+  FunctionOption,
+  FunctionOverload,
+  StringType,
+  StringValue,
+  VariableOption,
+} from "../src/cel";
 
 const env = new Env(
-  Variable("i", StringType),
-  Variable("you", StringType),
-  Function(
+  new VariableOption("i", StringType),
+  new VariableOption("you", StringType),
+  new FunctionOption(
     "greet",
-    MemberOverload(
+    FunctionOverload.member(
       "string_greet_string",
       [StringType, StringType],
       StringType,

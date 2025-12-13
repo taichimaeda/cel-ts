@@ -33,9 +33,9 @@ export interface Expr {
 /**
  * Literal value expression.
  */
-export interface LiteralExpr extends Expr {
-  readonly kind: ExprKind.Literal;
-  readonly value: LiteralValue;
+export class LiteralExpr implements Expr {
+  readonly kind = ExprKind.Literal;
+  constructor(public readonly id: number, public readonly value: LiteralValue) {}
 }
 
 /**
@@ -53,41 +53,53 @@ export type LiteralValue =
 /**
  * Identifier expression.
  */
-export interface IdentExpr extends Expr {
-  readonly kind: ExprKind.Ident;
-  readonly name: string;
+export class IdentExpr implements Expr {
+  readonly kind = ExprKind.Ident;
+  constructor(public readonly id: number, public readonly name: string) {}
 }
 
 /**
  * Field selection expression (e.g., `obj.field`).
  */
-export interface SelectExpr extends Expr {
-  readonly kind: ExprKind.Select;
-  readonly operand: Expr;
-  readonly field: string;
+export class SelectExpr implements Expr {
+  readonly kind = ExprKind.Select;
   /** If true, this is a presence test (has()) rather than a selection */
-  readonly testOnly: boolean;
+  constructor(
+    public readonly id: number,
+    public readonly operand: Expr,
+    public readonly field: string,
+    public readonly testOnly: boolean
+  ) {}
 }
 
 /**
  * Function call expression.
  */
-export interface CallExpr extends Expr {
-  readonly kind: ExprKind.Call;
+export class CallExpr implements Expr {
+  readonly kind = ExprKind.Call;
   readonly function: string;
   /** Target for member calls (e.g., the `obj` in `obj.method(args)`) */
-  readonly target?: Expr;
-  readonly args: readonly Expr[];
+  constructor(
+    public readonly id: number,
+    funcName: string,
+    public readonly args: readonly Expr[],
+    public readonly target?: Expr
+  ) {
+    this.function = funcName;
+  }
 }
 
 /**
  * List creation expression.
  */
-export interface ListExpr extends Expr {
-  readonly kind: ExprKind.List;
-  readonly elements: readonly Expr[];
+export class ListExpr implements Expr {
+  readonly kind = ExprKind.List;
   /** Indices of optional elements */
-  readonly optionalIndices: readonly number[];
+  constructor(
+    public readonly id: number,
+    public readonly elements: readonly Expr[],
+    public readonly optionalIndices: readonly number[]
+  ) {}
 }
 
 /**
@@ -110,62 +122,75 @@ export interface EntryExpr {
 /**
  * Map entry expression.
  */
-export interface MapEntry extends EntryExpr {
-  readonly entryKind: EntryExprKind.MapEntry;
-  readonly key: Expr;
-  readonly value: Expr;
-  readonly optional: boolean;
+export class MapEntry implements EntryExpr {
+  readonly entryKind = EntryExprKind.MapEntry;
+  constructor(
+    public readonly id: number,
+    public readonly key: Expr,
+    public readonly value: Expr,
+    public readonly optional: boolean
+  ) {}
 }
 
 /**
  * Map creation expression.
  */
-export interface MapExpr extends Expr {
-  readonly kind: ExprKind.Map;
-  readonly entries: readonly MapEntry[];
+export class MapExpr implements Expr {
+  readonly kind = ExprKind.Map;
+  constructor(public readonly id: number, public readonly entries: readonly MapEntry[]) {}
 }
 
 /**
  * Struct field initializer.
  */
-export interface StructField extends EntryExpr {
-  readonly entryKind: EntryExprKind.StructField;
-  readonly name: string;
-  readonly value: Expr;
-  readonly optional: boolean;
+export class StructField implements EntryExpr {
+  readonly entryKind = EntryExprKind.StructField;
+  constructor(
+    public readonly id: number,
+    public readonly name: string,
+    public readonly value: Expr,
+    public readonly optional: boolean
+  ) {}
 }
 
 /**
  * Struct/message creation expression.
  */
-export interface StructExpr extends Expr {
-  readonly kind: ExprKind.Struct;
-  readonly typeName: string;
-  readonly fields: readonly StructField[];
+export class StructExpr implements Expr {
+  readonly kind = ExprKind.Struct;
+  constructor(
+    public readonly id: number,
+    public readonly typeName: string,
+    public readonly fields: readonly StructField[]
+  ) {}
 }
 
 /**
  * Comprehension (fold) expression.
  * Represents operations like all(), exists(), map(), filter().
  */
-export interface ComprehensionExpr extends Expr {
-  readonly kind: ExprKind.Comprehension;
-  /** Expression that evaluates to the iterable (list or map) */
-  readonly iterRange: Expr;
-  /** Iteration variable name */
-  readonly iterVar: string;
+export class ComprehensionExpr implements Expr {
+  readonly kind = ExprKind.Comprehension;
   /** Second iteration variable name (for two-variable comprehensions, optional) */
-  readonly iterVar2?: string;
-  /** Accumulator variable name */
-  readonly accuVar: string;
-  /** Initial accumulator value */
-  readonly accuInit: Expr;
-  /** Loop condition (evaluated each iteration, continues while true) */
-  readonly loopCondition: Expr;
-  /** Loop step (updates the accumulator) */
-  readonly loopStep: Expr;
-  /** Result expression (evaluated after the loop) */
-  readonly result: Expr;
+  constructor(
+    public readonly id: number,
+    /** Expression that evaluates to the iterable (list or map) */
+    public readonly iterRange: Expr,
+    /** Iteration variable name */
+    public readonly iterVar: string,
+    /** Accumulator variable name */
+    public readonly accuVar: string,
+    /** Initial accumulator value */
+    public readonly accuInit: Expr,
+    /** Loop condition (evaluated each iteration, continues while true) */
+    public readonly loopCondition: Expr,
+    /** Loop step (updates the accumulator) */
+    public readonly loopStep: Expr,
+    /** Result expression (evaluated after the loop) */
+    public readonly result: Expr,
+    /** Second iteration variable name (optional) */
+    public readonly iterVar2?: string
+  ) {}
 }
 
 /**
@@ -282,93 +307,95 @@ export function createVisitor(
 type VisitOrder = "pre" | "post";
 
 /**
- * Internal visit implementation.
+ * Traversal utilities for walking expression trees.
  */
-function visit(
-  expr: Expr,
-  visitor: Visitor,
-  order: VisitOrder,
-  depth: number,
-  maxDepth: number
-): void {
-  if (maxDepth > 0 && depth >= maxDepth) {
-    return;
+export class ExprTraversal {
+  private static visit(
+    expr: Expr,
+    visitor: Visitor,
+    order: VisitOrder,
+    depth: number,
+    maxDepth: number
+  ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+
+    if (order === "pre") {
+      visitor.visitExpr(expr);
+    }
+
+    // Visit children based on expression kind
+    switch (expr.kind) {
+      case ExprKind.Select: {
+        const sel = expr as SelectExpr;
+        ExprTraversal.visit(sel.operand, visitor, order, depth + 1, maxDepth);
+        break;
+      }
+      case ExprKind.Call: {
+        const call = expr as CallExpr;
+        if (call.target) {
+          ExprTraversal.visit(call.target, visitor, order, depth + 1, maxDepth);
+        }
+        for (const arg of call.args) {
+          ExprTraversal.visit(arg, visitor, order, depth + 1, maxDepth);
+        }
+        break;
+      }
+      case ExprKind.List: {
+        const list = expr as ListExpr;
+        for (const elem of list.elements) {
+          ExprTraversal.visit(elem, visitor, order, depth + 1, maxDepth);
+        }
+        break;
+      }
+      case ExprKind.Map: {
+        const map = expr as MapExpr;
+        for (const entry of map.entries) {
+          visitor.visitEntryExpr(entry);
+          ExprTraversal.visit(entry.key, visitor, order, depth + 1, maxDepth);
+          ExprTraversal.visit(entry.value, visitor, order, depth + 1, maxDepth);
+        }
+        break;
+      }
+      case ExprKind.Struct: {
+        const struct = expr as StructExpr;
+        for (const field of struct.fields) {
+          visitor.visitEntryExpr(field);
+          ExprTraversal.visit(field.value, visitor, order, depth + 1, maxDepth);
+        }
+        break;
+      }
+      case ExprKind.Comprehension: {
+        const comp = expr as ComprehensionExpr;
+        ExprTraversal.visit(comp.iterRange, visitor, order, depth + 1, maxDepth);
+        ExprTraversal.visit(comp.accuInit, visitor, order, depth + 1, maxDepth);
+        ExprTraversal.visit(comp.loopCondition, visitor, order, depth + 1, maxDepth);
+        ExprTraversal.visit(comp.loopStep, visitor, order, depth + 1, maxDepth);
+        ExprTraversal.visit(comp.result, visitor, order, depth + 1, maxDepth);
+        break;
+      }
+      // Literal, Ident, Unspecified have no children
+    }
+
+    if (order === "post") {
+      visitor.visitExpr(expr);
+    }
   }
 
-  if (order === "pre") {
-    visitor.visitExpr(expr);
+  /**
+   * Visit expression tree in post-order (bottom-up).
+   */
+  static postOrder(expr: Expr, visitor: Visitor, maxDepth = 0): void {
+    ExprTraversal.visit(expr, visitor, "post", 0, maxDepth);
   }
 
-  // Visit children based on expression kind
-  switch (expr.kind) {
-    case ExprKind.Select: {
-      const sel = expr as SelectExpr;
-      visit(sel.operand, visitor, order, depth + 1, maxDepth);
-      break;
-    }
-    case ExprKind.Call: {
-      const call = expr as CallExpr;
-      if (call.target) {
-        visit(call.target, visitor, order, depth + 1, maxDepth);
-      }
-      for (const arg of call.args) {
-        visit(arg, visitor, order, depth + 1, maxDepth);
-      }
-      break;
-    }
-    case ExprKind.List: {
-      const list = expr as ListExpr;
-      for (const elem of list.elements) {
-        visit(elem, visitor, order, depth + 1, maxDepth);
-      }
-      break;
-    }
-    case ExprKind.Map: {
-      const map = expr as MapExpr;
-      for (const entry of map.entries) {
-        visitor.visitEntryExpr(entry);
-        visit(entry.key, visitor, order, depth + 1, maxDepth);
-        visit(entry.value, visitor, order, depth + 1, maxDepth);
-      }
-      break;
-    }
-    case ExprKind.Struct: {
-      const struct = expr as StructExpr;
-      for (const field of struct.fields) {
-        visitor.visitEntryExpr(field);
-        visit(field.value, visitor, order, depth + 1, maxDepth);
-      }
-      break;
-    }
-    case ExprKind.Comprehension: {
-      const comp = expr as ComprehensionExpr;
-      visit(comp.iterRange, visitor, order, depth + 1, maxDepth);
-      visit(comp.accuInit, visitor, order, depth + 1, maxDepth);
-      visit(comp.loopCondition, visitor, order, depth + 1, maxDepth);
-      visit(comp.loopStep, visitor, order, depth + 1, maxDepth);
-      visit(comp.result, visitor, order, depth + 1, maxDepth);
-      break;
-    }
-    // Literal, Ident, Unspecified have no children
+  /**
+   * Visit expression tree in pre-order (top-down).
+   */
+  static preOrder(expr: Expr, visitor: Visitor, maxDepth = 0): void {
+    ExprTraversal.visit(expr, visitor, "pre", 0, maxDepth);
   }
-
-  if (order === "post") {
-    visitor.visitExpr(expr);
-  }
-}
-
-/**
- * Visit expression tree in post-order (bottom-up).
- */
-export function postOrderVisit(expr: Expr, visitor: Visitor): void {
-  visit(expr, visitor, "post", 0, 0);
-}
-
-/**
- * Visit expression tree in pre-order (top-down).
- */
-export function preOrderVisit(expr: Expr, visitor: Visitor): void {
-  visit(expr, visitor, "pre", 0, 0);
 }
 
 /**
@@ -382,7 +409,7 @@ export type ExprMatcher = (expr: Expr) => boolean;
  */
 export function matchDescendants(expr: Expr, matcher: ExprMatcher): Expr[] {
   const matches: Expr[] = [];
-  postOrderVisit(
+  ExprTraversal.postOrder(
     expr,
     createExprVisitor((e) => {
       if (matcher(e)) {
@@ -426,7 +453,7 @@ export function constantValueMatcher(): ExprMatcher {
  */
 export function maxId(expr: Expr): number {
   let max = 0;
-  postOrderVisit(
+  ExprTraversal.postOrder(
     expr,
     createVisitor(
       (e) => {
@@ -448,235 +475,6 @@ export function maxId(expr: Expr): number {
  * Standard accumulator variable name used in comprehensions.
  */
 export const AccumulatorName = "__result__";
-
-/**
- * AST factory for creating expression nodes.
- */
-export class ExprFactory {
-  private nextIdCounter = 1;
-
-  /**
-   * Generate the next unique ID.
-   */
-  nextId(): number {
-    return this.nextIdCounter++;
-  }
-
-  /**
-   * Get current ID counter.
-   */
-  currentId(): number {
-    return this.nextIdCounter;
-  }
-
-  /**
-   * Set the next ID counter (used when resuming from a given ID).
-   */
-  setNextId(id: number): void {
-    this.nextIdCounter = id;
-  }
-
-  /**
-   * Create an unspecified expression (placeholder).
-   */
-  createUnspecified(id: number): Expr {
-    return { id, kind: ExprKind.Unspecified };
-  }
-
-  /**
-   * Create a literal expression.
-   */
-  createLiteral(id: number, value: LiteralValue): LiteralExpr {
-    return { id, kind: ExprKind.Literal, value };
-  }
-
-  /**
-   * Create a null literal.
-   */
-  createNullLiteral(id: number): LiteralExpr {
-    return this.createLiteral(id, { kind: "null" });
-  }
-
-  /**
-   * Create a boolean literal.
-   */
-  createBoolLiteral(id: number, value: boolean): LiteralExpr {
-    return this.createLiteral(id, { kind: "bool", value });
-  }
-
-  /**
-   * Create an integer literal.
-   */
-  createIntLiteral(id: number, value: bigint): LiteralExpr {
-    return this.createLiteral(id, { kind: "int", value });
-  }
-
-  /**
-   * Create an unsigned integer literal.
-   */
-  createUintLiteral(id: number, value: bigint): LiteralExpr {
-    return this.createLiteral(id, { kind: "uint", value });
-  }
-
-  /**
-   * Create a double literal.
-   */
-  createDoubleLiteral(id: number, value: number): LiteralExpr {
-    return this.createLiteral(id, { kind: "double", value });
-  }
-
-  /**
-   * Create a string literal.
-   */
-  createStringLiteral(id: number, value: string): LiteralExpr {
-    return this.createLiteral(id, { kind: "string", value });
-  }
-
-  /**
-   * Create a bytes literal.
-   */
-  createBytesLiteral(id: number, value: Uint8Array): LiteralExpr {
-    return this.createLiteral(id, { kind: "bytes", value });
-  }
-
-  /**
-   * Create an identifier expression.
-   */
-  createIdent(id: number, name: string): IdentExpr {
-    return { id, kind: ExprKind.Ident, name };
-  }
-
-  /**
-   * Create an accumulator identifier (shorthand).
-   */
-  createAccuIdent(id: number): IdentExpr {
-    return this.createIdent(id, AccumulatorName);
-  }
-
-  /**
-   * Create a select expression.
-   */
-  createSelect(id: number, operand: Expr, field: string): SelectExpr {
-    return { id, kind: ExprKind.Select, operand, field, testOnly: false };
-  }
-
-  /**
-   * Create a presence test expression (for has()).
-   */
-  createPresenceTest(id: number, operand: Expr, field: string): SelectExpr {
-    return { id, kind: ExprKind.Select, operand, field, testOnly: true };
-  }
-
-  /**
-   * Create a global function call.
-   */
-  createCall(id: number, fn: string, ...args: Expr[]): CallExpr {
-    return { id, kind: ExprKind.Call, function: fn, args };
-  }
-
-  /**
-   * Create a member function call.
-   */
-  createMemberCall(id: number, fn: string, target: Expr, ...args: Expr[]): CallExpr {
-    return { id, kind: ExprKind.Call, function: fn, target, args };
-  }
-
-  /**
-   * Create a list expression.
-   */
-  createList(id: number, elements: Expr[], optionalIndices: number[] = []): ListExpr {
-    return { id, kind: ExprKind.List, elements, optionalIndices };
-  }
-
-  /**
-   * Create a map entry.
-   */
-  createMapEntry(id: number, key: Expr, value: Expr, optional = false): MapEntry {
-    return { id, entryKind: EntryExprKind.MapEntry, key, value, optional };
-  }
-
-  /**
-   * Create a map expression.
-   */
-  createMap(id: number, entries: MapEntry[]): MapExpr {
-    return { id, kind: ExprKind.Map, entries };
-  }
-
-  /**
-   * Create a struct field.
-   */
-  createStructField(id: number, name: string, value: Expr, optional = false): StructField {
-    return { id, entryKind: EntryExprKind.StructField, name, value, optional };
-  }
-
-  /**
-   * Create a struct expression.
-   */
-  createStruct(id: number, typeName: string, fields: StructField[]): StructExpr {
-    return { id, kind: ExprKind.Struct, typeName, fields };
-  }
-
-  /**
-   * Create a comprehension expression.
-   */
-  createComprehension(
-    id: number,
-    iterRange: Expr,
-    iterVar: string,
-    accuVar: string,
-    accuInit: Expr,
-    loopCondition: Expr,
-    loopStep: Expr,
-    result: Expr
-  ): ComprehensionExpr {
-    return {
-      id,
-      kind: ExprKind.Comprehension,
-      iterRange,
-      iterVar,
-      accuVar,
-      accuInit,
-      loopCondition,
-      loopStep,
-      result,
-    };
-  }
-
-  /**
-   * Create a two-variable comprehension expression.
-   */
-  createComprehensionTwoVar(
-    id: number,
-    iterRange: Expr,
-    iterVar: string,
-    iterVar2: string,
-    accuVar: string,
-    accuInit: Expr,
-    loopCondition: Expr,
-    loopStep: Expr,
-    result: Expr
-  ): ComprehensionExpr {
-    return {
-      id,
-      kind: ExprKind.Comprehension,
-      iterRange,
-      iterVar,
-      iterVar2,
-      accuVar,
-      accuInit,
-      loopCondition,
-      loopStep,
-      result,
-    };
-  }
-
-  /**
-   * Get the accumulator variable name.
-   */
-  accuIdentName(): string {
-    return AccumulatorName;
-  }
-}
 
 // ============================================================================
 // Source Information

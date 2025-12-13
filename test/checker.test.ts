@@ -15,7 +15,7 @@ import {
   isAssignable,
   isDynOrError,
 } from "../src/checker";
-import { CELLexer, CELParser, parseToAST } from "../src/parser";
+import { CELLexer, CELParser, ParserHelper } from "../src/parser";
 
 // Helper function: parse and type check an expression
 const parseAndCheck = (expression: string, env: CheckerEnv = createDefaultEnv()) => {
@@ -25,7 +25,8 @@ const parseAndCheck = (expression: string, env: CheckerEnv = createDefaultEnv())
   const parser = new CELParser(tokens);
   const tree = parser.start();
   // Convert ANTLR parse tree to our AST with macro expansion
-  const ast = parseToAST(tree, expression);
+  const helper = new ParserHelper(expression);
+  const ast = helper.parse(tree);
   const result = check(ast, env);
   // Return type from the root expression
   return {

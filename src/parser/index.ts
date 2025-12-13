@@ -6,7 +6,7 @@ export { Parser } from "./parser";
 export type { ParseResult } from "./parser";
 
 // Parser helper (ANTLR to AST conversion with macro expansion)
-export { ParserHelper, parseToAST, Operators } from "./helper";
+export { ParserHelper, Operators } from "./helper";
 export type { ParserHelperOptions } from "./helper";
 
 // Macros

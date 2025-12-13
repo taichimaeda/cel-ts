@@ -2,7 +2,12 @@
 // Standard function library
 // Implementation based on cel-go's cel/library.go and checker/standard.go
 
-import { type Dispatcher, binaryOverload, functionOverload, unaryOverload } from "./dispatcher";
+import {
+  type Dispatcher,
+  BinaryDispatcherOverload,
+  VariadicDispatcherOverload,
+  UnaryDispatcherOverload,
+} from "./dispatcher";
 import {
   BoolValue,
   BytesValue,
@@ -42,7 +47,7 @@ export function registerStandardFunctions(dispatcher: Dispatcher): void {
 function registerSizeFunctions(dispatcher: Dispatcher): void {
   // size(string) -> int
   dispatcher.add(
-    unaryOverload("size_string", (val: Value): Value => {
+    new UnaryDispatcherOverload("size_string", (val: Value): Value => {
       if (val instanceof StringValue) {
         return val.size();
       }
@@ -52,7 +57,7 @@ function registerSizeFunctions(dispatcher: Dispatcher): void {
 
   // size(bytes) -> int
   dispatcher.add(
-    unaryOverload("size_bytes", (val: Value): Value => {
+    new UnaryDispatcherOverload("size_bytes", (val: Value): Value => {
       if (val instanceof BytesValue) {
         return val.size();
       }
@@ -62,7 +67,7 @@ function registerSizeFunctions(dispatcher: Dispatcher): void {
 
   // size(list) -> int
   dispatcher.add(
-    unaryOverload("size_list", (val: Value): Value => {
+    new UnaryDispatcherOverload("size_list", (val: Value): Value => {
       if (val instanceof ListValue) {
         return val.size();
       }
@@ -72,7 +77,7 @@ function registerSizeFunctions(dispatcher: Dispatcher): void {
 
   // size(map) -> int
   dispatcher.add(
-    unaryOverload("size_map", (val: Value): Value => {
+    new UnaryDispatcherOverload("size_map", (val: Value): Value => {
       if (val instanceof MapValue) {
         return val.size();
       }
@@ -87,7 +92,7 @@ function registerSizeFunctions(dispatcher: Dispatcher): void {
 function registerStringFunctions(dispatcher: Dispatcher): void {
   // string.contains(string) -> bool
   dispatcher.add(
-    binaryOverload("contains_string", (lhs: Value, rhs: Value): Value => {
+    new BinaryDispatcherOverload("contains_string", (lhs: Value, rhs: Value): Value => {
       if (lhs instanceof StringValue && rhs instanceof StringValue) {
         return lhs.contains(rhs);
       }
@@ -97,7 +102,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 
   // string.startsWith(string) -> bool
   dispatcher.add(
-    binaryOverload("startsWith_string", (lhs: Value, rhs: Value): Value => {
+    new BinaryDispatcherOverload("startsWith_string", (lhs: Value, rhs: Value): Value => {
       if (lhs instanceof StringValue && rhs instanceof StringValue) {
         return lhs.startsWith(rhs);
       }
@@ -107,7 +112,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 
   // string.endsWith(string) -> bool
   dispatcher.add(
-    binaryOverload("endsWith_string", (lhs: Value, rhs: Value): Value => {
+    new BinaryDispatcherOverload("endsWith_string", (lhs: Value, rhs: Value): Value => {
       if (lhs instanceof StringValue && rhs instanceof StringValue) {
         return lhs.endsWith(rhs);
       }
@@ -117,7 +122,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 
   // string.matches(string) -> bool
   dispatcher.add(
-    binaryOverload("matches_string", (lhs: Value, rhs: Value): Value => {
+    new BinaryDispatcherOverload("matches_string", (lhs: Value, rhs: Value): Value => {
       if (lhs instanceof StringValue && rhs instanceof StringValue) {
         return lhs.matches(rhs);
       }
@@ -127,7 +132,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 
   // matches(string, string) -> bool (global function)
   dispatcher.add(
-    binaryOverload("matches", (lhs: Value, rhs: Value): Value => {
+    new BinaryDispatcherOverload("matches", (lhs: Value, rhs: Value): Value => {
       if (lhs instanceof StringValue && rhs instanceof StringValue) {
         return lhs.matches(rhs);
       }
@@ -137,7 +142,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 
   // string.toLowerCase() -> string
   dispatcher.add(
-    unaryOverload("lowerAscii_string", (val: Value): Value => {
+    new UnaryDispatcherOverload("lowerAscii_string", (val: Value): Value => {
       if (val instanceof StringValue) {
         return StringValue.of(val.value().toLowerCase());
       }
@@ -147,7 +152,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 
   // string.toUpperCase() -> string
   dispatcher.add(
-    unaryOverload("upperAscii_string", (val: Value): Value => {
+    new UnaryDispatcherOverload("upperAscii_string", (val: Value): Value => {
       if (val instanceof StringValue) {
         return StringValue.of(val.value().toUpperCase());
       }
@@ -157,7 +162,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 
   // string.trim() -> string
   dispatcher.add(
-    unaryOverload("trim_string", (val: Value): Value => {
+    new UnaryDispatcherOverload("trim_string", (val: Value): Value => {
       if (val instanceof StringValue) {
         return StringValue.of(val.value().trim());
       }
@@ -167,7 +172,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 
   // string.split(string) -> list(string)
   dispatcher.add(
-    binaryOverload("split_string", (lhs: Value, rhs: Value): Value => {
+    new BinaryDispatcherOverload("split_string", (lhs: Value, rhs: Value): Value => {
       if (lhs instanceof StringValue && rhs instanceof StringValue) {
         const parts = lhs.value().split(rhs.value());
         return ListValue.of(parts.map((p) => StringValue.of(p)));
@@ -178,7 +183,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 
   // string.join(list) -> string
   dispatcher.add(
-    binaryOverload("join_string", (lhs: Value, rhs: Value): Value => {
+    new BinaryDispatcherOverload("join_string", (lhs: Value, rhs: Value): Value => {
       if (lhs instanceof ListValue && rhs instanceof StringValue) {
         const parts: string[] = [];
         for (const elem of lhs) {
@@ -196,7 +201,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 
   // string.replace(string, string) -> string
   dispatcher.add(
-    functionOverload("replace_string", (args: Value[]): Value => {
+    new VariadicDispatcherOverload("replace_string", (args: Value[]): Value => {
       if (args.length !== 3) {
         return ErrorValue.create("replace requires 3 arguments");
       }
@@ -215,7 +220,7 @@ function registerStringFunctions(dispatcher: Dispatcher): void {
 function registerTypeConversions(dispatcher: Dispatcher): void {
   // int(value) -> int
   dispatcher.add(
-    unaryOverload("int", (val: Value): Value => {
+    new UnaryDispatcherOverload("int", (val: Value): Value => {
       if (val instanceof IntValue) {
         return val;
       }
@@ -246,7 +251,7 @@ function registerTypeConversions(dispatcher: Dispatcher): void {
 
   // uint(value) -> uint
   dispatcher.add(
-    unaryOverload("uint", (val: Value): Value => {
+    new UnaryDispatcherOverload("uint", (val: Value): Value => {
       if (val instanceof UintValue) {
         return val;
       }
@@ -281,7 +286,7 @@ function registerTypeConversions(dispatcher: Dispatcher): void {
 
   // double(value) -> double
   dispatcher.add(
-    unaryOverload("double", (val: Value): Value => {
+    new UnaryDispatcherOverload("double", (val: Value): Value => {
       if (val instanceof DoubleValue) {
         return val;
       }
@@ -304,7 +309,7 @@ function registerTypeConversions(dispatcher: Dispatcher): void {
 
   // string(value) -> string
   dispatcher.add(
-    unaryOverload("string", (val: Value): Value => {
+    new UnaryDispatcherOverload("string", (val: Value): Value => {
       if (val instanceof StringValue) {
         return val;
       }
@@ -337,7 +342,7 @@ function registerTypeConversions(dispatcher: Dispatcher): void {
 
   // bytes(value) -> bytes
   dispatcher.add(
-    unaryOverload("bytes", (val: Value): Value => {
+    new UnaryDispatcherOverload("bytes", (val: Value): Value => {
       if (val instanceof BytesValue) {
         return val;
       }
@@ -350,7 +355,7 @@ function registerTypeConversions(dispatcher: Dispatcher): void {
 
   // bool(value) -> bool
   dispatcher.add(
-    unaryOverload("bool", (val: Value): Value => {
+    new UnaryDispatcherOverload("bool", (val: Value): Value => {
       if (val instanceof BoolValue) {
         return val;
       }
@@ -370,7 +375,7 @@ function registerTypeConversions(dispatcher: Dispatcher): void {
 
   // type(value) -> type
   dispatcher.add(
-    unaryOverload("type", (val: Value): Value => {
+    new UnaryDispatcherOverload("type", (val: Value): Value => {
       switch (val.type()) {
         case "bool":
           return TypeValue.BoolType;
@@ -404,7 +409,7 @@ function registerTypeConversions(dispatcher: Dispatcher): void {
 
   // dyn(value) -> dyn
   dispatcher.add(
-    unaryOverload("dyn", (val: Value): Value => {
+    new UnaryDispatcherOverload("dyn", (val: Value): Value => {
       return val;
     })
   );
@@ -460,7 +465,7 @@ function registerMapFunctions(_dispatcher: Dispatcher): void {
 function registerTimeFunctions(dispatcher: Dispatcher): void {
   // timestamp(string) -> timestamp
   dispatcher.add(
-    unaryOverload("timestamp_string", (val: Value): Value => {
+    new UnaryDispatcherOverload("timestamp_string", (val: Value): Value => {
       if (val instanceof StringValue) {
         const date = new Date(val.value());
         if (isNaN(date.getTime())) {
@@ -474,7 +479,7 @@ function registerTimeFunctions(dispatcher: Dispatcher): void {
 
   // timestamp(int) -> timestamp (seconds since epoch)
   dispatcher.add(
-    unaryOverload("timestamp_int", (val: Value): Value => {
+    new UnaryDispatcherOverload("timestamp_int", (val: Value): Value => {
       if (val instanceof IntValue) {
         return TimestampValue.fromSeconds(Number(val.value()));
       }
@@ -484,7 +489,7 @@ function registerTimeFunctions(dispatcher: Dispatcher): void {
 
   // duration(string) -> duration
   dispatcher.add(
-    unaryOverload("duration_string", (val: Value): Value => {
+    new UnaryDispatcherOverload("duration_string", (val: Value): Value => {
       if (val instanceof StringValue) {
         const parsed = parseDuration(val.value());
         if (isError(parsed)) {
@@ -498,7 +503,7 @@ function registerTimeFunctions(dispatcher: Dispatcher): void {
 
   // timestamp.getFullYear() -> int
   dispatcher.add(
-    unaryOverload("getFullYear", (val: Value): Value => {
+    new UnaryDispatcherOverload("getFullYear", (val: Value): Value => {
       if (val instanceof TimestampValue) {
         return val.getFullYear();
       }
@@ -508,7 +513,7 @@ function registerTimeFunctions(dispatcher: Dispatcher): void {
 
   // timestamp.getMonth() -> int
   dispatcher.add(
-    unaryOverload("getMonth", (val: Value): Value => {
+    new UnaryDispatcherOverload("getMonth", (val: Value): Value => {
       if (val instanceof TimestampValue) {
         return val.getMonth();
       }
@@ -518,7 +523,7 @@ function registerTimeFunctions(dispatcher: Dispatcher): void {
 
   // timestamp.getDayOfMonth() -> int
   dispatcher.add(
-    unaryOverload("getDayOfMonth", (val: Value): Value => {
+    new UnaryDispatcherOverload("getDayOfMonth", (val: Value): Value => {
       if (val instanceof TimestampValue) {
         return val.getDayOfMonth();
       }
@@ -528,7 +533,7 @@ function registerTimeFunctions(dispatcher: Dispatcher): void {
 
   // timestamp.getDayOfWeek() -> int
   dispatcher.add(
-    unaryOverload("getDayOfWeek", (val: Value): Value => {
+    new UnaryDispatcherOverload("getDayOfWeek", (val: Value): Value => {
       if (val instanceof TimestampValue) {
         return val.getDayOfWeek();
       }
@@ -538,7 +543,7 @@ function registerTimeFunctions(dispatcher: Dispatcher): void {
 
   // timestamp.getHours() -> int
   dispatcher.add(
-    unaryOverload("getHours", (val: Value): Value => {
+    new UnaryDispatcherOverload("getHours", (val: Value): Value => {
       if (val instanceof TimestampValue) {
         return val.getHours();
       }
@@ -551,7 +556,7 @@ function registerTimeFunctions(dispatcher: Dispatcher): void {
 
   // timestamp.getMinutes() -> int
   dispatcher.add(
-    unaryOverload("getMinutes", (val: Value): Value => {
+    new UnaryDispatcherOverload("getMinutes", (val: Value): Value => {
       if (val instanceof TimestampValue) {
         return val.getMinutes();
       }
@@ -564,7 +569,7 @@ function registerTimeFunctions(dispatcher: Dispatcher): void {
 
   // timestamp.getSeconds() -> int
   dispatcher.add(
-    unaryOverload("getSeconds", (val: Value): Value => {
+    new UnaryDispatcherOverload("getSeconds", (val: Value): Value => {
       if (val instanceof TimestampValue) {
         return val.getSeconds();
       }
@@ -577,7 +582,7 @@ function registerTimeFunctions(dispatcher: Dispatcher): void {
 
   // timestamp.getMilliseconds() -> int
   dispatcher.add(
-    unaryOverload("getMilliseconds", (val: Value): Value => {
+    new UnaryDispatcherOverload("getMilliseconds", (val: Value): Value => {
       if (val instanceof TimestampValue) {
         return val.getMilliseconds();
       }

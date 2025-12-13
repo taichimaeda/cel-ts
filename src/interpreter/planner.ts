@@ -185,8 +185,6 @@ export class Planner {
         return this.planBinaryOp(e, fnName);
       case "_[_]":
         return this.planIndex(e);
-      case "_?._":
-        return this.planOptSelect(e);
       case "@not_strictly_false":
         return this.planNotStrictlyFalse(e);
     }
@@ -285,24 +283,6 @@ export class Planner {
     const operand = this.planExpr(e.args[0]!);
     const index = this.planExpr(e.args[1]!);
     return new IndexValue(e.id, operand, index, false);
-  }
-
-  /**
-   * Plan optional select.
-   */
-  private planOptSelect(e: CallExpr): Interpretable {
-    const operand = this.planExpr(e.args[0]!);
-    const fieldExpr = e.args[1]!;
-
-    // Field should be a string literal
-    if (fieldExpr.kind === ExprKind.Literal) {
-      const lit = fieldExpr as LiteralExpr;
-      if (lit.value.kind === "string") {
-        return new FieldValue(e.id, operand, lit.value.value, true);
-      }
-    }
-
-    return this.errorNode(e.id, "invalid optional select");
   }
 
   /**
@@ -428,6 +408,6 @@ export class Planner {
    * Create an error node.
    */
   private errorNode(id: number, message: string): Interpretable {
-    return new ConstValue(id, ErrorValue.create(message));
+    return new ConstValue(id, ErrorValue.create(message, id));
   }
 }

@@ -43,7 +43,7 @@
     "dsl"
   ],
   "author": "",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "homepage": "https://github.com/example/cel-ts#readme",
   "repository": {
     "type": "git",

@@ -14,10 +14,10 @@ import {
   NullValue,
   StringValue,
   UintValue,
-  binaryOverload,
+  BinaryDispatcherOverload,
   evaluate,
-  functionOverload,
-  unaryOverload,
+  VariadicDispatcherOverload,
+  UnaryDispatcherOverload,
 } from "../src/interpreter";
 
 describe("CEL Interpreter", () => {
@@ -477,7 +477,7 @@ describe("CEL Interpreter", () => {
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
-          unaryOverload("greet_string", (arg) => new StringValue(`Hello, ${arg.value()}!`))
+          new UnaryDispatcherOverload("greet_string", (arg) => new StringValue(`Hello, ${arg.value()}!`))
         );
 
         const env = new Env({
@@ -498,7 +498,7 @@ describe("CEL Interpreter", () => {
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
-          unaryOverload("doubleIt_int", (arg) => IntValue.of((arg.value() as bigint) * 2n))
+          new UnaryDispatcherOverload("doubleIt_int", (arg) => IntValue.of((arg.value() as bigint) * 2n))
         );
 
         const env = new Env({
@@ -521,7 +521,7 @@ describe("CEL Interpreter", () => {
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
-          binaryOverload("myAdd_int_int", (lhs, rhs) =>
+          new BinaryDispatcherOverload("myAdd_int_int", (lhs, rhs) =>
             IntValue.of((lhs.value() as bigint) + (rhs.value() as bigint))
           )
         );
@@ -546,7 +546,7 @@ describe("CEL Interpreter", () => {
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
-          binaryOverload(
+          new BinaryDispatcherOverload(
             "concat_string_string",
             (lhs, rhs) => new StringValue(`${lhs.value()}${rhs.value()}`)
           )
@@ -574,7 +574,7 @@ describe("CEL Interpreter", () => {
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
-          functionOverload("sum3_int_int_int", (args) => {
+          new VariadicDispatcherOverload("sum3_int_int_int", (args) => {
             const a = args[0]!.value() as bigint;
             const b = args[1]!.value() as bigint;
             const c = args[2]!.value() as bigint;
@@ -604,7 +604,7 @@ describe("CEL Interpreter", () => {
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
-          unaryOverload(
+          new UnaryDispatcherOverload(
             "string_reverse",
             (arg) => new StringValue(String(arg.value()).split("").reverse().join(""))
           )
@@ -630,7 +630,7 @@ describe("CEL Interpreter", () => {
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
-          binaryOverload(
+          new BinaryDispatcherOverload(
             "string_repeat_int",
             (str, count) => new StringValue(String(str.value()).repeat(Number(count.value())))
           )
@@ -656,7 +656,7 @@ describe("CEL Interpreter", () => {
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
-          unaryOverload("isPositive_int", (arg) => BoolValue.of((arg.value() as bigint) > 0n))
+          new UnaryDispatcherOverload("isPositive_int", (arg) => BoolValue.of((arg.value() as bigint) > 0n))
         );
 
         const env = new Env({
@@ -684,7 +684,7 @@ describe("CEL Interpreter", () => {
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
-          binaryOverload("safeDiv_int_int", (lhs, rhs) => {
+          new BinaryDispatcherOverload("safeDiv_int_int", (lhs, rhs) => {
             const divisor = rhs.value() as bigint;
             if (divisor === 0n) {
               return ErrorValue.create("division by zero");

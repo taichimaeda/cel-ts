@@ -8,7 +8,7 @@ import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
 import type { CheckerError } from "./checker/errors";
 import { getStandardFunctions } from "./checker/stdlib";
 import { Type } from "./checker/types";
-import type { AST as CommonAST } from "./common/ast";
+import type { AST as CommonAST, SourceInfo } from "./common/ast";
 import {
   type Activation,
   EmptyActivation,
@@ -29,7 +29,7 @@ import {
   type Value,
   isError,
 } from "./interpreter/values";
-import { Parser, parseToAST } from "./parser";
+import { Parser, ParserHelper } from "./parser";
 
 // ============================================================================
 // Errors - CEL Error Types
@@ -95,53 +95,52 @@ export const DynType = Type.Dyn;
 /** Any type (alias for Dyn) */
 export const AnyType = Type.Dyn;
 
-/* biome-ignore lint/style/useNamingConvention: CEL API mirrors cel-go helper names. */
 /**
- * Create a List type.
- * @param elemType - Element type
+ * TypeBuilder provides a fluent, class-based API for creating CEL types.
  */
-export function ListType(elemType: Type): Type {
-  return Type.newListType(elemType);
+export class TypeBuilder {
+  /**
+   * Create a List type.
+   */
+  list(elemType: Type): Type {
+    return Type.newListType(elemType);
+  }
+
+  /**
+   * Create a Map type.
+   */
+  map(keyType: Type, valueType: Type): Type {
+    return Type.newMapType(keyType, valueType);
+  }
+
+  /**
+   * Create an Optional type.
+   */
+  optional(_type: Type): Type {
+    // TODO: Full Optional type implementation needed
+    return Type.Dyn;
+  }
+
+  /**
+   * Create a Type type (type of types).
+   */
+  type(type: Type): Type {
+    return Type.newTypeTypeWithParam(type);
+  }
+
+  /**
+   * Create an Object type (message type).
+   */
+  object(_typeName: string): Type {
+    // TODO: Full Object type implementation needed
+    return Type.newMapType(Type.String, Type.Dyn);
+  }
 }
 
-/* biome-ignore lint/style/useNamingConvention: CEL API mirrors cel-go helper names. */
 /**
- * Create a Map type.
- * @param keyType - Key type
- * @param valueType - Value type
+ * Singleton TypeBuilder instance for convenience.
  */
-export function MapType(keyType: Type, valueType: Type): Type {
-  return Type.newMapType(keyType, valueType);
-}
-
-/* biome-ignore lint/style/useNamingConvention: CEL API mirrors cel-go helper names. */
-/**
- * Create an Optional type.
- * @param _type - Wrapped type
- */
-export function OptionalType(_type: Type): Type {
-  // TODO: Full Optional type implementation needed
-  return Type.Dyn;
-}
-
-/* biome-ignore lint/style/useNamingConvention: CEL API mirrors cel-go helper names. */
-/**
- * Create a Type type (type of types).
- * @param type - Parameter type
- */
-export function TypeType(type: Type): Type {
-  return Type.newTypeTypeWithParam(type);
-}
-
-/* biome-ignore lint/style/useNamingConvention: CEL API mirrors cel-go helper names. */
-/**
- * Create an Object type (message type).
- * @param _typeName - Type name
- */
-export function ObjectType(_typeName: string): Type {
-  // TODO: Full Object type implementation needed
-  return Type.newMapType(Type.String, Type.Dyn);
-}
+export const Types = new TypeBuilder();
 
 // ============================================================================
 // Issues - Error/Warning Collection
@@ -239,10 +238,16 @@ type ProgramInput = Activation | Map<string, Value> | Record<string, unknown>;
 export class Program {
   private readonly interpretable: ReturnType<Planner["plan"]>;
   private readonly adapter: TypeAdapter;
+  private readonly sourceInfo: SourceInfo;
 
-  constructor(interpretable: ReturnType<Planner["plan"]>, adapter: TypeAdapter) {
+  constructor(
+    interpretable: ReturnType<Planner["plan"]>,
+    adapter: TypeAdapter,
+    sourceInfo: SourceInfo
+  ) {
     this.interpretable = interpretable;
     this.adapter = adapter;
+    this.sourceInfo = sourceInfo;
   }
 
   eval(vars?: ProgramInput): Value {
@@ -260,7 +265,8 @@ export class Program {
     const value = this.interpretable.eval(activation);
 
     if (isError(value)) {
-      throw new CELError((value as ErrorValue).getMessage());
+      const message = formatRuntimeError(value as ErrorValue, this.sourceInfo);
+      throw new CELError(message);
     }
 
     return value;
@@ -274,6 +280,19 @@ function isActivation(value: unknown): value is Activation {
     "resolve" in (value as Record<string, unknown>) &&
     typeof (value as Activation).resolve === "function"
   );
+}
+
+function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): string {
+  const exprId = error.getExprId();
+  if (exprId === undefined) {
+    return error.getMessage();
+  }
+  const position = sourceInfo.getPosition(exprId);
+  if (!position) {
+    return error.getMessage();
+  }
+  const { line, column } = sourceInfo.getLocation(position.start);
+  return `${line}:${column}: ${error.getMessage()}`;
 }
 
 // ============================================================================
@@ -294,224 +313,218 @@ interface EnvConfig {
 }
 
 /**
- * Configuration options for building a CEL environment.
+ * Options used to configure an Env instance.
  */
-export type EnvOption =
-  | { kind: "variable"; name: string; type: Type }
-  | { kind: "constant"; name: string; type: Type; value: Value }
-  | { kind: "function"; name: string; overloads: FunctionOverload[] }
-  | { kind: "container"; name: string }
-  | { kind: "adapter"; adapter: TypeAdapter }
-  | { kind: "disableStdlib" }
-  | { kind: "disableTypeChecking" };
-
-function applyEnvOption(config: EnvConfig, opt: EnvOption): void {
-  switch (opt.kind) {
-    case "variable":
-      applyVariableOption(config, opt);
-      break;
-    case "constant":
-      applyConstantOption(config, opt);
-      break;
-    case "function":
-      applyFunctionOption(config, opt);
-      break;
-    case "container":
-      applyContainerOption(config, opt);
-      break;
-    case "adapter":
-      applyAdapterOption(config, opt);
-      break;
-    case "disableStdlib":
-      applyDisableStandardLibraryOption(config);
-      break;
-    case "disableTypeChecking":
-      applyDisableTypeCheckingOption(config);
-      break;
-    default:
-      ((_: never) => _)(opt);
-  }
+export interface EnvOption {
+  apply(config: EnvConfig): void;
 }
 
-type VariableOption = Extract<EnvOption, { kind: "variable" }>;
-type ConstantOption = Extract<EnvOption, { kind: "constant" }>;
-type ContainerOption = Extract<EnvOption, { kind: "container" }>;
-type AdapterOption = Extract<EnvOption, { kind: "adapter" }>;
-type FunctionOption = Extract<EnvOption, { kind: "function" }>;
-
-function applyFunctionOption(config: EnvConfig, opt: FunctionOption): void {
-  const fn = new FunctionDecl(opt.name);
-  const runtimeOverloads: DispatcherOverload[] = [];
-
-  for (const overload of opt.overloads) {
-    const decl = new OverloadDecl(
-      overload.id,
-      overload.argTypes,
-      overload.resultType,
-      overload.typeParams ?? [],
-      overload.isMember ?? false
-    );
-    fn.addOverload(decl);
-
-    if (overload.binding) {
-      const { id, argTypes, binding } = overload;
-      const dispatcherOverload: DispatcherOverload = { id };
-      switch (argTypes.length) {
-        case 1:
-          const unary = (arg: Value) => (binding as UnaryBinding)(arg);
-          dispatcherOverload.unary = unary;
-          break;
-        case 2:
-          const binary = (lhs: Value, rhs: Value) => (binding as BinaryBinding)(lhs, rhs);
-          dispatcherOverload.binary = binary;
-          break;
-        default:
-          const nary = (args: Value[]) => (binding as FunctionBinding)(args);
-          dispatcherOverload.nary = nary;
-          break;
-      }
-      runtimeOverloads.push(dispatcherOverload);
-    }
-  }
-
-  config.functions.push(fn);
-
-  if (runtimeOverloads.length > 0) {
-    const existing = config.functionOverloads.get(opt.name) ?? [];
-    config.functionOverloads.set(opt.name, [...existing, ...runtimeOverloads]);
-  }
-}
-
-function applyVariableOption(config: EnvConfig, opt: VariableOption): void {
-  config.variables.push(new VariableDecl(opt.name, opt.type));
-}
-
-function applyConstantOption(config: EnvConfig, opt: ConstantOption): void {
-  config.variables.push(new VariableDecl(opt.name, opt.type));
-}
-
-function applyContainerOption(config: EnvConfig, opt: ContainerOption): void {
-  config.container = opt.name;
-}
-
-function applyAdapterOption(config: EnvConfig, opt: AdapterOption): void {
-  config.adapter = opt.adapter;
-}
-
-function applyDisableStandardLibraryOption(config: EnvConfig): void {
-  config.disableStandardLibrary = true;
-}
-
-function applyDisableTypeCheckingOption(config: EnvConfig): void {
-  config.disableTypeChecking = true;
-}
-
-/* biome-ignore lint/style/useNamingConvention: CEL API matches cel-go builder names. */
 /**
  * Declare a variable with a name and type.
  */
-export function Variable(name: string, type: Type): EnvOption {
-  return { kind: "variable", name, type };
+export class VariableOption implements EnvOption {
+  constructor(
+    public readonly name: string,
+    public readonly type: Type
+  ) { }
+
+  apply(config: EnvConfig): void {
+    config.variables.push(new VariableDecl(this.name, this.type));
+  }
 }
 
-/* biome-ignore lint/style/useNamingConvention: CEL API matches cel-go builder names. */
 /**
  * Declare a constant with a name, type, and value.
  */
-export function Constant(name: string, type: Type, value: Value): EnvOption {
-  // TODO: Constants are declared as variables, returning constant value at evaluation
-  return { kind: "constant", name, type, value };
+export class ConstantOption implements EnvOption {
+  constructor(
+    public readonly name: string,
+    public readonly type: Type,
+    public readonly value: Value
+  ) { }
+
+  apply(config: EnvConfig): void {
+    // TODO: Proper constant support. For now, treat as variable declaration.
+    config.variables.push(new VariableDecl(this.name, this.type));
+  }
 }
 
 /**
- * Declare a function with overloads.
+ * Configure container name resolution.
  */
-/* biome-ignore lint/style/useNamingConvention: CEL API matches cel-go builder names. */
-export function Function(name: string, ...overloads: FunctionOverload[]): EnvOption {
-  return { kind: "function", name, overloads };
+export class ContainerOption implements EnvOption {
+  constructor(public readonly name: string) { }
+
+  apply(config: EnvConfig): void {
+    config.container = this.name;
+  }
+}
+
+/**
+ * Install a custom type adapter.
+ */
+export class AdapterOption implements EnvOption {
+  constructor(public readonly adapter: TypeAdapter) { }
+
+  apply(config: EnvConfig): void {
+    config.adapter = this.adapter;
+  }
+}
+
+/**
+ * Disable shipping standard library functions.
+ */
+export class DisableStandardLibraryOption implements EnvOption {
+  apply(config: EnvConfig): void {
+    config.disableStandardLibrary = true;
+  }
+}
+
+/**
+ * Disable type checking.
+ */
+export class DisableTypeCheckingOption implements EnvOption {
+  apply(config: EnvConfig): void {
+    config.disableTypeChecking = true;
+  }
 }
 
 /**
  * Describe a function overload declaration and optional runtime binding.
  */
-export interface FunctionOverload {
-  id: string;
-  argTypes: Type[];
-  resultType: Type;
-  typeParams?: string[];
+type FunctionOverloadOptions = {
+  typeParams?: readonly string[];
   isMember?: boolean;
-  binding?: UnaryBinding | BinaryBinding | FunctionBinding;
+  binding?: UnaryBinding | BinaryBinding | FunctionBinding | undefined;
+};
+
+export class FunctionOverload {
+  readonly typeParams: readonly string[];
+  readonly isMember: boolean;
+  readonly binding?: UnaryBinding | BinaryBinding | FunctionBinding | undefined;
+
+  constructor(
+    public readonly id: string,
+    public readonly argTypes: readonly Type[],
+    public readonly resultType: Type,
+    options: FunctionOverloadOptions = {}
+  ) {
+    this.typeParams = options.typeParams ? [...options.typeParams] : [];
+    this.isMember = options.isMember ?? false;
+    this.binding = options.binding;
+  }
+
+  /**
+   * Create a global overload instance.
+   */
+  static global(
+    id: string,
+    argTypes: Type[],
+    resultType: Type,
+    binding?: UnaryBinding | BinaryBinding | FunctionBinding,
+    options: { typeParams?: readonly string[] } = {}
+  ): FunctionOverload {
+    const overloadOptions: FunctionOverloadOptions = {
+      ...options,
+      isMember: false,
+    };
+    if (binding !== undefined) {
+      overloadOptions.binding = binding;
+    }
+    return new FunctionOverload(id, argTypes, resultType, overloadOptions);
+  }
+
+  /**
+   * Create a member overload instance.
+   */
+  static member(
+    id: string,
+    argTypes: Type[],
+    resultType: Type,
+    binding?: UnaryBinding | BinaryBinding | FunctionBinding,
+    options: { typeParams?: readonly string[] } = {}
+  ): FunctionOverload {
+    const overloadOptions: FunctionOverloadOptions = {
+      ...options,
+      isMember: true,
+    };
+    if (binding !== undefined) {
+      overloadOptions.binding = binding;
+    }
+    return new FunctionOverload(id, argTypes, resultType, overloadOptions);
+  }
+
+  /**
+   * Convert to a dispatcher overload instance if runtime binding is provided.
+   */
+  toDispatcherOverload(): DispatcherOverload | undefined {
+    if (!this.binding) {
+      return undefined;
+    }
+
+    const dispatcherOverload: DispatcherOverload = {
+      id: this.id,
+    };
+
+    switch (this.argTypes.length) {
+      case 1:
+        dispatcherOverload.unary = (arg: Value) => (this.binding as UnaryBinding)(arg);
+        break;
+      case 2:
+        dispatcherOverload.binary = (lhs: Value, rhs: Value) =>
+          (this.binding as BinaryBinding)(lhs, rhs);
+        break;
+      default:
+        dispatcherOverload.nary = (args: Value[]) => (this.binding as FunctionBinding)(args);
+        break;
+    }
+    return dispatcherOverload;
+  }
 }
 
-// Function binding types
+/**
+ * Function binding types.
+ */
 export type UnaryBinding = (arg: Value) => Value;
 export type BinaryBinding = (lhs: Value, rhs: Value) => Value;
 export type FunctionBinding = (args: Value[]) => Value;
 
-/* biome-ignore lint/style/useNamingConvention: CEL API matches cel-go builder names. */
 /**
- * Declare a global function overload.
+ * Declare functions with overloads.
  */
-export function GlobalOverload(
-  id: string,
-  argTypes: Type[],
-  resultType: Type,
-  binding?: UnaryBinding | BinaryBinding | FunctionBinding
-): FunctionOverload {
-  const config: FunctionOverload = { id, argTypes, resultType };
-  if (binding) {
-    config.binding = binding;
+export class FunctionOption implements EnvOption {
+  readonly overloads: readonly FunctionOverload[];
+
+  constructor(public readonly name: string, ...overloads: FunctionOverload[]) {
+    this.overloads = overloads;
   }
-  return config;
-}
 
-/* biome-ignore lint/style/useNamingConvention: CEL API matches cel-go builder names. */
-/**
- * Declare a member function overload.
- */
-export function MemberOverload(
-  id: string,
-  argTypes: Type[],
-  resultType: Type,
-  binding?: UnaryBinding | BinaryBinding | FunctionBinding
-): FunctionOverload {
-  const config: FunctionOverload = { id, argTypes, resultType, isMember: true };
-  if (binding) {
-    config.binding = binding;
+  apply(config: EnvConfig): void {
+    const fn = new FunctionDecl(this.name);
+    const runtimeOverloads: DispatcherOverload[] = [];
+
+    for (const overload of this.overloads) {
+      const decl = new OverloadDecl(
+        overload.id,
+        [...overload.argTypes],
+        overload.resultType,
+        [...overload.typeParams],
+        overload.isMember
+      );
+      fn.addOverload(decl);
+
+      const dispatcherOverload = overload.toDispatcherOverload();
+      if (dispatcherOverload) {
+        runtimeOverloads.push(dispatcherOverload);
+      }
+    }
+
+    config.functions.push(fn);
+    if (runtimeOverloads.length > 0) {
+      const existing = config.functionOverloads.get(this.name) ?? [];
+      config.functionOverloads.set(this.name, [...existing, ...runtimeOverloads]);
+    }
   }
-  return config;
-}
-
-/* biome-ignore lint/style/useNamingConvention: CEL API matches cel-go builder names. */
-/**
- * Set the container name for type resolution.
- */
-export function Container(name: string): EnvOption {
-  return { kind: "container", name };
-}
-
-/* biome-ignore lint/style/useNamingConvention: CEL API matches cel-go builder names. */
-/**
- * Set a custom type adapter.
- */
-export function CustomTypeAdapter(adapter: TypeAdapter): EnvOption {
-  return { kind: "adapter", adapter };
-}
-
-/* biome-ignore lint/style/useNamingConvention: CEL API matches cel-go builder names. */
-/**
- * Disable the standard library functions.
- */
-export function DisableStandardLibrary(): EnvOption {
-  return { kind: "disableStdlib" };
-}
-
-/* biome-ignore lint/style/useNamingConvention: CEL API matches cel-go builder names. */
-/**
- * Disable type checking.
- */
-export function DisableTypeChecking(): EnvOption {
-  return { kind: "disableTypeChecking" };
 }
 
 // ============================================================================
@@ -539,7 +552,7 @@ export class Env {
     };
 
     for (const opt of options) {
-      applyEnvOption(config, opt);
+      opt.apply(config);
     }
     this.initialize(config);
   }
@@ -555,7 +568,8 @@ export class Env {
     }
 
     // Convert ANTLR parse tree to our AST with macro expansion
-    const ast = parseToAST(parseResult.tree, expression);
+    const helper = new ParserHelper(expression);
+    const ast = helper.parse(parseResult.tree);
     return new Ast(ast, expression);
   }
 
@@ -570,7 +584,8 @@ export class Env {
     }
 
     // Convert ANTLR parse tree to our AST with macro expansion
-    const ast = parseToAST(parseResult.tree, expression);
+    const helper = new ParserHelper(expression);
+    const ast = helper.parse(parseResult.tree);
 
     if (this.config.disableTypeChecking) {
       return new Ast(ast, expression);
@@ -616,7 +631,7 @@ export class Env {
     });
 
     const interpretable = planner.plan(celAst.ast);
-    return new Program(interpretable, this.config.adapter);
+    return new Program(interpretable, this.config.adapter, celAst.ast.sourceInfo);
   }
 
   /**
@@ -631,7 +646,7 @@ export class Env {
     };
 
     for (const opt of options) {
-      applyEnvOption(newConfig, opt);
+      opt.apply(newConfig);
     }
 
     return Env.fromConfig(newConfig);
@@ -683,7 +698,7 @@ export {
   MapActivation,
   MutableActivation,
   PartialActivation,
-  StrictActivation,
+  StrictActivation
 } from "./interpreter/activation";
 export type { Activation } from "./interpreter/activation";
 export {
@@ -700,6 +715,7 @@ export {
   TimestampValue,
   TypeValue,
   UintValue,
-  isError,
+  isError
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";
+

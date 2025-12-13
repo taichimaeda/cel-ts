@@ -10,10 +10,10 @@
  *
  * @example
  * ```typescript
- * import { Env, Variable, IntType } from "cel-ts";
+ * import { Env, VariableOption, IntType } from "cel-ts";
  *
  * // Create an environment
- * const env = new Env(Variable("x", IntType));
+ * const env = new Env(new VariableOption("x", IntType));
  *
  * // Compile an expression
  * const ast = env.compile("x + 1");

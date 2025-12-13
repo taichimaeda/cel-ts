@@ -7,23 +7,21 @@ import {
   type BoolValue,
   CELError,
   CompileError,
-  DisableStandardLibrary,
-  DisableTypeChecking,
+  DisableStandardLibraryOption,
+  DisableTypeCheckingOption,
   EmptyActivation,
   Env,
-  Function,
-  GlobalOverload,
+  FunctionOption,
+  FunctionOverload,
   IntType,
   type IntValue,
   IntValue as IntValueClass,
-  ListType,
-  MapType,
-  MemberOverload,
   ParseError,
   StringType,
   StringValue as StringValueClass,
   type Value,
-  Variable,
+  Types,
+  VariableOption,
 } from "../src/cel";
 
 describe("CEL API - Env", () => {
@@ -33,7 +31,7 @@ describe("CEL API - Env", () => {
   });
 
   test("should create environment with variables", () => {
-    const env = new Env(Variable("x", IntType), Variable("name", StringType));
+    const env = new Env(new VariableOption("x", IntType), new VariableOption("name", StringType));
     expect(env).toBeDefined();
   });
 
@@ -49,7 +47,7 @@ describe("CEL API - Env", () => {
   });
 
   test("should compile and evaluate expression with variables", () => {
-    const env = new Env(Variable("x", IntType), Variable("y", IntType));
+    const env = new Env(new VariableOption("x", IntType), new VariableOption("y", IntType));
     const ast = env.compile("x + y");
     const prg = env.program(ast);
     const result = prg.eval({ x: 10, y: 20 });
@@ -57,7 +55,7 @@ describe("CEL API - Env", () => {
   });
 
   test("should throw CompileError on type errors", () => {
-    const env = new Env(Variable("x", IntType));
+    const env = new Env(new VariableOption("x", IntType));
     expect(() => env.compile("y + 1")).toThrow(CompileError);
   });
 
@@ -67,7 +65,7 @@ describe("CEL API - Env", () => {
   });
 
   test("should throw CELError on evaluation error", () => {
-    const env = new Env(Variable("x", IntType));
+    const env = new Env(new VariableOption("x", IntType));
     const ast = env.compile("x / 0");
     const prg = env.program(ast);
     expect(() => prg.eval({ x: 10 })).toThrow(CELError);
@@ -92,8 +90,8 @@ describe("CEL API - Parse and Check", () => {
 
 describe("CEL API - Extend Environment", () => {
   test("should extend environment with new variables", () => {
-    const env = new Env(Variable("x", IntType));
-    const extEnv = env.extend(Variable("y", IntType));
+    const env = new Env(new VariableOption("x", IntType));
+    const extEnv = env.extend(new VariableOption("y", IntType));
     const ast = extEnv.compile("x + y");
     const prg = extEnv.program(ast);
     const result = prg.eval({ x: 5, y: 10 });
@@ -104,9 +102,9 @@ describe("CEL API - Extend Environment", () => {
 describe("CEL API - Custom Functions", () => {
   test("should declare and evaluate global function with unary binding", () => {
     const env = new Env(
-      Function(
+      new FunctionOption(
         "greet",
-        GlobalOverload(
+        FunctionOverload.global(
           "greet_string",
           [StringType],
           StringType,
@@ -123,9 +121,9 @@ describe("CEL API - Custom Functions", () => {
 
   test("should declare and evaluate global function with binary binding", () => {
     const env = new Env(
-      Function(
+      new FunctionOption(
         "add",
-        GlobalOverload("add_int_int", [IntType, IntType], IntType, (lhs, rhs) =>
+        FunctionOverload.global("add_int_int", [IntType, IntType], IntType, (lhs, rhs) =>
           IntValueClass.of((lhs.value() as bigint) + (rhs.value() as bigint))
         )
       )
@@ -138,9 +136,9 @@ describe("CEL API - Custom Functions", () => {
 
   test("should declare and evaluate member function", () => {
     const env = new Env(
-      Function(
+      new FunctionOption(
         "reverse",
-        MemberOverload(
+        FunctionOverload.member(
           "string_reverse",
           [StringType],
           StringType,
@@ -158,24 +156,24 @@ describe("CEL API - Custom Functions", () => {
 
 describe("CEL API - Type Helpers", () => {
   test("should create list type", () => {
-    const listType = ListType(IntType);
+    const listType = Types.list(IntType);
     expect(listType.toString()).toBe("list(int)");
   });
 
   test("should create map type", () => {
-    const mapType = MapType(StringType, IntType);
+    const mapType = Types.map(StringType, IntType);
     expect(mapType.toString()).toBe("map(string, int)");
   });
 });
 
 describe("CEL API - Environment Options", () => {
   test("should create environment without standard library", () => {
-    const env = new Env(DisableStandardLibrary(), Variable("x", IntType));
+    const env = new Env(new DisableStandardLibraryOption(), new VariableOption("x", IntType));
     expect(() => env.compile('size("hello")')).toThrow(CompileError);
   });
 
   test("should skip type checking when disabled", () => {
-    const env = new Env(DisableTypeChecking());
+    const env = new Env(new DisableTypeCheckingOption());
     const ast = env.compile("unknown_var + 1");
     expect(ast.isChecked).toBe(false);
   });
@@ -191,7 +189,7 @@ describe("CEL API - Environment Options", () => {
 
 describe("CEL API - Property-Based Tests", () => {
   test("should agree with JS arithmetic for arbitrary activations", () => {
-    const env = new Env(Variable("a", IntType), Variable("b", IntType), Variable("c", IntType));
+    const env = new Env(new VariableOption("a", IntType), new VariableOption("b", IntType), new VariableOption("c", IntType));
     const ast = env.compile("(a * b) - c + (a > c ? a : c)");
     const prg = env.program(ast);
 
@@ -215,7 +213,7 @@ describe("CEL API - Property-Based Tests", () => {
   });
 
   test("should report list length via size()", () => {
-    const env = new Env(Variable("numbers", ListType(IntType)));
+    const env = new Env(new VariableOption("numbers", Types.list(IntType)));
     const ast = env.compile("size(numbers)");
     const prg = env.program(ast);
 
@@ -228,7 +226,7 @@ describe("CEL API - Property-Based Tests", () => {
   });
 
   test("should match JS includes for `in` operator on lists", () => {
-    const env = new Env(Variable("roles", ListType(StringType)), Variable("target", StringType));
+    const env = new Env(new VariableOption("roles", Types.list(StringType)), new VariableOption("target", StringType));
     const ast = env.compile("target in roles");
     const prg = env.program(ast);
 

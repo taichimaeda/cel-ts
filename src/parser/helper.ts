@@ -6,16 +6,19 @@ import type { ParserRuleContext, TerminalNode } from "antlr4";
 import {
   AST,
   AccumulatorName,
-  type CallExpr,
-  type ComprehensionExpr,
+  CallExpr,
+  ComprehensionExpr,
   type Expr,
-  ExprFactory,
-  type IdentExpr,
-  type ListExpr,
-  type MapEntry,
-  type SelectExpr,
+  ExprKind,
+  IdentExpr,
+  ListExpr,
+  LiteralExpr,
+  MapEntry,
+  MapExpr,
+  SelectExpr,
   SourceInfo,
-  type StructField,
+  StructExpr,
+  StructField,
 } from "../common/ast";
 import {
   BoolFalseContext,
@@ -84,10 +87,6 @@ export const Operators = {
 
   // Index
   Index: "_[_]",
-
-  // Optional
-  OptIndex: "_[?_]",
-  OptSelect: "_?._",
 };
 
 /**
@@ -104,13 +103,12 @@ export interface ParserHelperOptions {
  * Parser helper that converts ANTLR parse tree to CEL AST.
  */
 export class ParserHelper {
-  private readonly factory: ExprFactory;
+  private nextIdCounter = 1;
   private readonly sourceInfo: SourceInfo;
   private readonly macroRegistry: MacroRegistry;
   private readonly populateMacroCalls: boolean;
 
   constructor(source: string, options: ParserHelperOptions = {}) {
-    this.factory = new ExprFactory();
     this.sourceInfo = new SourceInfo(source);
     this.macroRegistry = new MacroRegistry(options.macros ?? AllMacros);
     this.populateMacroCalls = options.populateMacroCalls ?? true;
@@ -123,7 +121,7 @@ export class ParserHelper {
     const exprCtx = tree.expr();
     if (!exprCtx) {
       // Empty expression
-      const expr = this.factory.createUnspecified(this.factory.nextId());
+      const expr = this.createUnspecified();
       return new AST(expr, this.sourceInfo);
     }
     const expr = this.buildExpr(exprCtx);
@@ -134,41 +132,45 @@ export class ParserHelper {
   // Builder methods used by macro expansion
   // ============================================================================
 
+  private createUnspecified(): Expr {
+    return { id: this.nextId(), kind: ExprKind.Unspecified };
+  }
+
   nextId(): number {
-    return this.factory.nextId();
+    return this.nextIdCounter++;
   }
 
   createLiteral(value: boolean | bigint | number | string | null): Expr {
     const id = this.nextId();
     if (value === null) {
-      return this.factory.createNullLiteral(id);
+      return new LiteralExpr(id, { kind: "null" });
     }
     if (typeof value === "boolean") {
-      return this.factory.createBoolLiteral(id, value);
+      return new LiteralExpr(id, { kind: "bool", value });
     }
     if (typeof value === "bigint") {
-      return this.factory.createIntLiteral(id, value);
+      return new LiteralExpr(id, { kind: "int", value });
     }
     if (typeof value === "number") {
-      return this.factory.createDoubleLiteral(id, value);
+      return new LiteralExpr(id, { kind: "double", value });
     }
-    return this.factory.createStringLiteral(id, value);
+    return new LiteralExpr(id, { kind: "string", value });
   }
 
   createIdent(name: string): IdentExpr {
-    return this.factory.createIdent(this.nextId(), name);
+    return new IdentExpr(this.nextId(), name);
   }
 
   createCall(fn: string, ...args: Expr[]): CallExpr {
-    return this.factory.createCall(this.nextId(), fn, ...args);
+    return new CallExpr(this.nextId(), fn, args);
   }
 
   createMemberCall(fn: string, target: Expr, ...args: Expr[]): CallExpr {
-    return this.factory.createMemberCall(this.nextId(), fn, target, ...args);
+    return new CallExpr(this.nextId(), fn, args, target);
   }
 
   createList(...elements: Expr[]): ListExpr {
-    return this.factory.createList(this.nextId(), elements);
+    return new ListExpr(this.nextId(), elements, []);
   }
 
   createComprehension(
@@ -180,7 +182,7 @@ export class ParserHelper {
     loopStep: Expr,
     result: Expr
   ): ComprehensionExpr {
-    return this.factory.createComprehension(
+    return new ComprehensionExpr(
       this.nextId(),
       iterRange,
       iterVar,
@@ -201,7 +203,7 @@ export class ParserHelper {
   }
 
   createPresenceTest(operand: Expr, field: string): SelectExpr {
-    return this.factory.createPresenceTest(this.nextId(), operand, field);
+    return new SelectExpr(this.nextId(), operand, field, true);
   }
 
   createError(message: string): MacroError {
@@ -229,11 +231,11 @@ export class ParserHelper {
         return this.reportError(ctx, "invalid ternary expression");
       }
 
-      const id = this.id(ctx);
+      const id = this.nextId();
       const trueBranch = this.buildConditionalOr(trueExpr);
       const falseBranch = this.buildExpr(falseExpr);
 
-      result = this.factory.createCall(id, Operators.Conditional, result, trueBranch, falseBranch);
+      result = new CallExpr(id, Operators.Conditional, [result, trueBranch, falseBranch]);
       this.setPosition(id, ctx);
     }
 
@@ -248,10 +250,10 @@ export class ParserHelper {
 
     let result = this.buildConditionalAnd(andExprs[0]!);
 
-    for (let i = 1; i < andExprs.length; i++) {
-      const id = this.id(ctx);
-      const right = this.buildConditionalAnd(andExprs[i]!);
-      result = this.factory.createCall(id, Operators.LogicalOr, result, right);
+    for (const andExpr of andExprs.slice(1)) {
+      const id = this.nextId();
+      const right = this.buildConditionalAnd(andExpr!);
+      result = new CallExpr(id, Operators.LogicalOr, [result, right]);
     }
 
     return result;
@@ -265,10 +267,10 @@ export class ParserHelper {
 
     let result = this.buildRelation(relations[0]!);
 
-    for (let i = 1; i < relations.length; i++) {
-      const id = this.id(ctx);
-      const right = this.buildRelation(relations[i]!);
-      result = this.factory.createCall(id, Operators.LogicalAnd, result, right);
+    for (const relation of relations.slice(1)) {
+      const id = this.nextId();
+      const right = this.buildRelation(relation!);
+      result = new CallExpr(id, Operators.LogicalAnd, [result, right]);
     }
 
     return result;
@@ -280,7 +282,6 @@ export class ParserHelper {
       return this.buildCalc(calcCtx);
     }
 
-    // Relational expression: relation op relation
     const relations = ctx.relation_list();
     if (relations.length !== 2) {
       return this.reportError(ctx, "invalid relation");
@@ -288,11 +289,11 @@ export class ParserHelper {
 
     const left = this.buildRelation(relations[0]!);
     const right = this.buildRelation(relations[1]!);
-    const id = this.id(ctx);
+    const id = this.nextId();
 
     // Determine operator
     const op = this.getRelationOp(ctx);
-    const result = this.factory.createCall(id, op, left, right);
+    const result = new CallExpr(id, op, [left, right]);
     this.setPosition(id, ctx);
     return result;
   }
@@ -322,11 +323,11 @@ export class ParserHelper {
 
     const left = this.buildCalc(calcs[0]!);
     const right = this.buildCalc(calcs[1]!);
-    const id = this.id(ctx);
+    const id = this.nextId();
 
     // Determine operator
     const op = this.getCalcOp(ctx);
-    const result = this.factory.createCall(id, op, left, right);
+    const result = new CallExpr(id, op, [left, right]);
     this.setPosition(id, ctx);
     return result;
   }
@@ -343,12 +344,12 @@ export class ParserHelper {
   private buildUnary(ctx: UnaryContext): Expr {
     if (ctx instanceof LogicalNotContext) {
       const inner = this.buildMember(ctx.member());
-      const id = this.id(ctx);
+      const id = this.nextId();
       // Handle multiple consecutive ! operators
       let result = inner;
       const notCount = ctx.EXCLAM_list().length;
       for (let i = 0; i < notCount; i++) {
-        result = this.factory.createCall(this.factory.nextId(), Operators.LogicalNot, result);
+        result = new CallExpr(this.nextId(), Operators.LogicalNot, [result]);
       }
       this.setPosition(id, ctx);
       return result;
@@ -356,12 +357,12 @@ export class ParserHelper {
 
     if (ctx instanceof NegateContext) {
       const inner = this.buildMember(ctx.member());
-      const id = this.id(ctx);
+      const id = this.nextId();
       // Handle multiple consecutive - operators
       let result = inner;
       const negCount = ctx.MINUS_list().length;
       for (let i = 0; i < negCount; i++) {
-        result = this.factory.createCall(this.factory.nextId(), Operators.Negate, result);
+        result = new CallExpr(this.nextId(), Operators.Negate, [result]);
       }
       this.setPosition(id, ctx);
       return result;
@@ -384,26 +385,16 @@ export class ParserHelper {
     // SelectContext: member.field or member?.field
     if (ctx instanceof SelectContext) {
       const operand = this.buildMember(ctx.member());
-      const id = this.id(ctx);
+      const id = this.nextId();
 
       // Get the field name from escapeIdent()
       const field = this.getEscapeIdentName(ctx.escapeIdent());
 
-      // Check for optional select (member?.field)
-      const isOptional = ctx.QUESTIONMARK() !== null;
-
-      if (isOptional) {
-        const result = this.factory.createCall(
-          id,
-          Operators.OptSelect,
-          operand,
-          this.factory.createStringLiteral(this.factory.nextId(), field)
-        );
-        this.setPosition(id, ctx);
-        return result;
+      if (ctx.QUESTIONMARK() !== null) {
+        return this.reportError(ctx, "optional field access (?.) is not supported");
       }
 
-      const result = this.factory.createSelect(id, operand, field);
+      const result = new SelectExpr(id, operand, field, false);
       this.setPosition(id, ctx);
       return result;
     }
@@ -411,7 +402,7 @@ export class ParserHelper {
     // MemberCallContext: member.method(args)
     if (ctx instanceof MemberCallContext) {
       const target = this.buildMember(ctx.member());
-      const id = this.id(ctx);
+      const id = this.nextId();
 
       // Get method name - MemberCallContext has IDENTIFIER() not escapeIdent()
       const methodName = ctx.IDENTIFIER()?.getText() ?? "";
@@ -425,7 +416,7 @@ export class ParserHelper {
         return expanded;
       }
 
-      const result = this.factory.createMemberCall(id, methodName, target, ...args);
+      const result = new CallExpr(id, methodName, args, target);
       this.setPosition(id, ctx);
       return result;
     }
@@ -433,14 +424,14 @@ export class ParserHelper {
     // IndexContext: member[index]
     if (ctx instanceof IndexContext) {
       const operand = this.buildMember(ctx.member());
-      const id = this.id(ctx);
+      const id = this.nextId();
       const index = this.buildExpr(ctx.expr());
 
-      // Check for optional index (member[?index])
-      const isOptional = ctx.QUESTIONMARK() !== null;
-      const op = isOptional ? Operators.OptIndex : Operators.Index;
+      if (ctx.QUESTIONMARK() !== null) {
+        return this.reportError(ctx, "optional index access ([?]) is not supported");
+      }
 
-      const result = this.factory.createCall(id, op, operand, index);
+      const result = new CallExpr(id, Operators.Index, [operand, index]);
       this.setPosition(id, ctx);
       return result;
     }
@@ -451,14 +442,14 @@ export class ParserHelper {
   private buildPrimary(ctx: PrimaryContext): Expr {
     // IdentContext
     if (ctx instanceof IdentContext) {
-      const id = this.id(ctx);
+      const id = this.nextId();
       const leadingDot = ctx.DOT() !== null;
       // IdentContext has IDENTIFIER() not escapeIdent()
       let name = ctx.IDENTIFIER()?.getText() ?? "";
       if (leadingDot) {
         name = "." + name;
       }
-      const result = this.factory.createIdent(id, name);
+      const result = new IdentExpr(id, name);
       this.setPosition(id, ctx);
       return result;
     }
@@ -470,7 +461,7 @@ export class ParserHelper {
 
     // GlobalCallContext: function(args)
     if (ctx instanceof GlobalCallContext) {
-      const id = this.id(ctx);
+      const id = this.nextId();
       const leadingDot = ctx.DOT() !== null;
       // GlobalCallContext has IDENTIFIER() not escapeIdent()
       let functionName = ctx.IDENTIFIER()?.getText() ?? "";
@@ -487,7 +478,7 @@ export class ParserHelper {
         return expanded;
       }
 
-      const result = this.factory.createCall(id, functionName, ...args);
+      const result = new CallExpr(id, functionName, args);
       this.setPosition(id, ctx);
       return result;
     }
@@ -516,11 +507,11 @@ export class ParserHelper {
   }
 
   private buildCreateList(ctx: CreateListContext): Expr {
-    const id = this.id(ctx);
+    const id = this.nextId();
     const listInit = ctx.listInit();
 
     if (!listInit) {
-      const result = this.factory.createList(id, []);
+      const result = new ListExpr(id, [], []);
       this.setPosition(id, ctx);
       return result;
     }
@@ -540,17 +531,17 @@ export class ParserHelper {
       }
     }
 
-    const result = this.factory.createList(id, elements, optionalIndices);
+    const result = new ListExpr(id, elements, optionalIndices);
     this.setPosition(id, ctx);
     return result;
   }
 
   private buildCreateStruct(ctx: CreateStructContext): Expr {
-    const id = this.id(ctx);
+    const id = this.nextId();
     const mapInit = ctx.mapInitializerList();
 
     if (!mapInit) {
-      const result = this.factory.createMap(id, []);
+      const result = new MapExpr(id, []);
       this.setPosition(id, ctx);
       return result;
     }
@@ -569,18 +560,18 @@ export class ParserHelper {
       const key = this.buildExpr(keyOptExpr.expr());
       const value = this.buildExpr(valueExpr);
       const optional = keyOptExpr.QUESTIONMARK() !== null;
-      const entryId = this.factory.nextId();
+      const entryId = this.nextId();
 
-      entries.push(this.factory.createMapEntry(entryId, key, value, optional));
+      entries.push(new MapEntry(entryId, key, value, optional));
     }
 
-    const result = this.factory.createMap(id, entries);
+    const result = new MapExpr(id, entries);
     this.setPosition(id, ctx);
     return result;
   }
 
   private buildCreateMessage(ctx: CreateMessageContext): Expr {
-    const id = this.id(ctx);
+    const id = this.nextId();
 
     // Get type name (possibly qualified) - uses IDENTIFIER_list()
     const leadingDot = ctx.DOT(0) !== null;
@@ -592,7 +583,7 @@ export class ParserHelper {
 
     const fieldInit = ctx.fieldInitializerList();
     if (!fieldInit) {
-      const result = this.factory.createStruct(id, typeName, []);
+      const result = new StructExpr(id, typeName, []);
       this.setPosition(id, ctx);
       return result;
     }
@@ -610,23 +601,23 @@ export class ParserHelper {
         ? this.buildExpr(exprs[i]!)
         : this.reportError(ctx, "missing field value");
       const optional = optField.QUESTIONMARK() !== null;
-      const fieldId = this.factory.nextId();
+      const fieldId = this.nextId();
 
-      fields.push(this.factory.createStructField(fieldId, fieldName, fieldExpr, optional));
+      fields.push(new StructField(fieldId, fieldName, fieldExpr, optional));
     }
 
-    const result = this.factory.createStruct(id, typeName, fields);
+    const result = new StructExpr(id, typeName, fields);
     this.setPosition(id, ctx);
     return result;
   }
 
   private buildLiteral(ctx: ConstantLiteralContext): Expr {
     const literal = ctx.literal();
-    const id = this.id(ctx);
+    const id = this.nextId();
 
     if (literal instanceof IntContext) {
       const value = this.parseIntLiteral(literal.getText());
-      const result = this.factory.createIntLiteral(id, value);
+      const result = new LiteralExpr(id, { kind: "int", value });
       this.setPosition(id, ctx);
       return result;
     }
@@ -635,46 +626,46 @@ export class ParserHelper {
       const text = literal.getText();
       // Remove trailing 'u' or 'U'
       const value = this.parseUintLiteral(text.slice(0, -1));
-      const result = this.factory.createUintLiteral(id, value);
+      const result = new LiteralExpr(id, { kind: "uint", value });
       this.setPosition(id, ctx);
       return result;
     }
 
     if (literal instanceof DoubleContext) {
       const value = this.parseDoubleLiteral(literal.getText());
-      const result = this.factory.createDoubleLiteral(id, value);
+      const result = new LiteralExpr(id, { kind: "double", value });
       this.setPosition(id, ctx);
       return result;
     }
 
     if (literal instanceof StringContext) {
       const value = this.parseStringLiteral(literal.getText());
-      const result = this.factory.createStringLiteral(id, value);
+      const result = new LiteralExpr(id, { kind: "string", value });
       this.setPosition(id, ctx);
       return result;
     }
 
     if (literal instanceof BytesContext) {
       const value = this.parseBytesLiteral(literal.getText());
-      const result = this.factory.createBytesLiteral(id, value);
+      const result = new LiteralExpr(id, { kind: "bytes", value });
       this.setPosition(id, ctx);
       return result;
     }
 
     if (literal instanceof BoolTrueContext) {
-      const result = this.factory.createBoolLiteral(id, true);
+      const result = new LiteralExpr(id, { kind: "bool", value: true });
       this.setPosition(id, ctx);
       return result;
     }
 
     if (literal instanceof BoolFalseContext) {
-      const result = this.factory.createBoolLiteral(id, false);
+      const result = new LiteralExpr(id, { kind: "bool", value: false });
       this.setPosition(id, ctx);
       return result;
     }
 
     if (literal instanceof NullContext) {
-      const result = this.factory.createNullLiteral(id);
+      const result = new LiteralExpr(id, { kind: "null" });
       this.setPosition(id, ctx);
       return result;
     }
@@ -705,8 +696,8 @@ export class ParserHelper {
       if (expanded && this.populateMacroCalls) {
         // Record the original call expression for unparsing
         const originalCall = receiverStyle
-          ? this.factory.createMemberCall(callId, functionName, target!, ...args)
-          : this.factory.createCall(callId, functionName, ...args);
+          ? new CallExpr(callId, functionName, args, target!)
+          : new CallExpr(callId, functionName, args);
         this.sourceInfo.setMacroCall(expanded.id, originalCall);
       }
       return expanded;
@@ -739,10 +730,6 @@ export class ParserHelper {
     return text.replace(/^`|`$/g, "");
   }
 
-  private id(_ctx: ParserRuleContext): number {
-    return this.factory.nextId();
-  }
-
   private setPosition(id: number, ctx: ParserRuleContext): void {
     const start = ctx.start?.start ?? 0;
     const stop = ctx.stop?.stop ?? start;
@@ -753,7 +740,9 @@ export class ParserHelper {
     // Create an error placeholder expression
     // In a full implementation, we'd collect errors
     console.error(`Parse error at ${ctx.start?.line}:${ctx.start?.column}: ${message}`);
-    return this.factory.createUnspecified(this.factory.nextId());
+    const expr = this.createUnspecified();
+    this.setPosition(expr.id, ctx);
+    return expr;
   }
 
   // ============================================================================
@@ -909,16 +898,4 @@ export class ParserHelper {
 
     return result;
   }
-}
-
-/**
- * Parse a CEL expression and return an AST.
- */
-export function parseToAST(
-  tree: StartContext,
-  source: string,
-  options: ParserHelperOptions = {}
-): AST {
-  const helper = new ParserHelper(source, options);
-  return helper.parse(tree);
 }

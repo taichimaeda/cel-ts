@@ -1086,37 +1086,39 @@ export class TimestampValue implements Value {
  */
 export class ErrorValue implements Value {
   private readonly message: string;
+  private readonly exprId: number | undefined;
 
-  constructor(message: string) {
+  constructor(message: string, exprId?: number) {
     this.message = message;
+    this.exprId = exprId;
   }
 
-  static create(message: string): ErrorValue {
-    return new ErrorValue(message);
+  static create(message: string, exprId?: number): ErrorValue {
+    return new ErrorValue(message, exprId);
   }
 
-  static divisionByZero(): ErrorValue {
-    return new ErrorValue("division by zero");
+  static divisionByZero(exprId?: number): ErrorValue {
+    return new ErrorValue("division by zero", exprId);
   }
 
-  static moduloByZero(): ErrorValue {
-    return new ErrorValue("modulo by zero");
+  static moduloByZero(exprId?: number): ErrorValue {
+    return new ErrorValue("modulo by zero", exprId);
   }
 
-  static indexOutOfBounds(index: number, size: number): ErrorValue {
-    return new ErrorValue(`index out of bounds: ${index}, size: ${size}`);
+  static indexOutOfBounds(index: number, size: number, exprId?: number): ErrorValue {
+    return new ErrorValue(`index out of bounds: ${index}, size: ${size}`, exprId);
   }
 
-  static noSuchKey(key: Value): ErrorValue {
-    return new ErrorValue(`no such key: ${key.toString()}`);
+  static noSuchKey(key: Value, exprId?: number): ErrorValue {
+    return new ErrorValue(`no such key: ${key.toString()}`, exprId);
   }
 
-  static noSuchField(field: string): ErrorValue {
-    return new ErrorValue(`no such field: ${field}`);
+  static noSuchField(field: string, exprId?: number): ErrorValue {
+    return new ErrorValue(`no such field: ${field}`, exprId);
   }
 
-  static typeMismatch(expected: string, actual: Value): ErrorValue {
-    return new ErrorValue(`type mismatch: expected ${expected}, got ${actual.type()}`);
+  static typeMismatch(expected: string, actual: Value, exprId?: number): ErrorValue {
+    return new ErrorValue(`type mismatch: expected ${expected}, got ${actual.type()}`, exprId);
   }
 
   type(): ValueType {
@@ -1141,6 +1143,17 @@ export class ErrorValue implements Value {
 
   getMessage(): string {
     return this.message;
+  }
+
+  getExprId(): number | undefined {
+    return this.exprId;
+  }
+
+  withExprId(exprId: number): ErrorValue {
+    if (this.exprId !== undefined) {
+      return this;
+    }
+    return new ErrorValue(this.message, exprId);
   }
 }
 

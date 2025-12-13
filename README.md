@@ -29,10 +29,10 @@ bun add cel-ts
 ## Quick Start
 
 ```typescript
-import { Env, Variable, IntType, StringType } from "cel-ts";
+import { Env, IntType, StringType, VariableOption } from "cel-ts";
 
 // Create an environment with variable declarations
-const env = new Env(Variable("name", StringType), Variable("age", IntType));
+const env = new Env(new VariableOption("name", StringType), new VariableOption("age", IntType));
 
 // Compile an expression
 const ast = env.compile('name + " is " + string(age) + " years old"');
@@ -64,13 +64,13 @@ bun run examples/cel-eval.ts
 ### Environment
 
 ```typescript
-import { DisableStandardLibrary, Env } from "cel-ts";
+import { DisableStandardLibraryOption, Env } from "cel-ts";
 
 // Create environment with standard library
 const env = new Env(...options);
 
 // Create environment without standard library
-const customEnv = new Env(DisableStandardLibrary(), ...options);
+const customEnv = new Env(new DisableStandardLibraryOption(), ...options);
 
 // Extend an existing environment
 const extendedEnv = env.extend(...additionalOptions);
@@ -80,22 +80,23 @@ const extendedEnv = env.extend(...additionalOptions);
 
 ```typescript
 import {
-  Variable,
-  Function,
-  Overload,
-  MemberOverload,
-  Container,
-  DisableStandardLibrary,
-  DisableTypeChecking,
+  ContainerOption,
+  DisableStandardLibraryOption,
+  DisableTypeCheckingOption,
+  FunctionOption,
+  FunctionOverload,
+  StringType,
+  StringValue,
+  VariableOption,
 } from "cel-ts";
 
 // Declare a variable
-Variable("name", StringType);
+new VariableOption("name", StringType);
 
 // Declare a function
-Function(
+new FunctionOption(
   "greet",
-  GlobalOverload(
+  FunctionOverload.global(
     "greet_string",
     [StringType],
     StringType,
@@ -104,15 +105,20 @@ Function(
 );
 
 // Declare a member function
-Function(
+new FunctionOption(
   "upper",
-  MemberOverload(
+  FunctionOverload.member(
     "string_upper",
     [StringType],
     StringType,
     (arg) => new StringValue(String(arg.value()).toUpperCase())
   )
 );
+
+// Configure containers and optional toggles
+new ContainerOption("acme.types");
+new DisableStandardLibraryOption();
+new DisableTypeCheckingOption();
 ```
 
 ### Types
@@ -129,13 +135,12 @@ import {
   TimestampType,
   NullType,
   DynType,
-  ListType,
-  MapType,
+  Types,
 } from "cel-ts";
 
 // Parameterized types
-ListType(StringType); // list(string)
-MapType(StringType, IntType); // map(string, int)
+Types.list(StringType); // list(string)
+Types.map(StringType, IntType); // map(string, int)
 ```
 
 ### Compilation and Evaluation
@@ -227,34 +232,33 @@ has(request.auth)      // true if auth field exists
 ```typescript
 import {
   Env,
-  Function,
-  GlobalOverload,
+  FunctionOption,
+  FunctionOverload,
   IntType,
-  MemberOverload,
   StringType,
   StringValue,
 } from "cel-ts";
 
 const env = new Env(
   // Global function: repeat("ab", 3) -> "ababab"
-  Function(
+  new FunctionOption(
     "repeat",
-    GlobalOverload(
+    FunctionOverload.global(
       "repeat_string_int",
       [StringType, IntType],
       StringType,
-      (args) => {
-        const str = String(args[0].value());
-        const count = Number(args[1].value());
+      (strValue, countValue) => {
+        const str = String(strValue.value());
+        const count = Number(countValue.value());
         return new StringValue(str.repeat(count));
       }
     )
   ),
 
   // Member function: "hello".reverse() -> "olleh"
-  Function(
+  new FunctionOption(
     "reverse",
-    MemberOverload(
+    FunctionOverload.member(
       "string_reverse",
       [StringType],
       StringType,
@@ -350,21 +354,9 @@ pnpm build
 pnpm docs
 ```
 
-## Comparison with cel-go
-
-| Feature          | cel-go                           | cel-ts      |
-| ---------------- | -------------------------------- | ----------- |
-| Language         | Go                               | TypeScript  |
-| Error Handling   | `(result, error)` tuples         | Exceptions  |
-| Integers         | `int64`                          | `bigint`    |
-| API Style        | Method chaining                  | Same        |
-| Standard Library | Full                             | Core subset |
-| Macros           | `all`, `exists`, `map`, `filter` | Supported   |
-| Proto Support    | Full                             | Planned     |
-
 ## License
 
-Apache License 2.0
+MIT License
 
 ## Contributing
 
