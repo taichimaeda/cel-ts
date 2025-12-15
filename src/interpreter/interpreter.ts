@@ -9,11 +9,10 @@ import {
   type Recognizer,
   type Token,
 } from "antlr4";
-import { type CheckResult, check as checkAST } from "../checker/checker";
+import { type CheckResult, Checker } from "../checker/checker";
 import { type FunctionDecl, VariableDecl } from "../checker/decls";
 import { CheckerEnv, Container } from "../checker/env";
 import { getStandardFunctions } from "../checker/stdlib";
-import { Type } from "../checker/types";
 import type { SourceInfo } from "../common/ast";
 import CELLexer from "../parser/gen/CELLexer.js";
 import CELParser, { type StartContext } from "../parser/gen/CELParser.js";
@@ -135,7 +134,7 @@ export class Env {
     // Type check (if enabled)
     let checkResult: CheckResult | undefined;
     if (!this.disableTypeChecking) {
-      checkResult = checkAST(ast, this.checkerEnv);
+      checkResult = new Checker(this.checkerEnv, ast.typeMap, ast.refMap).check(ast);
 
       if (checkResult.errors.hasErrors()) {
         return {
@@ -341,79 +340,4 @@ function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): string {
   }
   const { line, column } = sourceInfo.getLocation(position.start);
   return `${line}:${column}: ${error.getMessage()}`;
-}
-
-/**
- * Infer variable type from a JavaScript value.
- */
-function inferType(value: unknown): Type {
-  if (value === null) {
-    return Type.Null;
-  }
-  switch (typeof value) {
-    case "boolean":
-      return Type.Bool;
-    case "number":
-      // JavaScript numbers are treated as double (distinguish integers)
-      return Number.isInteger(value) ? Type.Int : Type.Double;
-    case "bigint":
-      return Type.Int;
-    case "string":
-      return Type.String;
-    case "object":
-      if (Array.isArray(value)) {
-        // Infer list element type
-        if (value.length > 0) {
-          return Type.newListType(inferType(value[0]));
-        }
-        return Type.newListType(Type.Dyn);
-      }
-      if (value instanceof Uint8Array) {
-        return Type.Bytes;
-      }
-      if (value instanceof Date) {
-        return Type.Timestamp;
-      }
-      // Objects are treated as map<string, dyn>
-      return Type.newMapType(Type.String, Type.Dyn);
-    default:
-      return Type.Dyn;
-  }
-}
-
-/**
- * Infer variable declarations from a vars object.
- */
-function inferDeclarations(vars: Record<string, unknown>): VariableDecl[] {
-  return Object.entries(vars).map(([name, value]) => new VariableDecl(name, inferType(value)));
-}
-
-/**
- * Convenience function to evaluate a CEL expression directly.
- */
-export function evaluate(
-  expression: string,
-  vars?: Record<string, unknown>,
-  options?: EnvOptions
-): EvalResult {
-  // Infer variable declarations from vars (can be disabled via options)
-  const inferredDecls = vars && !options?.disableTypeChecking ? inferDeclarations(vars) : [];
-
-  const mergedOptions: EnvOptions = {
-    ...options,
-    declarations: [...inferredDecls, ...(options?.declarations ?? [])],
-  };
-
-  const env = new Env(mergedOptions);
-  const result = env.compile(expression);
-
-  if (result.error || !result.program) {
-    return {
-      value: ErrorValue.create(result.error ?? "compilation failed"),
-      success: false,
-      error: result.error,
-    };
-  }
-
-  return result.program.eval(vars);
 }

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { FunctionDecl, OverloadDecl, VariableDecl } from "../src/checker";
 import { Type } from "../src/checker/types";
 import {
+  BinaryDispatcherOverload,
   BoolValue,
   BytesValue,
   DefaultDispatcher,
@@ -14,11 +15,10 @@ import {
   NullValue,
   StringValue,
   UintValue,
-  BinaryDispatcherOverload,
-  evaluate,
-  VariadicDispatcherOverload,
   UnaryDispatcherOverload,
+  VariadicDispatcherOverload,
 } from "../src/interpreter";
+import { evaluate } from "./utils";
 
 describe("CEL Interpreter", () => {
   describe("Literals", () => {

@@ -2,6 +2,7 @@
 // Interpretable interface and implementations for expression evaluation
 // Implemented with reference to cel-go's interpret/interpretable.go
 
+import type { ExprId } from "../common/ast";
 import { type Activation, MutableActivation } from "./activation";
 import type { Attribute, Qualifier } from "./attributes";
 import type { FunctionResolver } from "./dispatcher";
@@ -32,7 +33,7 @@ export interface Interpretable {
   /**
    * Expression ID from the AST.
    */
-  id(): number;
+  id(): ExprId;
 
   /**
    * Evaluate the expression with the given activation.
@@ -51,15 +52,15 @@ export interface Coster {
  * Constant literal interpretable.
  */
 export class ConstValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly val: Value;
 
-  constructor(exprId: number, val: Value) {
+  constructor(exprId: ExprId, val: Value) {
     this.exprId = exprId;
     this.val = val;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -72,15 +73,15 @@ export class ConstValue implements Interpretable {
  * Variable/identifier interpretable.
  */
 export class IdentValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly name: string;
 
-  constructor(exprId: number, name: string) {
+  constructor(exprId: ExprId, name: string) {
     this.exprId = exprId;
     this.name = name;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -103,7 +104,7 @@ export class AttrValue implements Interpretable {
     this.attr = attr;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.attr.id();
   }
 
@@ -124,15 +125,15 @@ export class AttrValue implements Interpretable {
  * Logical NOT interpretable.
  */
 export class NotValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly operand: Interpretable;
 
-  constructor(exprId: number, operand: Interpretable) {
+  constructor(exprId: ExprId, operand: Interpretable) {
     this.exprId = exprId;
     this.operand = operand;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -154,15 +155,15 @@ export class NotValue implements Interpretable {
  * Used by comprehension loop conditions.
  */
 export class NotStrictlyFalseValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly operand: Interpretable;
 
-  constructor(exprId: number, operand: Interpretable) {
+  constructor(exprId: ExprId, operand: Interpretable) {
     this.exprId = exprId;
     this.operand = operand;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -185,15 +186,15 @@ export class NotStrictlyFalseValue implements Interpretable {
  * Numeric negation interpretable.
  */
 export class NegValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly operand: Interpretable;
 
-  constructor(exprId: number, operand: Interpretable) {
+  constructor(exprId: ExprId, operand: Interpretable) {
     this.exprId = exprId;
     this.operand = operand;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -216,17 +217,17 @@ export class NegValue implements Interpretable {
  * Logical AND interpretable with short-circuit evaluation.
  */
 export class AndValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly lhs: Interpretable;
   private readonly rhs: Interpretable;
 
-  constructor(exprId: number, lhs: Interpretable, rhs: Interpretable) {
+  constructor(exprId: ExprId, lhs: Interpretable, rhs: Interpretable) {
     this.exprId = exprId;
     this.lhs = lhs;
     this.rhs = rhs;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -275,17 +276,17 @@ export class AndValue implements Interpretable {
  * Logical OR interpretable with short-circuit evaluation.
  */
 export class OrValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly lhs: Interpretable;
   private readonly rhs: Interpretable;
 
-  constructor(exprId: number, lhs: Interpretable, rhs: Interpretable) {
+  constructor(exprId: ExprId, lhs: Interpretable, rhs: Interpretable) {
     this.exprId = exprId;
     this.lhs = lhs;
     this.rhs = rhs;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -334,13 +335,13 @@ export class OrValue implements Interpretable {
  * Ternary conditional interpretable.
  */
 export class ConditionalValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly condition: Interpretable;
   private readonly truthy: Interpretable;
   private readonly falsy: Interpretable;
 
   constructor(
-    exprId: number,
+    exprId: ExprId,
     condition: Interpretable,
     truthy: Interpretable,
     falsy: Interpretable
@@ -351,7 +352,7 @@ export class ConditionalValue implements Interpretable {
     this.falsy = falsy;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -387,19 +388,19 @@ export class ConditionalValue implements Interpretable {
  * Binary operation interpretable.
  */
 export class BinaryValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly operator: string;
   private readonly lhs: Interpretable;
   private readonly rhs: Interpretable;
 
-  constructor(exprId: number, operator: string, lhs: Interpretable, rhs: Interpretable) {
+  constructor(exprId: ExprId, operator: string, lhs: Interpretable, rhs: Interpretable) {
     this.exprId = exprId;
     this.operator = operator;
     this.lhs = lhs;
     this.rhs = rhs;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -607,14 +608,14 @@ export class BinaryValue implements Interpretable {
  * Function call interpretable.
  */
 export class CallValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly functionName: string;
   private readonly overloadId: string;
   private readonly args: Interpretable[];
   private readonly resolver: FunctionResolver;
 
   constructor(
-    exprId: number,
+    exprId: ExprId,
     functionName: string,
     overloadId: string,
     args: Interpretable[],
@@ -627,7 +628,7 @@ export class CallValue implements Interpretable {
     this.resolver = resolver;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -665,17 +666,17 @@ export class CallValue implements Interpretable {
  * List literal interpretable.
  */
 export class CreateListValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly elements: Interpretable[];
   private readonly optionalIndices: Set<number>;
 
-  constructor(exprId: number, elements: Interpretable[], optionalIndices: number[] = []) {
+  constructor(exprId: ExprId, elements: Interpretable[], optionalIndices: number[] = []) {
     this.exprId = exprId;
     this.elements = elements;
     this.optionalIndices = new Set(optionalIndices);
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -715,13 +716,13 @@ export class CreateListValue implements Interpretable {
  * Map literal interpretable.
  */
 export class CreateMapValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly keys: Interpretable[];
   private readonly values: Interpretable[];
   private readonly optionalIndices: Set<number>;
 
   constructor(
-    exprId: number,
+    exprId: ExprId,
     keys: Interpretable[],
     values: Interpretable[],
     optionalIndices: number[] = []
@@ -732,7 +733,7 @@ export class CreateMapValue implements Interpretable {
     this.optionalIndices = new Set(optionalIndices);
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -776,19 +777,19 @@ export class CreateMapValue implements Interpretable {
  * Struct creation interpretable (for proto messages, etc.).
  */
 export class CreateStructValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   readonly typeName: string;
   private readonly fields: string[];
   private readonly values: Interpretable[];
 
-  constructor(exprId: number, typeName: string, fields: string[], values: Interpretable[]) {
+  constructor(exprId: ExprId, typeName: string, fields: string[], values: Interpretable[]) {
     this.exprId = exprId;
     this.typeName = typeName;
     this.fields = fields;
     this.values = values;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -813,19 +814,19 @@ export class CreateStructValue implements Interpretable {
  * Index access interpretable.
  */
 export class IndexValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly operand: Interpretable;
   private readonly index: Interpretable;
   private readonly optional: boolean;
 
-  constructor(exprId: number, operand: Interpretable, index: Interpretable, optional = false) {
+  constructor(exprId: ExprId, operand: Interpretable, index: Interpretable, optional = false) {
     this.exprId = exprId;
     this.operand = operand;
     this.index = index;
     this.optional = optional;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -879,19 +880,19 @@ export class IndexValue implements Interpretable {
  * Field access interpretable.
  */
 export class FieldValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly operand: Interpretable;
   private readonly field: string;
   private readonly optional: boolean;
 
-  constructor(exprId: number, operand: Interpretable, field: string, optional = false) {
+  constructor(exprId: ExprId, operand: Interpretable, field: string, optional = false) {
     this.exprId = exprId;
     this.operand = operand;
     this.field = field;
     this.optional = optional;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -923,17 +924,17 @@ export class FieldValue implements Interpretable {
  * Returns true if the field exists on the operand.
  */
 export class HasFieldValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly operand: Interpretable;
   private readonly field: string;
 
-  constructor(exprId: number, operand: Interpretable, field: string) {
+  constructor(exprId: ExprId, operand: Interpretable, field: string) {
     this.exprId = exprId;
     this.operand = operand;
     this.field = field;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -958,7 +959,7 @@ export class HasFieldValue implements Interpretable {
  * Comprehension (list/map comprehension) interpretable.
  */
 export class ComprehensionValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly iterVar: string;
   private readonly iterRange: Interpretable;
   private readonly accuVar: string;
@@ -968,7 +969,7 @@ export class ComprehensionValue implements Interpretable {
   private readonly result: Interpretable;
 
   constructor(
-    exprId: number,
+    exprId: ExprId,
     iterVar: string,
     iterRange: Interpretable,
     accuVar: string,
@@ -987,7 +988,7 @@ export class ComprehensionValue implements Interpretable {
     this.result = result;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -1048,17 +1049,17 @@ export class ComprehensionValue implements Interpretable {
  * Type conversion/assertion interpretable.
  */
 export class TypeConversionValue implements Interpretable {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly operand: Interpretable;
   private readonly targetType: string;
 
-  constructor(exprId: number, operand: Interpretable, targetType: string) {
+  constructor(exprId: ExprId, operand: Interpretable, targetType: string) {
     this.exprId = exprId;
     this.operand = operand;
     this.targetType = targetType;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 

@@ -9,6 +9,7 @@ import {
   CallExpr,
   ComprehensionExpr,
   type Expr,
+  ExprId,
   IdentExpr,
   ListExpr,
   LiteralExpr,
@@ -71,7 +72,7 @@ export interface ParserHelperOptions {
  * Parser helper that converts ANTLR parse tree to CEL AST.
  */
 export class ParserHelper {
-  private nextIdCounter = 1;
+  private nextIdCounter: ExprId = 1;
   private readonly sourceInfo: SourceInfo;
   private readonly macroRegistry: MacroRegistry;
   private readonly populateMacroCalls: boolean;
@@ -100,7 +101,7 @@ export class ParserHelper {
   // Builder methods used by macro expansion
   // ============================================================================
 
-  nextId(): number {
+  nextId(): ExprId {
     return this.nextIdCounter++;
   }
 
@@ -676,7 +677,7 @@ export class ParserHelper {
   // ============================================================================
 
   private expandMacro(
-    callId: number,
+    callId: ExprId,
     functionName: string,
     target: Expr | null,
     args: Expr[]
@@ -718,13 +719,11 @@ export class ParserHelper {
     return text.replace(/^`|`$/g, "");
   }
 
-  private setPosition(id: number, ctx: ParserRuleContext): void {
+  private setPosition(id: ExprId, ctx: ParserRuleContext): void {
     const start = ctx.start?.start ?? 0;
     const stop = ctx.stop?.stop ?? start;
     this.sourceInfo.setPosition(id, { start, end: stop + 1 });
   }
-
-
 
   // ============================================================================
   // Literal parsing

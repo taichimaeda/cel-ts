@@ -29,9 +29,11 @@ export enum VisitOrder {
 /**
  * Base expression interface.
  */
+export type ExprId = number;
+
 export interface Expr {
   /** Unique ID for this expression node */
-  readonly id: number;
+  readonly id: ExprId;
   /** The kind of expression */
   readonly kind: ExprKind;
   /** Traverse the expression with a visitor. */
@@ -42,33 +44,14 @@ export interface Expr {
  * Base class providing shared behavior for expressions.
  */
 export abstract class BaseExpr implements Expr {
-  constructor(public readonly id: number, public readonly kind: ExprKind) {}
+  constructor(readonly id: ExprId, readonly kind: ExprKind) {}
 
-  accept(
+  abstract accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
-    depth = 0,
-    maxDepth = 0
-  ): void {
-    if (maxDepth > 0 && depth >= maxDepth) {
-      return;
-    }
-    if (order === VisitOrder.Pre) {
-      visitor.visitExpr(this);
-    }
-    this.visitChildren(visitor, order, depth, maxDepth);
-    if (order === VisitOrder.Post) {
-      visitor.visitExpr(this);
-    }
-  }
-
-  // Subclasses override to walk their child nodes.
-  protected visitChildren(
-    _visitor: Visitor,
-    _order: VisitOrder,
-    _depth: number,
-    _maxDepth: number
-  ): void {}
+    order?: VisitOrder,
+    depth?: number,
+    maxDepth?: number
+  ): void;
 
   // Type guard helpers
   static isLiteral(expr: Expr): expr is LiteralExpr {
@@ -108,8 +91,25 @@ export abstract class BaseExpr implements Expr {
  * Placeholder expression representing unspecified nodes.
  */
 export class UnspecifiedExpr extends BaseExpr {
-  constructor(id: number) {
+  constructor(id: ExprId) {
     super(id, ExprKind.Unspecified);
+  }
+
+  override accept(
+    visitor: Visitor,
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
+  ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitExpr(this);
+    }
+    if (order === VisitOrder.Post) {
+      visitor.visitExpr(this);
+    }
   }
 }
 
@@ -117,8 +117,25 @@ export class UnspecifiedExpr extends BaseExpr {
  * Literal value expression.
  */
 export class LiteralExpr extends BaseExpr {
-  constructor(id: number, public readonly value: LiteralValue) {
+  constructor(id: ExprId, readonly value: LiteralValue) {
     super(id, ExprKind.Literal);
+  }
+
+  override accept(
+    visitor: Visitor,
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
+  ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitExpr(this);
+    }
+    if (order === VisitOrder.Post) {
+      visitor.visitExpr(this);
+    }
   }
 }
 
@@ -138,8 +155,25 @@ export type LiteralValue =
  * Identifier expression.
  */
 export class IdentExpr extends BaseExpr {
-  constructor(id: number, public readonly name: string) {
+  constructor(id: ExprId, readonly name: string) {
     super(id, ExprKind.Ident);
+  }
+
+  override accept(
+    visitor: Visitor,
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
+  ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitExpr(this);
+    }
+    if (order === VisitOrder.Post) {
+      visitor.visitExpr(this);
+    }
   }
 }
 
@@ -149,21 +183,30 @@ export class IdentExpr extends BaseExpr {
 export class SelectExpr extends BaseExpr {
   /** If true, this is a presence test (has()) rather than a selection */
   constructor(
-    id: number,
-    public readonly operand: Expr,
-    public readonly field: string,
-    public readonly testOnly: boolean
+    id: ExprId,
+    readonly operand: Expr,
+    readonly field: string,
+    readonly testOnly: boolean
   ) {
     super(id, ExprKind.Select);
   }
 
-  protected override visitChildren(
+  override accept(
     visitor: Visitor,
-    order: VisitOrder,
-    depth: number,
-    maxDepth: number
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
   ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitExpr(this);
+    }
     this.operand.accept(visitor, order, depth + 1, maxDepth);
+    if (order === VisitOrder.Post) {
+      visitor.visitExpr(this);
+    }
   }
 }
 
@@ -173,25 +216,34 @@ export class SelectExpr extends BaseExpr {
 export class CallExpr extends BaseExpr {
   /** Target for member calls (e.g., the `obj` in `obj.method(args)`) */
   constructor(
-    id: number,
-    public readonly funcName: string,
-    public readonly args: readonly Expr[],
-    public readonly target?: Expr
+    id: ExprId,
+    readonly funcName: string,
+    readonly args: readonly Expr[],
+    readonly target?: Expr
   ) {
     super(id, ExprKind.Call);
   }
 
-  protected override visitChildren(
+  override accept(
     visitor: Visitor,
-    order: VisitOrder,
-    depth: number,
-    maxDepth: number
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
   ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitExpr(this);
+    }
     if (this.target) {
       this.target.accept(visitor, order, depth + 1, maxDepth);
     }
     for (const arg of this.args) {
       arg.accept(visitor, order, depth + 1, maxDepth);
+    }
+    if (order === VisitOrder.Post) {
+      visitor.visitExpr(this);
     }
   }
 }
@@ -202,21 +254,30 @@ export class CallExpr extends BaseExpr {
 export class ListExpr extends BaseExpr {
   /** Indices of optional elements */
   constructor(
-    id: number,
-    public readonly elements: readonly Expr[],
-    public readonly optionalIndices: readonly number[]
+    id: ExprId,
+    readonly elements: readonly Expr[],
+    readonly optionalIndices: readonly number[]
   ) {
     super(id, ExprKind.List);
   }
 
-  protected override visitChildren(
+  override accept(
     visitor: Visitor,
-    order: VisitOrder,
-    depth: number,
-    maxDepth: number
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
   ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitExpr(this);
+    }
     for (const elem of this.elements) {
       elem.accept(visitor, order, depth + 1, maxDepth);
+    }
+    if (order === VisitOrder.Post) {
+      visitor.visitExpr(this);
     }
   }
 }
@@ -234,7 +295,7 @@ export enum EntryExprKind {
  * Base entry expression interface (for map entries and struct fields).
  */
 export interface EntryExpr {
-  readonly id: number;
+  readonly id: ExprId;
   readonly entryKind: EntryExprKind;
 
   accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
@@ -244,32 +305,14 @@ export interface EntryExpr {
  * Base class providing shared behavior for entries.
  */
 export abstract class BaseEntry implements EntryExpr {
-  constructor(public readonly id: number, public readonly entryKind: EntryExprKind) {}
+  constructor(readonly id: ExprId, readonly entryKind: EntryExprKind) {}
 
-  accept(
+  abstract accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
-    depth = 0,
-    maxDepth = 0
-  ): void {
-    if (maxDepth > 0 && depth >= maxDepth) {
-      return;
-    }
-    if (order === VisitOrder.Pre) {
-      visitor.visitEntryExpr(this);
-    }
-    this.visitChildren(visitor, order, depth, maxDepth);
-    if (order === VisitOrder.Post) {
-      visitor.visitEntryExpr(this);
-    }
-  }
-
-  protected visitChildren(
-    _visitor: Visitor,
-    _order: VisitOrder,
-    _depth: number,
-    _maxDepth: number
-  ): void {}
+    order?: VisitOrder,
+    depth?: number,
+    maxDepth?: number
+  ): void;
 
   static isMapEntry(entry: EntryExpr): entry is MapEntry {
     return entry.entryKind === EntryExprKind.MapEntry;
@@ -286,22 +329,31 @@ export abstract class BaseEntry implements EntryExpr {
  */
 export class MapEntry extends BaseEntry {
   constructor(
-    id: number,
-    public readonly key: Expr,
-    public readonly value: Expr,
-    public readonly optional: boolean
+    id: ExprId,
+    readonly key: Expr,
+    readonly value: Expr,
+    readonly optional: boolean
   ) {
     super(id, EntryExprKind.MapEntry);
   }
 
-  protected override visitChildren(
+  override accept(
     visitor: Visitor,
-    order: VisitOrder,
-    depth: number,
-    maxDepth: number
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
   ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitEntryExpr(this);
+    }
     this.key.accept(visitor, order, depth + 1, maxDepth);
     this.value.accept(visitor, order, depth + 1, maxDepth);
+    if (order === VisitOrder.Post) {
+      visitor.visitEntryExpr(this);
+    }
   }
 }
 
@@ -309,18 +361,27 @@ export class MapEntry extends BaseEntry {
  * Map creation expression.
  */
 export class MapExpr extends BaseExpr {
-  constructor(id: number, public readonly entries: readonly MapEntry[]) {
+  constructor(id: ExprId, readonly entries: readonly MapEntry[]) {
     super(id, ExprKind.Map);
   }
 
-  protected override visitChildren(
+  override accept(
     visitor: Visitor,
-    order: VisitOrder,
-    depth: number,
-    maxDepth: number
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
   ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitExpr(this);
+    }
     for (const entry of this.entries) {
       entry.accept(visitor, order, depth, maxDepth);
+    }
+    if (order === VisitOrder.Post) {
+      visitor.visitExpr(this);
     }
   }
 }
@@ -331,21 +392,30 @@ export class MapExpr extends BaseExpr {
  */
 export class StructField extends BaseEntry {
   constructor(
-    id: number,
-    public readonly name: string,
-    public readonly value: Expr,
-    public readonly optional: boolean
+    id: ExprId,
+    readonly name: string,
+    readonly value: Expr,
+    readonly optional: boolean
   ) {
     super(id, EntryExprKind.StructField);
   }
 
-  protected override visitChildren(
+  override accept(
     visitor: Visitor,
-    order: VisitOrder,
-    depth: number,
-    maxDepth: number
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
   ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitEntryExpr(this);
+    }
     this.value.accept(visitor, order, depth + 1, maxDepth);
+    if (order === VisitOrder.Post) {
+      visitor.visitEntryExpr(this);
+    }
   }
 }
 
@@ -354,21 +424,30 @@ export class StructField extends BaseEntry {
  */
 export class StructExpr extends BaseExpr {
   constructor(
-    id: number,
-    public readonly typeName: string,
-    public readonly fields: readonly StructField[]
+    id: ExprId,
+    readonly typeName: string,
+    readonly fields: readonly StructField[]
   ) {
     super(id, ExprKind.Struct);
   }
 
-  protected override visitChildren(
+  override accept(
     visitor: Visitor,
-    order: VisitOrder,
-    depth: number,
-    maxDepth: number
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
   ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitExpr(this);
+    }
     for (const field of this.fields) {
       field.accept(visitor, order, depth, maxDepth);
+    }
+    if (order === VisitOrder.Post) {
+      visitor.visitExpr(this);
     }
   }
 }
@@ -379,38 +458,47 @@ export class StructExpr extends BaseExpr {
  */
 export class ComprehensionExpr extends BaseExpr {
   constructor(
-    id: number,
+    id: ExprId,
     /** Expression that evaluates to the iterable (list or map) */
-    public readonly iterRange: Expr,
+    readonly iterRange: Expr,
     /** Iteration variable name */
-    public readonly iterVar: string,
+    readonly iterVar: string,
     /** Accumulator variable name */
-    public readonly accuVar: string,
+    readonly accuVar: string,
     /** Initial accumulator value */
-    public readonly accuInit: Expr,
+    readonly accuInit: Expr,
     /** Loop condition (evaluated each iteration, continues while true) */
-    public readonly loopCondition: Expr,
+    readonly loopCondition: Expr,
     /** Loop step (updates the accumulator) */
-    public readonly loopStep: Expr,
+    readonly loopStep: Expr,
     /** Result expression (evaluated after the loop) */
-    public readonly result: Expr,
+    readonly result: Expr,
     /** Second iteration variable name (optional) */
-    public readonly iterVar2?: string
+    readonly iterVar2?: string
   ) {
     super(id, ExprKind.Comprehension);
   }
 
-  protected override visitChildren(
+  override accept(
     visitor: Visitor,
-    order: VisitOrder,
-    depth: number,
-    maxDepth: number
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
   ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitExpr(this);
+    }
     this.iterRange.accept(visitor, order, depth + 1, maxDepth);
     this.accuInit.accept(visitor, order, depth + 1, maxDepth);
     this.loopCondition.accept(visitor, order, depth + 1, maxDepth);
     this.loopStep.accept(visitor, order, depth + 1, maxDepth);
     this.result.accept(visitor, order, depth + 1, maxDepth);
+    if (order === VisitOrder.Post) {
+      visitor.visitExpr(this);
+    }
   }
 }
 
@@ -508,89 +596,6 @@ export class CompositeVisitor implements Visitor {
   }
 }
 
-/**
- * Convenience helper that traverses the expression with the given visitor.
- */
-export function traverseExpr(
-  expr: Expr,
-  visitor: Visitor,
-  order: VisitOrder = VisitOrder.Pre,
-  maxDepth = 0
-): void {
-  expr.accept(visitor, order, 0, maxDepth);
-}
-
-/**
- * Expression matcher function type.
- */
-export type ExprMatcher = (expr: Expr) => boolean;
-
-/**
- * Match all descendant expressions that satisfy the matcher.
- * Returns matches in post-order (bottom-up).
- */
-export function matchDescendants(expr: Expr, matcher: ExprMatcher): Expr[] {
-  const matches: Expr[] = [];
-  traverseExpr(
-    expr,
-    new ExprVisitor((e) => {
-      if (matcher(e)) {
-        matches.push(e);
-      }
-    }),
-    VisitOrder.Post
-  );
-  return matches;
-}
-
-/**
- * Matcher that matches all expressions.
- */
-export function allMatcher(): ExprMatcher {
-  return () => true;
-}
-
-/**
- * Matcher that matches expressions of a specific kind.
- */
-export function kindMatcher(kind: ExprKind): ExprMatcher {
-  return (e) => e.kind === kind;
-}
-
-/**
- * Matcher that matches function calls with a specific name.
- */
-export function functionMatcher(funcName: string): ExprMatcher {
-  return (e) => e.kind === ExprKind.Call && (e as CallExpr).funcName === funcName;
-}
-
-/**
- * Matcher that matches constant values (literals).
- */
-export function constantValueMatcher(): ExprMatcher {
-  return (e) => e.kind === ExprKind.Literal;
-}
-
-/**
- * Find the maximum expression ID in the AST.
- */
-export function maxId(expr: Expr): number {
-  let max = 0;
-  traverseExpr(
-    expr,
-    new CompositeVisitor(
-      (e) => {
-        if (e.id > max) max = e.id;
-      },
-      (entry) => {
-        if (entry.id > max) max = entry.id;
-      }
-    ),
-    VisitOrder.Post
-  );
-  return max;
-}
-
 // ============================================================================
 // Expression Factory
 // ============================================================================
@@ -607,7 +612,7 @@ export const AccumulatorName = "__result__";
 /**
  * Offset range in source.
  */
-export interface OffsetRange {
+export interface SourceRange {
   start: number;
   end: number;
 }
@@ -623,86 +628,84 @@ export class SourceInfo {
   /** Line offsets for computing location */
   private readonly lineOffsets: number[];
   /** Map from expression ID to offset range */
-  private readonly positions: Map<number, OffsetRange> = new Map();
+  private readonly positions: Map<ExprId, SourceRange> = new Map();
   /** Map from expression ID to macro call (original call before expansion) */
-  private readonly macroCalls: Map<number, Expr> = new Map();
+  private readonly macroCalls: Map<ExprId, Expr> = new Map();
 
   constructor(source: string, description = "<input>") {
     this.source = source;
     this.description = description;
-    this.lineOffsets = this.computeLineOffsets(source);
-  }
 
-  private computeLineOffsets(source: string): number[] {
+    // Compute line offsets.
     const offsets: number[] = [];
     for (let i = 0; i < source.length; i++) {
       if (source[i] === "\n") {
         offsets.push(i + 1);
       }
     }
-    return offsets;
+    this.lineOffsets = offsets
   }
 
   /**
    * Set position for an expression ID.
    */
-  setPosition(id: number, range: OffsetRange): void {
+  setPosition(id: ExprId, range: SourceRange): void {
     this.positions.set(id, range);
   }
 
   /**
    * Get position for an expression ID.
    */
-  getPosition(id: number): OffsetRange | undefined {
+  getPosition(id: ExprId): SourceRange | undefined {
     return this.positions.get(id);
   }
 
   /**
    * Get all positions.
    */
-  getPositions(): Map<number, OffsetRange> {
+  getPositions(): Map<ExprId, SourceRange> {
     return this.positions;
   }
 
   /**
    * Record a macro call (original call expression before expansion).
    */
-  setMacroCall(id: number, call: Expr): void {
+  setMacroCall(id: ExprId, call: Expr): void {
     this.macroCalls.set(id, call);
   }
 
   /**
    * Get the original macro call for an expression ID.
    */
-  getMacroCall(id: number): Expr | undefined {
+  getMacroCall(id: ExprId): Expr | undefined {
     return this.macroCalls.get(id);
   }
 
   /**
    * Check if an expression ID was a macro call.
    */
-  isMacroCall(id: number): boolean {
+  isMacroCall(id: ExprId): boolean {
     return this.macroCalls.has(id);
   }
 
   /**
    * Get all macro calls.
    */
-  getMacroCalls(): Map<number, Expr> {
+  getMacroCalls(): Map<ExprId, Expr> {
     return this.macroCalls;
   }
 
   /**
    * Clear a macro call.
    */
-  clearMacroCall(id: number): void {
+  clearMacroCall(id: ExprId): void {
     this.macroCalls.delete(id);
   }
 
   /**
    * Compute offset from line and column (1-based line, 0-based column).
    */
-  computeOffset(line: number, column: number): number {
+  getOffset(line: number, column: number): number {
     if (line === 1) {
       return column;
     }
@@ -731,7 +734,7 @@ export class SourceInfo {
   /**
    * Get the start location for an expression ID.
    */
-  getStartLocation(id: number): { line: number; column: number } | undefined {
+  getStartLocation(id: ExprId): { line: number; column: number } | undefined {
     const range = this.positions.get(id);
     if (!range) {
       return undefined;
@@ -758,17 +761,30 @@ export interface ReferenceInfo {
 }
 
 /**
- * Create an identifier reference.
+ * Identifier reference information.
  */
-export function createIdentReference(name: string, value?: unknown): ReferenceInfo {
-  return { name, overloadIds: [], value };
+export class IdentReference implements ReferenceInfo {
+  readonly name: string;
+  readonly overloadIds: string[] = [];
+  readonly value?: unknown;
+
+  constructor(name: string, value?: unknown) {
+    this.name = name;
+    this.value = value;
+  }
 }
 
 /**
- * Create a function reference with overload IDs.
+ * Function reference information.
  */
-export function createFunctionReference(...overloadIds: string[]): ReferenceInfo {
-  return { overloadIds };
+export class FunctionReference implements ReferenceInfo {
+  readonly overloadIds: string[];
+  readonly name?: string;
+  readonly value?: unknown;
+
+  constructor(...overloadIds: string[]) {
+    this.overloadIds = overloadIds;
+  }
 }
 
 // ============================================================================
@@ -783,42 +799,42 @@ export class AST {
   constructor(
     readonly expr: Expr,
     readonly sourceInfo: SourceInfo,
-    readonly typeMap: Map<number, Type> = new Map(),
-    readonly refMap: Map<number, ReferenceInfo> = new Map()
+    readonly typeMap: Map<ExprId, Type> = new Map(),
+    readonly refMap: Map<ExprId, ReferenceInfo> = new Map()
   ) {}
 
   /**
    * Get the type for an expression ID.
    */
-  getType(id: number): Type | undefined {
+  getType(id: ExprId): Type | undefined {
     return this.typeMap.get(id);
   }
 
   /**
    * Set the type for an expression ID.
    */
-  setType(id: number, t: Type): void {
+  setType(id: ExprId, t: Type): void {
     this.typeMap.set(id, t);
   }
 
   /**
    * Get the reference for an expression ID.
    */
-  getReference(id: number): ReferenceInfo | undefined {
+  getReference(id: ExprId): ReferenceInfo | undefined {
     return this.refMap.get(id);
   }
 
   /**
    * Set the reference for an expression ID.
    */
-  setReference(id: number, ref: ReferenceInfo): void {
+  setReference(id: ExprId, ref: ReferenceInfo): void {
     this.refMap.set(id, ref);
   }
 
   /**
    * Get overload IDs for an expression.
    */
-  getOverloadIds(id: number): string[] {
+  getOverloadIds(id: ExprId): string[] {
     const ref = this.refMap.get(id);
     return ref?.overloadIds ?? [];
   }

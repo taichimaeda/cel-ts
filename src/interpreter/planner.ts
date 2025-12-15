@@ -7,6 +7,7 @@ import {
   type CallExpr,
   type ComprehensionExpr,
   type Expr,
+  ExprId,
   ExprKind,
   type IdentExpr,
   type ListExpr,
@@ -56,14 +57,14 @@ export interface PlannerOptions {
   /** Function dispatcher */
   dispatcher?: Dispatcher | undefined;
   /** Reference map from checker result */
-  refMap?: Map<number, ReferenceInfo> | undefined;
+  refMap?: Map<ExprId, ReferenceInfo> | undefined;
 }
 
 /**
  * Planner converts parsed AST to interpretable expressions.
  */
 export class Planner {
-  private readonly refMap: Map<number, ReferenceInfo>;
+  private readonly refMap: Map<ExprId, ReferenceInfo>;
   private readonly resolver: FunctionResolver;
 
   constructor(options: PlannerOptions = {}) {
@@ -407,7 +408,7 @@ export class Planner {
   /**
    * Create an error node.
    */
-  private errorNode(id: number, message: string): Interpretable {
+  private errorNode(id: ExprId, message: string): Interpretable {
     return new ConstValue(id, ErrorValue.create(message, id));
   }
 }

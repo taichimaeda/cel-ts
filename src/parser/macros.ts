@@ -61,11 +61,11 @@ export interface Macro {
  */
 class BaseMacro implements Macro {
   constructor(
-    public readonly name: string,
-    public readonly argCount: number,
-    public readonly expander: MacroExpander,
-    public readonly receiverStyle = false,
-    public readonly varArgStyle = false
+    readonly name: string,
+    readonly argCount: number,
+    readonly expander: MacroExpander,
+    readonly receiverStyle = false,
+    readonly varArgStyle = false
   ) {
   }
 

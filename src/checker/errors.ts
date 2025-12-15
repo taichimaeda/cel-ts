@@ -1,6 +1,7 @@
 // CEL Checker Errors
 // Error types and error collection for type checking
 
+import type { ExprId } from "../common/ast";
 import { type Type, formatType } from "./types";
 
 /**
@@ -18,7 +19,7 @@ export interface Location {
 export interface CheckerError {
   message: string;
   location?: Location | undefined;
-  exprId?: number | undefined;
+  exprId?: ExprId | undefined;
 }
 
 /**
@@ -51,14 +52,14 @@ export class CheckerErrors {
   /**
    * Add a generic error
    */
-  reportError(message: string, exprId?: number, location?: Location): void {
+  reportError(message: string, exprId?: ExprId, location?: Location): void {
     this.errors.push({ message, exprId, location });
   }
 
   /**
    * Report a type mismatch error
    */
-  reportTypeMismatch(exprId: number, expected: Type, actual: Type, location?: Location): void {
+  reportTypeMismatch(exprId: ExprId, expected: Type, actual: Type, location?: Location): void {
     const message = `type mismatch: expected '${formatType(expected)}', got '${formatType(actual)}'`;
     this.errors.push({ message, exprId, location });
   }
@@ -67,7 +68,7 @@ export class CheckerErrors {
    * Report an incompatible type error (for operations)
    */
   reportIncompatibleTypes(
-    exprId: number,
+    exprId: ExprId,
     operation: string,
     t1: Type,
     t2: Type,
@@ -81,7 +82,7 @@ export class CheckerErrors {
    * Report an undeclared reference error
    */
   reportUndeclaredReference(
-    exprId: number,
+    exprId: ExprId,
     container: string,
     name: string,
     location?: Location
@@ -94,7 +95,7 @@ export class CheckerErrors {
   /**
    * Report an undefined field error
    */
-  reportUndefinedField(exprId: number, fieldName: string, location?: Location): void {
+  reportUndefinedField(exprId: ExprId, fieldName: string, location?: Location): void {
     const message = `undefined field '${fieldName}'`;
     this.errors.push({ message, exprId, location });
   }
@@ -103,7 +104,7 @@ export class CheckerErrors {
    * Report no matching overload error
    */
   reportNoMatchingOverload(
-    exprId: number,
+    exprId: ExprId,
     functionName: string,
     argTypes: Type[],
     isMethodCall: boolean,
@@ -118,7 +119,7 @@ export class CheckerErrors {
   /**
    * Report not a type error
    */
-  reportNotAType(exprId: number, name: string, location?: Location): void {
+  reportNotAType(exprId: ExprId, name: string, location?: Location): void {
     const message = `'${name}' is not a type`;
     this.errors.push({ message, exprId, location });
   }
@@ -126,7 +127,7 @@ export class CheckerErrors {
   /**
    * Report not a message type error
    */
-  reportNotAMessageType(exprId: number, typeName: string, location?: Location): void {
+  reportNotAMessageType(exprId: ExprId, typeName: string, location?: Location): void {
     const message = `'${typeName}' is not a message type`;
     this.errors.push({ message, exprId, location });
   }
@@ -134,7 +135,7 @@ export class CheckerErrors {
   /**
    * Report not iterable error (for comprehensions)
    */
-  reportNotIterable(exprId: number, type: Type, location?: Location): void {
+  reportNotIterable(exprId: ExprId, type: Type, location?: Location): void {
     const message = `expression of type '${formatType(type)}' is not iterable`;
     this.errors.push({ message, exprId, location });
   }
@@ -142,7 +143,7 @@ export class CheckerErrors {
   /**
    * Report unexpected type error
    */
-  reportUnexpectedType(exprId: number, expected: string, actual: Type, location?: Location): void {
+  reportUnexpectedType(exprId: ExprId, expected: string, actual: Type, location?: Location): void {
     const message = `expected ${expected}, got '${formatType(actual)}'`;
     this.errors.push({ message, exprId, location });
   }
@@ -150,7 +151,7 @@ export class CheckerErrors {
   /**
    * Report field redefinition error
    */
-  reportFieldRedefinition(exprId: number, fieldName: string, location?: Location): void {
+  reportFieldRedefinition(exprId: ExprId, fieldName: string, location?: Location): void {
     const message = `field '${fieldName}' is already defined`;
     this.errors.push({ message, exprId, location });
   }
@@ -159,7 +160,7 @@ export class CheckerErrors {
    * Report missing required field error
    */
   reportMissingField(
-    exprId: number,
+    exprId: ExprId,
     typeName: string,
     fieldName: string,
     location?: Location

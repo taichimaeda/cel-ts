@@ -1,6 +1,8 @@
 // CEL Runtime Values
 // TypeScript-native implementation of CEL runtime value types
 
+import type { ExprId } from "../common/ast";
+
 /**
  * Type enumeration for CEL runtime values
  */
@@ -1086,38 +1088,38 @@ export class TimestampValue implements Value {
  */
 export class ErrorValue implements Value {
   private readonly message: string;
-  private readonly exprId: number | undefined;
+  private readonly exprId: ExprId | undefined;
 
-  constructor(message: string, exprId?: number) {
+  constructor(message: string, exprId?: ExprId) {
     this.message = message;
     this.exprId = exprId;
   }
 
-  static create(message: string, exprId?: number): ErrorValue {
+  static create(message: string, exprId?: ExprId): ErrorValue {
     return new ErrorValue(message, exprId);
   }
 
-  static divisionByZero(exprId?: number): ErrorValue {
+  static divisionByZero(exprId?: ExprId): ErrorValue {
     return new ErrorValue("division by zero", exprId);
   }
 
-  static moduloByZero(exprId?: number): ErrorValue {
+  static moduloByZero(exprId?: ExprId): ErrorValue {
     return new ErrorValue("modulo by zero", exprId);
   }
 
-  static indexOutOfBounds(index: number, size: number, exprId?: number): ErrorValue {
+  static indexOutOfBounds(index: number, size: number, exprId?: ExprId): ErrorValue {
     return new ErrorValue(`index out of bounds: ${index}, size: ${size}`, exprId);
   }
 
-  static noSuchKey(key: Value, exprId?: number): ErrorValue {
+  static noSuchKey(key: Value, exprId?: ExprId): ErrorValue {
     return new ErrorValue(`no such key: ${key.toString()}`, exprId);
   }
 
-  static noSuchField(field: string, exprId?: number): ErrorValue {
+  static noSuchField(field: string, exprId?: ExprId): ErrorValue {
     return new ErrorValue(`no such field: ${field}`, exprId);
   }
 
-  static typeMismatch(expected: string, actual: Value, exprId?: number): ErrorValue {
+  static typeMismatch(expected: string, actual: Value, exprId?: ExprId): ErrorValue {
     return new ErrorValue(`type mismatch: expected ${expected}, got ${actual.type()}`, exprId);
   }
 
@@ -1145,11 +1147,11 @@ export class ErrorValue implements Value {
     return this.message;
   }
 
-  getExprId(): number | undefined {
+  getExprId(): ExprId | undefined {
     return this.exprId;
   }
 
-  withExprId(exprId: number): ErrorValue {
+  withExprId(exprId: ExprId): ErrorValue {
     if (this.exprId !== undefined) {
       return this;
     }

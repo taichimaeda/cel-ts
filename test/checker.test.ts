@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { CharStream, CommonTokenStream } from "antlr4";
 import {
+  Checker,
   CheckerEnv,
   CheckerErrors,
   Container,
@@ -9,7 +10,6 @@ import {
   Type,
   TypeKind,
   VariableDecl,
-  check,
   formatType,
   getStandardFunctions,
   isAssignable,
@@ -27,7 +27,7 @@ const parseAndCheck = (expression: string, env: CheckerEnv = createDefaultEnv())
   // Convert ANTLR parse tree to our AST with macro expansion
   const helper = new ParserHelper(expression);
   const ast = helper.parse(tree);
-  const result = check(ast, env);
+  const result = new Checker(env, ast.typeMap, ast.refMap).check(ast);
   // Return type from the root expression
   return {
     errors: result.errors,

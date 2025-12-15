@@ -2,6 +2,7 @@
 // Attribute/qualifier system for field and index access
 // Implementation based on cel-go's interpret/attribute.go
 
+import type { ExprId } from "../common/ast";
 import type { Activation } from "./activation";
 import {
   BoolValue,
@@ -36,7 +37,7 @@ export interface Attribute {
   /**
    * Get the expression ID associated with this attribute.
    */
-  id(): number;
+  id(): ExprId;
 
   /**
    * Get all qualifiers on this attribute.
@@ -51,7 +52,7 @@ export interface Qualifier {
   /**
    * Get the expression ID for this qualifier.
    */
-  id(): number;
+  id(): ExprId;
 
   /**
    * Qualify a value, returning the qualified result.
@@ -71,18 +72,18 @@ export interface AttributeFactory {
   /**
    * Create an absolute attribute (rooted at a variable).
    */
-  absoluteAttribute(exprId: number, names: string[]): Attribute;
+  absoluteAttribute(exprId: ExprId, names: string[]): Attribute;
 
   /**
    * Create a relative attribute (from a computed value).
    */
-  relativeAttribute(exprId: number, operand: Interpretable): Attribute;
+  relativeAttribute(exprId: ExprId, operand: Interpretable): Attribute;
 
   /**
    * Create a conditional attribute for ternary expressions.
    */
   conditionalAttribute(
-    exprId: number,
+    exprId: ExprId,
     condition: Interpretable,
     truthy: Attribute,
     falsy: Attribute
@@ -91,19 +92,19 @@ export interface AttributeFactory {
   /**
    * Create a maybe attribute for optional access.
    */
-  maybeAttribute(exprId: number, name: string): Attribute;
+  maybeAttribute(exprId: ExprId, name: string): Attribute;
 
   /**
    * Create a field qualifier.
    */
-  newQualifier(exprId: number, value: Value | Interpretable, isOptional?: boolean): Qualifier;
+  newQualifier(exprId: ExprId, value: Value | Interpretable, isOptional?: boolean): Qualifier;
 }
 
 /**
  * Forward reference to Interpretable (defined in interpretable.ts).
  */
 export interface Interpretable {
-  id(): number;
+  id(): ExprId;
   eval(activation: Activation): Value;
 }
 
@@ -111,19 +112,19 @@ export interface Interpretable {
  * String qualifier for field access like obj.field.
  */
 export class StringQualifier implements Qualifier {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly field: string;
   private readonly optional: boolean;
   private readonly adapter: TypeAdapter;
 
-  constructor(exprId: number, field: string, optional = false, adapter?: TypeAdapter) {
+  constructor(exprId: ExprId, field: string, optional = false, adapter?: TypeAdapter) {
     this.exprId = exprId;
     this.field = field;
     this.optional = optional;
     this.adapter = adapter ?? new DefaultTypeAdapter();
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -167,17 +168,17 @@ export class StringQualifier implements Qualifier {
  * Index qualifier for index access like obj[index].
  */
 export class IndexQualifier implements Qualifier {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly index: Value;
   private readonly optional: boolean;
 
-  constructor(exprId: number, index: Value, optional = false) {
+  constructor(exprId: ExprId, index: Value, optional = false) {
     this.exprId = exprId;
     this.index = index;
     this.optional = optional;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -232,17 +233,17 @@ export class IndexQualifier implements Qualifier {
  * Computed qualifier for dynamic index access like obj[expr].
  */
 export class ComputedQualifier implements Qualifier {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly operand: Interpretable;
   private readonly optional: boolean;
 
-  constructor(exprId: number, operand: Interpretable, optional = false) {
+  constructor(exprId: ExprId, operand: Interpretable, optional = false) {
     this.exprId = exprId;
     this.operand = operand;
     this.optional = optional;
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -272,13 +273,13 @@ export class ComputedQualifier implements Qualifier {
  * Absolute attribute rooted at a variable.
  */
 export class AbsoluteAttribute implements Attribute {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly namePath: readonly string[];
   private readonly quals: Qualifier[];
   private readonly adapter: TypeAdapter;
 
   constructor(
-    exprId: number,
+    exprId: ExprId,
     namePath: string[],
     qualifiers: Qualifier[] = [],
     adapter?: TypeAdapter
@@ -289,7 +290,7 @@ export class AbsoluteAttribute implements Attribute {
     this.adapter = adapter ?? new DefaultTypeAdapter();
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -341,17 +342,17 @@ export class AbsoluteAttribute implements Attribute {
  * Relative attribute from a computed operand.
  */
 export class RelativeAttribute implements Attribute {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly operand: Interpretable;
   private readonly quals: Qualifier[];
 
-  constructor(exprId: number, operand: Interpretable, qualifiers: Qualifier[] = []) {
+  constructor(exprId: ExprId, operand: Interpretable, qualifiers: Qualifier[] = []) {
     this.exprId = exprId;
     this.operand = operand;
     this.quals = [...qualifiers];
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -387,13 +388,13 @@ export class RelativeAttribute implements Attribute {
  * Conditional attribute for ternary expressions.
  */
 export class ConditionalAttribute implements Attribute {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly condition: Interpretable;
   private readonly truthy: Attribute;
   private readonly falsy: Attribute;
   private readonly quals: Qualifier[];
 
-  constructor(exprId: number, condition: Interpretable, truthy: Attribute, falsy: Attribute) {
+  constructor(exprId: ExprId, condition: Interpretable, truthy: Attribute, falsy: Attribute) {
     this.exprId = exprId;
     this.condition = condition;
     this.truthy = truthy;
@@ -401,7 +402,7 @@ export class ConditionalAttribute implements Attribute {
     this.quals = [];
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -446,17 +447,17 @@ export class ConditionalAttribute implements Attribute {
  * Maybe attribute for optional field access.
  */
 export class MaybeAttribute implements Attribute {
-  private readonly exprId: number;
+  private readonly exprId: ExprId;
   private readonly candidates: Attribute[];
   private readonly quals: Qualifier[];
 
-  constructor(exprId: number, candidates: Attribute[] = []) {
+  constructor(exprId: ExprId, candidates: Attribute[] = []) {
     this.exprId = exprId;
     this.candidates = candidates;
     this.quals = [];
   }
 
-  id(): number {
+  id(): ExprId {
     return this.exprId;
   }
 
@@ -504,16 +505,16 @@ export class DefaultAttributeFactory implements AttributeFactory {
     this.adapter = adapter ?? new DefaultTypeAdapter();
   }
 
-  absoluteAttribute(exprId: number, names: string[]): Attribute {
+  absoluteAttribute(exprId: ExprId, names: string[]): Attribute {
     return new AbsoluteAttribute(exprId, names, [], this.adapter);
   }
 
-  relativeAttribute(exprId: number, operand: Interpretable): Attribute {
+  relativeAttribute(exprId: ExprId, operand: Interpretable): Attribute {
     return new RelativeAttribute(exprId, operand);
   }
 
   conditionalAttribute(
-    exprId: number,
+    exprId: ExprId,
     condition: Interpretable,
     truthy: Attribute,
     falsy: Attribute
@@ -521,12 +522,12 @@ export class DefaultAttributeFactory implements AttributeFactory {
     return new ConditionalAttribute(exprId, condition, truthy, falsy);
   }
 
-  maybeAttribute(exprId: number, name: string): Attribute {
+  maybeAttribute(exprId: ExprId, name: string): Attribute {
     const candidate = new AbsoluteAttribute(exprId, [name], [], this.adapter);
     return new MaybeAttribute(exprId, [candidate]);
   }
 
-  newQualifier(exprId: number, value: Value | Interpretable, isOptional = false): Qualifier {
+  newQualifier(exprId: ExprId, value: Value | Interpretable, isOptional = false): Qualifier {
     // For constant values
     if ("type" in value && typeof value.type === "function") {
       const v = value as Value;

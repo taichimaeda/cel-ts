@@ -2,7 +2,7 @@
 // TypeScript-native top-level API
 // Based on cel-go's cel/cel.go, cel/env.go, cel/program.go
 
-import { check as checkAST } from "./checker/checker";
+import { Checker } from "./checker/checker";
 import { FunctionDecl, OverloadDecl, VariableDecl } from "./checker/decls";
 import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
 import type { CheckerError } from "./checker/errors";
@@ -351,8 +351,8 @@ export interface EnvVariableOption {
  */
 export class EnvVariable implements EnvVariableOption {
   constructor(
-    public readonly name: string,
-    public readonly type: Type
+    readonly name: string,
+    readonly type: Type
   ) {}
 }
 
@@ -373,7 +373,7 @@ export interface EnvFunctionOption {
 export class EnvFunction implements EnvFunctionOption {
   readonly overloads: readonly FunctionOverload[];
 
-  constructor(public readonly name: string, ...overloads: FunctionOverload[]) {
+  constructor(readonly name: string, ...overloads: FunctionOverload[]) {
     this.overloads = overloads;
   }
 }
@@ -383,8 +383,8 @@ export class EnvFunction implements EnvFunctionOption {
  */
 export class VariableOption implements EnvOption {
   constructor(
-    public readonly name: string,
-    public readonly type: Type
+    readonly name: string,
+    readonly type: Type
   ) { }
 
   apply(config: EnvConfig): void {
@@ -397,9 +397,9 @@ export class VariableOption implements EnvOption {
  */
 export class ConstantOption implements EnvOption {
   constructor(
-    public readonly name: string,
-    public readonly type: Type,
-    public readonly value: Value
+    readonly name: string,
+    readonly type: Type,
+    readonly value: Value
   ) { }
 
   apply(config: EnvConfig): void {
@@ -412,7 +412,7 @@ export class ConstantOption implements EnvOption {
  * Configure container name resolution.
  */
 export class ContainerOption implements EnvOption {
-  constructor(public readonly name: string) { }
+  constructor(readonly name: string) { }
 
   apply(config: EnvConfig): void {
     config.container = this.name;
@@ -423,7 +423,7 @@ export class ContainerOption implements EnvOption {
  * Install a custom type adapter.
  */
 export class AdapterOption implements EnvOption {
-  constructor(public readonly adapter: TypeAdapter) { }
+  constructor(readonly adapter: TypeAdapter) { }
 
   apply(config: EnvConfig): void {
     config.adapter = this.adapter;
@@ -463,9 +463,9 @@ export class FunctionOverload {
   readonly binding?: UnaryBinding | BinaryBinding | FunctionBinding | undefined;
 
   constructor(
-    public readonly id: string,
-    public readonly argTypes: readonly Type[],
-    public readonly resultType: Type,
+    readonly id: string,
+    readonly argTypes: readonly Type[],
+    readonly resultType: Type,
     options: FunctionOverloadOptions = {}
   ) {
     this.typeParams = options.typeParams ? [...options.typeParams] : [];
@@ -552,7 +552,7 @@ export type FunctionBinding = (args: Value[]) => Value;
 export class FunctionOption implements EnvOption {
   readonly overloads: readonly FunctionOverload[];
 
-  constructor(public readonly name: string, ...overloads: FunctionOverload[]) {
+  constructor(readonly name: string, ...overloads: FunctionOverload[]) {
     this.overloads = overloads;
   }
 
@@ -637,7 +637,7 @@ export class Env {
       return new Ast(ast, expression);
     }
 
-    const checkResult = checkAST(ast, this.checkerEnv);
+    const checkResult = new Checker(this.checkerEnv, ast.typeMap, ast.refMap).check(ast);
 
     if (checkResult.errors.hasErrors()) {
       const issues = new Issues(checkResult.errors.getErrors().slice(), expression);
@@ -656,7 +656,9 @@ export class Env {
       return celAst;
     }
 
-    const checkResult = checkAST(celAst.ast, this.checkerEnv);
+    const checkResult = new Checker(this.checkerEnv, celAst.ast.typeMap, celAst.ast.refMap).check(
+      celAst.ast
+    );
 
     if (checkResult.errors.hasErrors()) {
       const issues = new Issues(checkResult.errors.getErrors().slice(), celAst.source);
@@ -825,3 +827,4 @@ export {
   isError
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";
+

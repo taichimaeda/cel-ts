@@ -1,12 +1,12 @@
 // CEL Type Checker
 // Exports for the checker module
 
-export { check, Checker } from "./checker";
+export { Checker } from "./checker";
 export type { CheckResult } from "./checker";
 
-// Re-export ReferenceInfo from common/ast
+// Re-export ReferenceInfo helpers from common/ast
 export type { ReferenceInfo } from "../common/ast";
-export { createIdentReference, createFunctionReference } from "../common/ast";
+export { IdentReference, FunctionReference } from "../common/ast";
 
 export { FunctionDecl, OverloadDecl, VariableDecl } from "./decls";
 

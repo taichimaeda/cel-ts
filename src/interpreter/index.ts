@@ -109,7 +109,6 @@ export {
   type CompileResult,
   type Declaration,
   Env,
-  evaluate,
 } from "./interpreter";
 
 // Functions - Standard functions
