@@ -29,11 +29,11 @@ bun add cel-ts
 ## Quick Start
 
 ```typescript
-import { Env, EnvVariable, IntType, StringType } from "cel-ts";
+import { Env, Variable, IntType, StringType } from "cel-ts";
 
 // Create an environment with variable declarations
 const env = new Env({
-  variables: [new EnvVariable("name", StringType), new EnvVariable("age", IntType)],
+  variables: [new Variable("name", StringType), new Variable("age", IntType)],
 });
 
 // Compile an expression
@@ -68,22 +68,22 @@ bun run examples/cel-eval.ts
 ```typescript
 import {
   Env,
-  EnvFunction,
-  EnvVariable,
-  GlobalFunctionOverload,
+  Function,
+  Variable,
+  Overload,
   IntType,
-  MemberFunctionOverload,
+  MemberOverload,
   StringType,
   StringValue,
 } from "cel-ts";
 
 // Create environment with standard library
 const env = new Env({
-  variables: [new EnvVariable("name", StringType), new EnvVariable("age", IntType)],
+  variables: [new Variable("name", StringType), new Variable("age", IntType)],
   functions: [
-    new EnvFunction(
+    new Function(
       "greet",
-      new GlobalFunctionOverload(
+      new Overload(
         "greet_string",
         [StringType],
         StringType,
@@ -96,12 +96,12 @@ const env = new Env({
 // Create environment without standard library
 const customEnv = new Env({
   disableStandardLibrary: true,
-  variables: [new EnvVariable("id", IntType)],
+  variables: [new Variable("id", IntType)],
 });
 
 // Extend an existing environment
 const extendedEnv = env.extend({
-  variables: [new EnvVariable("country", StringType)],
+  variables: [new Variable("country", StringType)],
 });
 ```
 
@@ -114,11 +114,11 @@ const env = new Env({
   container: "acme.types",
   disableTypeChecking: false,
   disableStandardLibrary: false,
-  variables: [new EnvVariable("name", StringType)],
+  variables: [new Variable("name", StringType)],
   functions: [
-    new EnvFunction(
+    new Function(
       "upper",
-      new MemberFunctionOverload(
+      new MemberOverload(
         "string_upper",
         [StringType],
         StringType,
@@ -240,22 +240,14 @@ has(request.auth)      // true if auth field exists
 ## Custom Functions
 
 ```typescript
-import {
-  Env,
-  EnvFunction,
-  GlobalFunctionOverload,
-  IntType,
-  MemberFunctionOverload,
-  StringType,
-  StringValue,
-} from "cel-ts";
+import { Env, Function, Overload, IntType, MemberOverload, StringType, StringValue } from "cel-ts";
 
 const env = new Env({
   functions: [
-    new EnvFunction(
+    new Function(
       "repeat",
       // Global function: repeat("ab", 3) -> "ababab"
-      new GlobalFunctionOverload(
+      new Overload(
         "repeat_string_int",
         [StringType, IntType],
         StringType,
@@ -266,10 +258,10 @@ const env = new Env({
         }
       )
     ),
-    new EnvFunction(
+    new Function(
       "reverse",
       // Member function: "hello".reverse() -> "olleh"
-      new MemberFunctionOverload(
+      new MemberOverload(
         "string_reverse",
         [StringType],
         StringType,

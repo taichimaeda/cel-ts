@@ -2,7 +2,7 @@
 // Error types and error collection for type checking
 
 import type { ExprId } from "../common/ast";
-import { type Type, formatType } from "./types";
+import type { Type } from "./types";
 
 /**
  * Location information for error reporting
@@ -60,7 +60,7 @@ export class CheckerErrors {
    * Report a type mismatch error
    */
   reportTypeMismatch(exprId: ExprId, expected: Type, actual: Type, location?: Location): void {
-    const message = `type mismatch: expected '${formatType(expected)}', got '${formatType(actual)}'`;
+    const message = `type mismatch: expected '${expected.toString()}', got '${actual.toString()}'`;
     this.errors.push({ message, exprId, location });
   }
 
@@ -74,7 +74,7 @@ export class CheckerErrors {
     t2: Type,
     location?: Location
   ): void {
-    const message = `incompatible types for '${operation}': '${formatType(t1)}' and '${formatType(t2)}'`;
+    const message = `incompatible types for '${operation}': '${t1.toString()}' and '${t2.toString()}'`;
     this.errors.push({ message, exprId, location });
   }
 
@@ -110,7 +110,7 @@ export class CheckerErrors {
     isMethodCall: boolean,
     location?: Location
   ): void {
-    const args = argTypes.map(formatType).join(", ");
+    const args = argTypes.map((t) => t.toString()).join(", ");
     const callStyle = isMethodCall ? "method" : "function";
     const message = `no matching overload for ${callStyle} '${functionName}' with arguments (${args})`;
     this.errors.push({ message, exprId, location });
@@ -136,7 +136,7 @@ export class CheckerErrors {
    * Report not iterable error (for comprehensions)
    */
   reportNotIterable(exprId: ExprId, type: Type, location?: Location): void {
-    const message = `expression of type '${formatType(type)}' is not iterable`;
+    const message = `expression of type '${type.toString()}' is not iterable`;
     this.errors.push({ message, exprId, location });
   }
 
@@ -144,7 +144,7 @@ export class CheckerErrors {
    * Report unexpected type error
    */
   reportUnexpectedType(exprId: ExprId, expected: string, actual: Type, location?: Location): void {
-    const message = `expected ${expected}, got '${formatType(actual)}'`;
+    const message = `expected ${expected}, got '${actual.toString()}'`;
     this.errors.push({ message, exprId, location });
   }
 
@@ -173,16 +173,11 @@ export class CheckerErrors {
    * Format all errors as a string
    */
   toString(): string {
-    return this.errors.map((e) => this.formatError(e)).join("\n");
-  }
-
-  /**
-   * Format a single error
-   */
-  private formatError(error: CheckerError): string {
-    if (error.location) {
-      return `ERROR: ${error.location.line}:${error.location.column}: ${error.message}`;
-    }
-    return `ERROR: ${error.message}`;
+    return this.errors.map((error) => {
+      if (error.location) {
+        return `ERROR: ${error.location.line}:${error.location.column}: ${error.message}`;
+      }
+      return `ERROR: ${error.message}`;
+    }).join("\n");
   }
 }

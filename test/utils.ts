@@ -1,40 +1,49 @@
-import { VariableDecl } from "../src/checker/decls";
-import { Type } from "../src/checker/types";
 import {
-  Env,
-  type EvalResult
-} from "../src/interpreter";
+  BoolType,
+  BytesType,
+  DoubleType,
+  DynType,
+  IntType,
+  ListType,
+  MapType,
+  NullType,
+  StringType,
+  TimestampType,
+  Type,
+  VariableDecl,
+} from "../src/checker";
+import { Env, type EvalResult } from "../src/interpreter";
 import { ErrorValue } from "../src/interpreter/values";
 
 function inferType(value: unknown): Type {
   if (value === null) {
-    return Type.Null;
+    return NullType;
   }
   switch (typeof value) {
     case "boolean":
-      return Type.Bool;
+      return BoolType;
     case "number":
-      return Number.isInteger(value) ? Type.Int : Type.Double;
+      return Number.isInteger(value) ? IntType : DoubleType;
     case "bigint":
-      return Type.Int;
+      return IntType;
     case "string":
-      return Type.String;
+      return StringType;
     case "object":
       if (Array.isArray(value)) {
         if (value.length > 0) {
-          return Type.newListType(inferType(value[0]));
+          return new ListType(inferType(value[0]));
         }
-        return Type.newListType(Type.Dyn);
+        return new ListType(DynType);
       }
       if (value instanceof Uint8Array) {
-        return Type.Bytes;
+        return BytesType;
       }
       if (value instanceof Date) {
-        return Type.Timestamp;
+        return TimestampType;
       }
-      return Type.newMapType(Type.String, Type.Dyn);
+      return new MapType(StringType, DynType);
     default:
-      return Type.Dyn;
+      return DynType;
   }
 }
 

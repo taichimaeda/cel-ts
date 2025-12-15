@@ -1,18 +1,11 @@
-import {
-  Env,
-  EnvFunction,
-  EnvVariable,
-  GlobalFunctionOverload,
-  StringType,
-  StringValue,
-} from "../src/cel";
+import { Env, Function, Overload, StringType, StringValue, Variable } from "../src/cel";
 
 const env = new Env({
-  variables: [new EnvVariable("i", StringType), new EnvVariable("you", StringType)],
+  variables: [new Variable("i", StringType), new Variable("you", StringType)],
   functions: [
-    new EnvFunction(
+    new Function(
       "shake_hands",
-      new GlobalFunctionOverload(
+      new Overload(
         "shake_hands_string_string",
         [StringType, StringType],
         StringType,

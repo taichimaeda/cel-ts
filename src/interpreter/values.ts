@@ -1,48 +1,21 @@
 // CEL Runtime Values
 // TypeScript-native implementation of CEL runtime value types
 
+import {
+  BoolType as CheckerBoolType,
+  BytesType as CheckerBytesType,
+  DoubleType as CheckerDoubleType,
+  DurationType as CheckerDurationType,
+  ErrorType as CheckerErrorType,
+  IntType as CheckerIntType,
+  NullType as CheckerNullType,
+  StringType as CheckerStringType,
+  TimestampType as CheckerTimestampType,
+  TypeType as CheckerTypeType,
+  UintType as CheckerUintType,
+} from "../checker/types";
 import type { ExprId } from "../common/ast";
-
-/**
- * Type enumeration for CEL runtime values
- */
-export enum ValueType {
-  Bool = "bool",
-  Int = "int",
-  Uint = "uint",
-  Double = "double",
-  String = "string",
-  Bytes = "bytes",
-  Null = "null_type",
-  List = "list",
-  Map = "map",
-  Type = "type",
-  Duration = "duration",
-  Timestamp = "timestamp",
-  Unknown = "unknown",
-  Error = "error",
-  Optional = "optional",
-}
-
-/**
- * Trait markers for CEL values
- */
-export enum ValueTrait {
-  None = 0,
-  Adder = 1 << 0,
-  Comparer = 1 << 1,
-  Container = 1 << 2,
-  Divider = 1 << 3,
-  Indexer = 1 << 4,
-  Iterable = 1 << 5,
-  Matcher = 1 << 6,
-  Modder = 1 << 7,
-  Multiplier = 1 << 8,
-  Negater = 1 << 9,
-  Receiver = 1 << 10,
-  Sizer = 1 << 11,
-  Subtractor = 1 << 12,
-}
+import { GenericListType, GenericMapType, OptionalType, UnknownType, type ValueType } from "./types";
 
 /**
  * Base interface for all CEL runtime values
@@ -59,9 +32,6 @@ export interface Value {
 
   /** Convert to native JavaScript value */
   value(): unknown;
-
-  /** Check if value has a specific trait */
-  hasTrait(trait: ValueTrait): boolean;
 }
 
 /**
@@ -89,7 +59,7 @@ export class BoolValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Bool;
+    return CheckerBoolType;
   }
 
   toString(): string {
@@ -105,10 +75,6 @@ export class BoolValue implements Value {
 
   value(): boolean {
     return this.val;
-  }
-
-  hasTrait(trait: ValueTrait): boolean {
-    return (trait & (ValueTrait.Comparer | ValueTrait.Negater)) !== 0;
   }
 
   negate(): BoolValue {
@@ -147,7 +113,7 @@ export class IntValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Int;
+    return CheckerIntType;
   }
 
   toString(): string {
@@ -169,20 +135,6 @@ export class IntValue implements Value {
 
   value(): bigint {
     return this.val;
-  }
-
-  hasTrait(trait: ValueTrait): boolean {
-    return (
-      (trait &
-        (ValueTrait.Adder |
-          ValueTrait.Comparer |
-          ValueTrait.Divider |
-          ValueTrait.Modder |
-          ValueTrait.Multiplier |
-          ValueTrait.Negater |
-          ValueTrait.Subtractor)) !==
-      0
-    );
   }
 
   add(other: IntValue): IntValue {
@@ -247,7 +199,7 @@ export class UintValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Uint;
+    return CheckerUintType;
   }
 
   toString(): string {
@@ -270,19 +222,6 @@ export class UintValue implements Value {
 
   value(): bigint {
     return this.val;
-  }
-
-  hasTrait(trait: ValueTrait): boolean {
-    return (
-      (trait &
-        (ValueTrait.Adder |
-          ValueTrait.Comparer |
-          ValueTrait.Divider |
-          ValueTrait.Modder |
-          ValueTrait.Multiplier |
-          ValueTrait.Subtractor)) !==
-      0
-    );
   }
 
   add(other: UintValue): UintValue {
@@ -347,7 +286,7 @@ export class DoubleValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Double;
+    return CheckerDoubleType;
   }
 
   toString(): string {
@@ -372,19 +311,6 @@ export class DoubleValue implements Value {
 
   value(): number {
     return this.val;
-  }
-
-  hasTrait(trait: ValueTrait): boolean {
-    return (
-      (trait &
-        (ValueTrait.Adder |
-          ValueTrait.Comparer |
-          ValueTrait.Divider |
-          ValueTrait.Multiplier |
-          ValueTrait.Negater |
-          ValueTrait.Subtractor)) !==
-      0
-    );
   }
 
   add(other: DoubleValue): DoubleValue {
@@ -434,7 +360,7 @@ export class StringValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.String;
+    return CheckerStringType;
   }
 
   toString(): string {
@@ -450,19 +376,6 @@ export class StringValue implements Value {
 
   value(): string {
     return this.val;
-  }
-
-  hasTrait(trait: ValueTrait): boolean {
-    return (
-      (trait &
-        (ValueTrait.Adder |
-          ValueTrait.Comparer |
-          ValueTrait.Matcher |
-          ValueTrait.Receiver |
-          ValueTrait.Sizer |
-          ValueTrait.Indexer)) !==
-      0
-    );
   }
 
   add(other: StringValue): StringValue {
@@ -535,7 +448,7 @@ export class BytesValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Bytes;
+    return CheckerBytesType;
   }
 
   toString(): string {
@@ -561,13 +474,6 @@ export class BytesValue implements Value {
 
   value(): Uint8Array {
     return this.val;
-  }
-
-  hasTrait(trait: ValueTrait): boolean {
-    return (
-      (trait & (ValueTrait.Adder | ValueTrait.Comparer | ValueTrait.Sizer | ValueTrait.Indexer)) !==
-      0
-    );
   }
 
   add(other: BytesValue): BytesValue {
@@ -599,7 +505,7 @@ export class NullValue implements Value {
   private constructor() {}
 
   type(): ValueType {
-    return ValueType.Null;
+    return CheckerNullType;
   }
 
   toString(): string {
@@ -612,10 +518,6 @@ export class NullValue implements Value {
 
   value(): null {
     return null;
-  }
-
-  hasTrait(_trait: ValueTrait): boolean {
-    return false;
   }
 }
 
@@ -637,7 +539,7 @@ export class ListValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.List;
+    return GenericListType;
   }
 
   toString(): string {
@@ -665,18 +567,6 @@ export class ListValue implements Value {
 
   value(): readonly Value[] {
     return this.elements;
-  }
-
-  hasTrait(trait: ValueTrait): boolean {
-    return (
-      (trait &
-        (ValueTrait.Adder |
-          ValueTrait.Container |
-          ValueTrait.Indexer |
-          ValueTrait.Iterable |
-          ValueTrait.Sizer)) !==
-      0
-    );
   }
 
   size(): IntValue {
@@ -755,7 +645,7 @@ export class MapValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Map;
+    return GenericMapType;
   }
 
   toString(): string {
@@ -785,14 +675,6 @@ export class MapValue implements Value {
 
   value(): readonly MapEntry[] {
     return this.entries;
-  }
-
-  hasTrait(trait: ValueTrait): boolean {
-    return (
-      (trait &
-        (ValueTrait.Container | ValueTrait.Indexer | ValueTrait.Iterable | ValueTrait.Sizer)) !==
-      0
-    );
   }
 
   size(): IntValue {
@@ -826,48 +708,62 @@ export class MapValue implements Value {
  * Type value - represents a type itself as a value
  */
 export class TypeValue implements Value {
-  static readonly BoolType = new TypeValue(ValueType.Bool);
-  static readonly IntType = new TypeValue(ValueType.Int);
-  static readonly UintType = new TypeValue(ValueType.Uint);
-  static readonly DoubleType = new TypeValue(ValueType.Double);
-  static readonly StringType = new TypeValue(ValueType.String);
-  static readonly BytesType = new TypeValue(ValueType.Bytes);
-  static readonly NullType = new TypeValue(ValueType.Null);
-  static readonly ListType = new TypeValue(ValueType.List);
-  static readonly MapType = new TypeValue(ValueType.Map);
-  static readonly TypeType = new TypeValue(ValueType.Type);
-  static readonly DurationType = new TypeValue(ValueType.Duration);
-  static readonly TimestampType = new TypeValue(ValueType.Timestamp);
+  static readonly BoolType = new TypeValue(CheckerBoolType);
+  static readonly IntType = new TypeValue(CheckerIntType);
+  static readonly UintType = new TypeValue(CheckerUintType);
+  static readonly DoubleType = new TypeValue(CheckerDoubleType);
+  static readonly StringType = new TypeValue(CheckerStringType);
+  static readonly BytesType = new TypeValue(CheckerBytesType);
+  static readonly NullType = new TypeValue(CheckerNullType);
+  static readonly ListType = new TypeValue(GenericListType);
+  static readonly MapType = new TypeValue(GenericMapType);
+  static readonly TypeType = new TypeValue(CheckerTypeType);
+  static readonly DurationType = new TypeValue(CheckerDurationType);
+  static readonly TimestampType = new TypeValue(CheckerTimestampType);
 
-  private readonly typeName: ValueType | string;
+  private readonly typeName: ValueType;
 
-  constructor(typeName: ValueType | string) {
+  constructor(typeName: ValueType) {
     this.typeName = typeName;
   }
 
   type(): ValueType {
-    return ValueType.Type;
+    return CheckerTypeType;
   }
 
   toString(): string {
-    return `type(${this.typeName})`;
+    return `type(${this.typeName.toString()})`;
   }
 
   equal(other: Value): Value {
     if (other instanceof TypeValue) {
-      return BoolValue.of(this.typeName === other.typeName);
+      return BoolValue.of(this.typeName.toString() === other.typeName.toString());
     }
     return BoolValue.False;
   }
 
   value(): string {
-    return this.typeName;
-  }
-
-  hasTrait(_trait: ValueTrait): boolean {
-    return false;
+    return this.typeName.toString();
   }
 }
+
+export function toTypeValue(type: ValueType): TypeValue {
+  if (type === CheckerBoolType) return TypeValue.BoolType;
+  if (type === CheckerIntType) return TypeValue.IntType;
+  if (type === CheckerUintType) return TypeValue.UintType;
+  if (type === CheckerDoubleType) return TypeValue.DoubleType;
+  if (type === CheckerStringType) return TypeValue.StringType;
+  if (type === CheckerBytesType) return TypeValue.BytesType;
+  if (type === CheckerNullType) return TypeValue.NullType;
+  if (type === GenericListType) return TypeValue.ListType;
+  if (type === GenericMapType) return TypeValue.MapType;
+  if (type === CheckerTypeType) return TypeValue.TypeType;
+  if (type === CheckerDurationType) return TypeValue.DurationType;
+  if (type === CheckerTimestampType) return TypeValue.TimestampType;
+  return new TypeValue(type);
+}
+
+export type { ValueType } from "./types";
 
 /**
  * Duration value (nanoseconds)
@@ -895,7 +791,7 @@ export class DurationValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Duration;
+    return CheckerDurationType;
   }
 
   toString(): string {
@@ -912,14 +808,6 @@ export class DurationValue implements Value {
 
   value(): bigint {
     return this.nanos;
-  }
-
-  hasTrait(trait: ValueTrait): boolean {
-    return (
-      (trait &
-        (ValueTrait.Adder | ValueTrait.Comparer | ValueTrait.Negater | ValueTrait.Subtractor)) !==
-      0
-    );
   }
 
   add(other: DurationValue): DurationValue {
@@ -984,7 +872,7 @@ export class TimestampValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Timestamp;
+    return CheckerTimestampType;
   }
 
   toString(): string {
@@ -1001,10 +889,6 @@ export class TimestampValue implements Value {
 
   value(): bigint {
     return this.nanos;
-  }
-
-  hasTrait(trait: ValueTrait): boolean {
-    return (trait & (ValueTrait.Adder | ValueTrait.Comparer | ValueTrait.Subtractor)) !== 0;
   }
 
   add(duration: DurationValue): TimestampValue {
@@ -1124,7 +1008,7 @@ export class ErrorValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Error;
+    return CheckerErrorType;
   }
 
   toString(): string {
@@ -1137,10 +1021,6 @@ export class ErrorValue implements Value {
 
   value(): string {
     return this.message;
-  }
-
-  hasTrait(_trait: ValueTrait): boolean {
-    return false;
   }
 
   getMessage(): string {
@@ -1177,7 +1057,7 @@ export class UnknownValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Unknown;
+    return UnknownType;
   }
 
   toString(): string {
@@ -1190,10 +1070,6 @@ export class UnknownValue implements Value {
 
   value(): readonly number[] {
     return this.attributeIds;
-  }
-
-  hasTrait(_trait: ValueTrait): boolean {
-    return false;
   }
 
   merge(other: UnknownValue): UnknownValue {
@@ -1223,7 +1099,7 @@ export class OptionalValue implements Value {
   }
 
   type(): ValueType {
-    return ValueType.Optional;
+    return OptionalType;
   }
 
   toString(): string {
@@ -1248,10 +1124,6 @@ export class OptionalValue implements Value {
 
   value(): Value | null {
     return this.inner;
-  }
-
-  hasTrait(_trait: ValueTrait): boolean {
-    return false;
   }
 
   hasValue(): boolean {

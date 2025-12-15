@@ -1,14 +1,13 @@
 // CEL Interpreter Module
 // Interpreter module exports
 
+// Interpreter runtime type helpers
+export { RuntimeType, UnknownType, OptionalType } from "./types";
+
 // Values - Runtime values
+export type { Value, TypeAdapter, MapEntry, ValueType } from "./values";
 export {
-  type Value,
-  type TypeAdapter,
-  type MapEntry,
-  ValueType,
-  ValueTrait,
-  BoolValue,
+    BoolValue,
   IntValue,
   UintValue,
   DoubleValue,

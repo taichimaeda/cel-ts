@@ -5,28 +5,40 @@ export { Checker } from "./checker";
 export type { CheckResult } from "./checker";
 
 // Re-export ReferenceInfo helpers from common/ast
+export { FunctionReference, IdentReference } from "../common/ast";
 export type { ReferenceInfo } from "../common/ast";
-export { IdentReference, FunctionReference } from "../common/ast";
 
 export { FunctionDecl, OverloadDecl, VariableDecl } from "./decls";
 
-export { CheckerEnv, Container, DefaultTypeProvider } from "./env";
+export { CheckerEnv, Container } from "./env";
 export type { LookupResult, TypeProvider } from "./env";
 
 export { CheckerErrors } from "./errors";
 export type { CheckerError, Location } from "./errors";
 
-export { isAssignableWithMapping, joinTypes, substitute, TypeMapping } from "./mapping";
-
+export { TypeMapping } from "./mapping";
 export {
-  formatType,
-  isAssignable,
-  isDynOrError,
-  mostGeneral,
+  AnyType,
+  BoolType,
+  BytesType,
+  DoubleType,
+  DurationType,
+  DynType,
+  ErrorType, IntType, isAssignable,
+  joinTypes,
+  ListType,
+  MapType,
+  NullType,
+  OpaqueType,
+  OptionalType,
+  StringType,
+  TimestampType,
   Type,
   TypeKind,
-  typeKey,
-  TypeTrait,
+  TypeParamType,
+  TypeType,
+  TypeTypeWithParam,
+  UintType
 } from "./types";
 
 export { getStandardFunctions } from "./stdlib";

@@ -68,10 +68,10 @@ The cel-ts architecture follows the cel-go design pattern where:
 ### Step 1: Environment Setup
 
 ```typescript
-import { Env, EnvVariable, IntType, StringType } from "cel-ts";
+import { Env, Variable, IntType, StringType } from "cel-ts";
 
 const env = new Env({
-  variables: [new EnvVariable("name", StringType), new EnvVariable("age", IntType)],
+  variables: [new Variable("name", StringType), new Variable("age", IntType)],
 });
 ```
 
@@ -229,7 +229,6 @@ interface Value {
   type(): ValueType;
   value(): unknown;
   equal(other: Value): Value;
-  hasTrait(trait: ValueTrait): boolean;
 }
 ```
 
@@ -250,11 +249,11 @@ const env = new Env({
   container: "acme.types",
   disableStandardLibrary: false,
   disableTypeChecking: false,
-  variables: [new EnvVariable("name", StringType)],
+  variables: [new Variable("name", StringType)],
   functions: [
-    new EnvFunction(
+    new Function(
       "greet",
-      new GlobalFunctionOverload(
+      new Overload(
         "greet_string",
         [StringType],
         StringType,
@@ -358,24 +357,15 @@ cel-ts leverages TypeScript's type system:
 ## Example Usage
 
 ```typescript
-import {
-  BoolType,
-  BoolValue,
-  Env,
-  EnvFunction,
-  EnvVariable,
-  GlobalFunctionOverload,
-  IntType,
-  StringType,
-} from "cel-ts";
+import { BoolType, BoolValue, Env, Function, Variable, Overload, IntType, StringType } from "cel-ts";
 
 // Create environment with custom function
 const env = new Env({
-  variables: [new EnvVariable("user", StringType), new EnvVariable("age", IntType)],
+  variables: [new Variable("user", StringType), new Variable("age", IntType)],
   functions: [
-    new EnvFunction(
+    new Function(
       "isAdult",
-      new GlobalFunctionOverload("isAdult_int", [IntType], BoolType, (value) =>
+      new Overload("isAdult_int", [IntType], BoolType, (value) =>
         new BoolValue(value.value() >= 18n)
       )
     ),
@@ -397,10 +387,10 @@ console.log(result.value()); // "Alice is adult: true"
 ### Macro Example
 
 ```typescript
-import { Env, EnvVariable, IntType, Types } from "cel-ts";
+import { Env, Variable, IntType, Types } from "cel-ts";
 
 const env = new Env({
-  variables: [new EnvVariable("numbers", Types.list(IntType))],
+  variables: [new Variable("numbers", Types.list(IntType))],
 });
 
 // Filter positive numbers and double them

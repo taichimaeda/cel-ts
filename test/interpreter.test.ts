@@ -1,6 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import { FunctionDecl, OverloadDecl, VariableDecl } from "../src/checker";
-import { Type } from "../src/checker/types";
+import {
+  BoolType,
+  BytesType,
+  DoubleType,
+  DynType,
+  FunctionDecl,
+  IntType,
+  ListType,
+  MapType,
+  NullType,
+  OverloadDecl,
+  StringType,
+  TimestampType,
+  Type,
+  UintType,
+  VariableDecl,
+} from "../src/checker";
 import {
   BinaryDispatcherOverload,
   BoolValue,
@@ -450,7 +465,7 @@ describe("CEL Interpreter", () => {
   describe("Environment with Custom Variables", () => {
     test("should compile and evaluate with environment", () => {
       const env = new Env({
-        declarations: [new VariableDecl("x", Type.Int), new VariableDecl("y", Type.Int)],
+        declarations: [new VariableDecl("x", IntType), new VariableDecl("y", IntType)],
       });
 
       const compileResult = env.compile("x + y");
@@ -473,7 +488,7 @@ describe("CEL Interpreter", () => {
     describe("Global functions with unary binding", () => {
       test("should evaluate custom unary function", () => {
         const greetFn = new FunctionDecl("greet");
-        greetFn.addOverload(new OverloadDecl("greet_string", [Type.String], Type.String));
+        greetFn.addOverload(new OverloadDecl("greet_string", [StringType], StringType));
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
@@ -494,7 +509,7 @@ describe("CEL Interpreter", () => {
 
       test("should evaluate custom function returning int", () => {
         const doubleItFn = new FunctionDecl("doubleIt");
-        doubleItFn.addOverload(new OverloadDecl("doubleIt_int", [Type.Int], Type.Int));
+        doubleItFn.addOverload(new OverloadDecl("doubleIt_int", [IntType], IntType));
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
@@ -517,7 +532,7 @@ describe("CEL Interpreter", () => {
     describe("Global functions with binary binding", () => {
       test("should evaluate custom binary function", () => {
         const addFn = new FunctionDecl("myAdd");
-        addFn.addOverload(new OverloadDecl("myAdd_int_int", [Type.Int, Type.Int], Type.Int));
+        addFn.addOverload(new OverloadDecl("myAdd_int_int", [IntType, IntType], IntType));
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
@@ -541,7 +556,7 @@ describe("CEL Interpreter", () => {
       test("should evaluate custom string concat function", () => {
         const concatFn = new FunctionDecl("concat");
         concatFn.addOverload(
-          new OverloadDecl("concat_string_string", [Type.String, Type.String], Type.String)
+          new OverloadDecl("concat_string_string", [StringType, StringType], StringType)
         );
 
         const dispatcher = new DefaultDispatcher();
@@ -569,7 +584,7 @@ describe("CEL Interpreter", () => {
       test("should evaluate custom function with 3 arguments", () => {
         const sumFn = new FunctionDecl("sum3");
         sumFn.addOverload(
-          new OverloadDecl("sum3_int_int_int", [Type.Int, Type.Int, Type.Int], Type.Int)
+          new OverloadDecl("sum3_int_int_int", [IntType, IntType, IntType], IntType)
         );
 
         const dispatcher = new DefaultDispatcher();
@@ -599,7 +614,7 @@ describe("CEL Interpreter", () => {
       test("should evaluate custom member function (unary)", () => {
         const reverseFn = new FunctionDecl("reverse");
         reverseFn.addOverload(
-          new OverloadDecl("string_reverse", [Type.String], Type.String, [], true)
+          new OverloadDecl("string_reverse", [StringType], StringType, [], true)
         );
 
         const dispatcher = new DefaultDispatcher();
@@ -625,7 +640,7 @@ describe("CEL Interpreter", () => {
       test("should evaluate custom member function (binary)", () => {
         const repeatFn = new FunctionDecl("repeat");
         repeatFn.addOverload(
-          new OverloadDecl("string_repeat_int", [Type.String, Type.Int], Type.String, [], true)
+          new OverloadDecl("string_repeat_int", [StringType, IntType], StringType, [], true)
         );
 
         const dispatcher = new DefaultDispatcher();
@@ -652,7 +667,7 @@ describe("CEL Interpreter", () => {
     describe("Custom functions with variables", () => {
       test("should use custom function with variable arguments", () => {
         const isPositiveFn = new FunctionDecl("isPositive");
-        isPositiveFn.addOverload(new OverloadDecl("isPositive_int", [Type.Int], Type.Bool));
+        isPositiveFn.addOverload(new OverloadDecl("isPositive_int", [IntType], BoolType));
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
@@ -660,7 +675,7 @@ describe("CEL Interpreter", () => {
         );
 
         const env = new Env({
-          declarations: [isPositiveFn, new VariableDecl("x", Type.Int)],
+          declarations: [isPositiveFn, new VariableDecl("x", IntType)],
           functions: dispatcher,
         });
 
@@ -680,7 +695,7 @@ describe("CEL Interpreter", () => {
     describe("Custom function error handling", () => {
       test("should return error from custom function", () => {
         const safeDivFn = new FunctionDecl("safeDiv");
-        safeDivFn.addOverload(new OverloadDecl("safeDiv_int_int", [Type.Int, Type.Int], Type.Int));
+        safeDivFn.addOverload(new OverloadDecl("safeDiv_int_int", [IntType, IntType], IntType));
 
         const dispatcher = new DefaultDispatcher();
         dispatcher.add(
@@ -711,7 +726,7 @@ describe("CEL Interpreter", () => {
     describe("has() macro", () => {
       test("should return true for existing map key", () => {
         const env = new Env({
-          declarations: [new VariableDecl("m", Type.newMapType(Type.String, Type.Int))],
+          declarations: [new VariableDecl("m", new MapType(StringType, IntType))],
         });
         const compileResult = env.compile("has(m.foo)");
         expect(compileResult.error).toBeUndefined();
@@ -722,7 +737,7 @@ describe("CEL Interpreter", () => {
 
       test("should return false for missing map key", () => {
         const env = new Env({
-          declarations: [new VariableDecl("m", Type.newMapType(Type.String, Type.Int))],
+          declarations: [new VariableDecl("m", new MapType(StringType, IntType))],
         });
         const compileResult = env.compile("has(m.bar)");
         expect(compileResult.error).toBeUndefined();
@@ -735,7 +750,7 @@ describe("CEL Interpreter", () => {
     describe("all() macro", () => {
       test("should return true when all elements match predicate", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.all(x, x > 0)");
         expect(compileResult.error).toBeUndefined();
@@ -746,7 +761,7 @@ describe("CEL Interpreter", () => {
 
       test("should return false when some elements do not match", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.all(x, x > 0)");
         expect(compileResult.error).toBeUndefined();
@@ -757,7 +772,7 @@ describe("CEL Interpreter", () => {
 
       test("should return true for empty list", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.all(x, x > 0)");
         expect(compileResult.error).toBeUndefined();
@@ -770,7 +785,7 @@ describe("CEL Interpreter", () => {
     describe("exists() macro", () => {
       test("should return true when any element matches predicate", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.exists(x, x > 3)");
         expect(compileResult.error).toBeUndefined();
@@ -781,7 +796,7 @@ describe("CEL Interpreter", () => {
 
       test("should return false when no elements match", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.exists(x, x > 10)");
         expect(compileResult.error).toBeUndefined();
@@ -792,7 +807,7 @@ describe("CEL Interpreter", () => {
 
       test("should return false for empty list", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.exists(x, x > 0)");
         expect(compileResult.error).toBeUndefined();
@@ -805,7 +820,7 @@ describe("CEL Interpreter", () => {
     describe("exists_one() macro", () => {
       test("should return true when exactly one element matches", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.exists_one(x, x > 4)");
         expect(compileResult.error).toBeUndefined();
@@ -816,7 +831,7 @@ describe("CEL Interpreter", () => {
 
       test("should return false when zero elements match", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.exists_one(x, x > 10)");
         expect(compileResult.error).toBeUndefined();
@@ -827,7 +842,7 @@ describe("CEL Interpreter", () => {
 
       test("should return false when multiple elements match", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.exists_one(x, x > 3)");
         expect(compileResult.error).toBeUndefined();
@@ -840,7 +855,7 @@ describe("CEL Interpreter", () => {
     describe("map() macro", () => {
       test("should transform list elements", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.map(x, x * 2)");
         expect(compileResult.error).toBeUndefined();
@@ -856,7 +871,7 @@ describe("CEL Interpreter", () => {
 
       test("should handle map with filter", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.map(x, x > 2, x * 10)");
         expect(compileResult.error).toBeUndefined();
@@ -874,7 +889,7 @@ describe("CEL Interpreter", () => {
     describe("filter() macro", () => {
       test("should filter list elements", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.filter(x, x > 2)");
         expect(compileResult.error).toBeUndefined();
@@ -890,7 +905,7 @@ describe("CEL Interpreter", () => {
 
       test("should return empty list when no elements match", () => {
         const env = new Env({
-          declarations: [new VariableDecl("list", Type.newListType(Type.Int))],
+          declarations: [new VariableDecl("list", new ListType(IntType))],
         });
         const compileResult = env.compile("list.filter(x, x > 10)");
         expect(compileResult.error).toBeUndefined();

@@ -1,6 +1,8 @@
 // CEL Type System
 // TypeScript-native implementation of CEL types
 
+import { TypeMapping } from "./mapping";
+
 /**
  * Type kinds representing all CEL type categories
  */
@@ -33,52 +35,17 @@ export enum TypeKind {
 }
 
 /**
- * Trait flags for type capabilities
- */
-export enum TypeTrait {
-  None = 0,
-  Adder = 1 << 0,
-  Comparer = 1 << 1,
-  Container = 1 << 2,
-  Divider = 1 << 3,
-  FieldTester = 1 << 4,
-  Indexer = 1 << 5,
-  Iterator = 1 << 6,
-  Matcher = 1 << 7,
-  Modder = 1 << 8,
-  Multiplier = 1 << 9,
-  Negater = 1 << 10,
-  Receiver = 1 << 11,
-  Sizer = 1 << 12,
-  Subtractor = 1 << 13,
-}
-
-/**
  * Represents a CEL type with optional type parameters
  */
 export class Type {
   readonly kind: TypeKind;
   readonly parameters: readonly Type[];
   readonly runtimeTypeName: string;
-  readonly traitMask: number;
 
-  private constructor(
-    kind: TypeKind,
-    runtimeTypeName: string,
-    parameters: Type[] = [],
-    traitMask = TypeTrait.None
-  ) {
+  protected constructor(kind: TypeKind, runtimeTypeName: string, parameters: Type[] = []) {
     this.kind = kind;
     this.runtimeTypeName = runtimeTypeName;
     this.parameters = Object.freeze(parameters);
-    this.traitMask = traitMask;
-  }
-
-  /**
-   * Check if this type has a specific trait
-   */
-  hasTrait(trait: TypeTrait): boolean {
-    return (this.traitMask & trait) !== 0;
   }
 
   /**
@@ -135,181 +102,17 @@ export class Type {
   }
 
   /**
-   * Get a human-readable string representation
+   * Unique key representation for type maps.
    */
-  toString(): string {
-    return formatType(this);
-  }
-
-  // Static factory methods for creating types
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly Bool = new Type(
-    TypeKind.Bool,
-    "bool",
-    [],
-    TypeTrait.Comparer | TypeTrait.Negater
-  );
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly Int = new Type(
-    TypeKind.Int,
-    "int",
-    [],
-    TypeTrait.Adder |
-      TypeTrait.Comparer |
-      TypeTrait.Divider |
-      TypeTrait.Modder |
-      TypeTrait.Multiplier |
-      TypeTrait.Negater |
-      TypeTrait.Subtractor
-  );
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly Uint = new Type(
-    TypeKind.Uint,
-    "uint",
-    [],
-    TypeTrait.Adder |
-      TypeTrait.Comparer |
-      TypeTrait.Divider |
-      TypeTrait.Modder |
-      TypeTrait.Multiplier |
-      TypeTrait.Subtractor
-  );
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly Double = new Type(
-    TypeKind.Double,
-    "double",
-    [],
-    TypeTrait.Adder |
-      TypeTrait.Comparer |
-      TypeTrait.Divider |
-      TypeTrait.Multiplier |
-      TypeTrait.Negater |
-      TypeTrait.Subtractor
-  );
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly String = new Type(
-    TypeKind.String,
-    "string",
-    [],
-    TypeTrait.Adder | TypeTrait.Comparer | TypeTrait.Matcher | TypeTrait.Sizer | TypeTrait.Indexer
-  );
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly Bytes = new Type(
-    TypeKind.Bytes,
-    "bytes",
-    [],
-    TypeTrait.Adder | TypeTrait.Comparer | TypeTrait.Sizer | TypeTrait.Indexer
-  );
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly Null = new Type(TypeKind.Null, "null_type");
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly Duration = new Type(
-    TypeKind.Duration,
-    "google.protobuf.Duration",
-    [],
-    TypeTrait.Adder | TypeTrait.Comparer | TypeTrait.Negater | TypeTrait.Subtractor
-  );
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly Timestamp = new Type(
-    TypeKind.Timestamp,
-    "google.protobuf.Timestamp",
-    [],
-    TypeTrait.Adder | TypeTrait.Comparer | TypeTrait.Subtractor
-  );
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly Dyn = new Type(TypeKind.Dyn, "dyn");
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly Error = new Type(TypeKind.Error, "error");
-
-  /* biome-ignore lint/style/useNamingConvention: preserve public CEL type names */
-  static readonly TypeType = new Type(TypeKind.Type, "type");
-
-  /* biome-ignore lint/style/useNamingConvention */
-  static readonly Any = new Type(TypeKind.Any, "any");
-
-  /**
-   * Create a list type with the given element type
-   */
-  static newListType(elemType: Type): Type {
-    return new Type(
-      TypeKind.List,
-      "list",
-      [elemType],
-      TypeTrait.Adder |
-        TypeTrait.Comparer |
-        TypeTrait.Container |
-        TypeTrait.Indexer |
-        TypeTrait.Iterator |
-        TypeTrait.Sizer
-    );
+  typeKey(): string {
+    return this.toString();
   }
 
   /**
-   * Create a map type with the given key and value types
+   * Check if this type represents Dyn or Error.
    */
-  static newMapType(keyType: Type, valueType: Type): Type {
-    return new Type(
-      TypeKind.Map,
-      "map",
-      [keyType, valueType],
-      TypeTrait.Comparer |
-        TypeTrait.Container |
-        TypeTrait.FieldTester |
-        TypeTrait.Indexer |
-        TypeTrait.Iterator |
-        TypeTrait.Sizer
-    );
-  }
-
-  /**
-   * Create a struct/message type
-   */
-  static newStructType(typeName: string): Type {
-    return new Type(
-      TypeKind.Struct,
-      typeName,
-      [],
-      TypeTrait.FieldTester | TypeTrait.Indexer | TypeTrait.Receiver
-    );
-  }
-
-  /**
-   * Create a type parameter (for generic functions)
-   */
-  static newTypeParamType(name: string): Type {
-    return new Type(TypeKind.TypeParam, name);
-  }
-
-  /**
-   * Create an opaque type with optional type parameters
-   */
-  static newOpaqueType(name: string, ...params: Type[]): Type {
-    return new Type(TypeKind.Opaque, name, params);
-  }
-
-  /**
-   * Create an optional type (represented as opaque wrapper)
-   */
-  static newOptionalType(innerType: Type): Type {
-    return new Type(TypeKind.Opaque, "optional_type", [innerType]);
-  }
-
-  /**
-   * Create a type that represents a type value (meta-type)
-   */
-  static newTypeTypeWithParam(param: Type): Type {
-    return new Type(TypeKind.Type, "type", [param]);
+  isDynOrError(): boolean {
+    return this.kind === TypeKind.Dyn || this.kind === TypeKind.Error;
   }
 
   /**
@@ -351,111 +154,141 @@ export class Type {
 }
 
 /**
- * Format a type for display
+ * Primitive singleton types exposed as global constants.
  */
-export function formatType(t: Type): string {
-  switch (t.kind) {
-    case TypeKind.List: {
-      const elem = t.parameters[0];
-      return elem ? `list(${formatType(elem)})` : "list";
+class PrimitiveType extends Type {
+  constructor(kind: TypeKind, runtimeTypeName: string) {
+    super(kind, runtimeTypeName);
+  }
+
+  override toString(): string {
+    return this.runtimeTypeName;
+  }
+}
+
+export const BoolType = new PrimitiveType(TypeKind.Bool, "bool");
+export const IntType = new PrimitiveType(TypeKind.Int, "int");
+export const UintType = new PrimitiveType(TypeKind.Uint, "uint");
+export const DoubleType = new PrimitiveType(TypeKind.Double, "double");
+export const StringType = new PrimitiveType(TypeKind.String, "string");
+export const BytesType = new PrimitiveType(TypeKind.Bytes, "bytes");
+export const NullType = new PrimitiveType(TypeKind.Null, "null_type");
+export const DurationType = new PrimitiveType(TypeKind.Duration, "google.protobuf.Duration");
+export const TimestampType = new PrimitiveType(TypeKind.Timestamp, "google.protobuf.Timestamp");
+export const DynType = new PrimitiveType(TypeKind.Dyn, "dyn");
+export const ErrorType = new PrimitiveType(TypeKind.Error, "error");
+export const TypeType = new PrimitiveType(TypeKind.Type, "type");
+export const AnyType = new PrimitiveType(TypeKind.Any, "any");
+
+// ---------------------------------------------------------------------------
+// Concrete Type Implementations
+// ---------------------------------------------------------------------------
+
+export class ListType extends Type {
+  constructor(elemType: Type) {
+    super(TypeKind.List, "list", [elemType]);
+  }
+
+  override toString(): string {
+    const elem = this.parameters[0];
+    return elem ? `list(${elem.toString()})` : "list";
+  }
+}
+
+export class MapType extends Type {
+  constructor(keyType: Type, valueType: Type) {
+    super(TypeKind.Map, "map", [keyType, valueType]);
+  }
+
+  override toString(): string {
+    const key = this.parameters[0];
+    const val = this.parameters[1];
+    return key && val ? `map(${key.toString()}, ${val.toString()})` : "map";
+  }
+}
+
+export class StructType extends Type {
+  constructor(typeName: string) {
+    super(TypeKind.Struct, typeName);
+  }
+
+  override toString(): string {
+    return this.runtimeTypeName;
+  }
+}
+
+export class TypeParamType extends Type {
+  constructor(name: string) {
+    super(TypeKind.TypeParam, name);
+  }
+
+  override toString(): string {
+    return this.runtimeTypeName;
+  }
+}
+
+export class OpaqueType extends Type {
+  constructor(name: string, ...params: Type[]) {
+    super(TypeKind.Opaque, name, params);
+  }
+
+  override toString(): string {
+    if (this.parameters.length === 0) {
+      return this.runtimeTypeName;
     }
-    case TypeKind.Map: {
-      const key = t.parameters[0];
-      const val = t.parameters[1];
-      return key && val ? `map(${formatType(key)}, ${formatType(val)})` : "map";
-    }
-    case TypeKind.Type: {
-      const param = t.parameters[0];
-      return param ? `type(${formatType(param)})` : "type";
-    }
-    case TypeKind.Opaque: {
-      if (t.parameters.length === 0) {
-        return t.runtimeTypeName;
-      }
-      const params = t.parameters.map(formatType).join(", ");
-      return `${t.runtimeTypeName}(${params})`;
-    }
-    case TypeKind.TypeParam:
-      return t.runtimeTypeName;
-    case TypeKind.Struct:
-      return t.runtimeTypeName;
-    default:
-      return t.runtimeTypeName;
+    const params = this.parameters.map((p) => p.toString()).join(", ");
+    return `${this.runtimeTypeName}(${params})`;
+  }
+}
+
+export class OptionalType extends Type {
+  constructor(innerType: Type) {
+    super(TypeKind.Opaque, "optional_type", [innerType]);
+  }
+
+  override toString(): string {
+    const inner = this.parameters[0];
+    return inner ? `optional_type(${inner.toString()})` : "optional_type";
+  }
+}
+
+export class TypeTypeWithParam extends Type {
+  constructor(param: Type) {
+    super(TypeKind.Type, "type", [param]);
+  }
+
+  override toString(): string {
+    const param = this.parameters[0];
+    return param ? `type(${param.toString()})` : "type";
   }
 }
 
 /**
- * Create a unique string key for a type (used in type mappings)
- */
-export function typeKey(t: Type): string {
-  return formatType(t);
-}
-
-/**
- * Get the most general type between two types (for type inference)
- */
-export function mostGeneral(t1: Type, t2: Type): Type {
-  if (isDynOrError(t1) || isDynOrError(t2)) {
-    return Type.Dyn;
-  }
-  if (t1.isEquivalentType(t2)) {
-    return t1;
-  }
-  return Type.Dyn;
-}
-
-/**
- * Check if a type is Dyn or Error
- */
-export function isDynOrError(t: Type): boolean {
-  return t.kind === TypeKind.Dyn || t.kind === TypeKind.Error;
-}
-
-/**
- * Check if a type is assignable from another type
- * This is used during type checking for argument/parameter matching
+ * Check assignability without providing an existing mapping.
  */
 export function isAssignable(target: Type, source: Type): boolean {
-  // Dyn is assignable to/from anything
-  if (target.kind === TypeKind.Dyn || source.kind === TypeKind.Dyn) {
-    return true;
+  const mapping = new TypeMapping();
+  return mapping.isAssignable(target, source);
+}
+
+/**
+ * Join two types to find their common type
+ * Used for inferring element types in collections
+ */
+export function joinTypes(typ1: Type, typ2: Type): Type {
+  // If either is Dyn or Error, result is Dyn
+  if (typ1.kind === TypeKind.Dyn || typ1.kind === TypeKind.Error) {
+    return DynType;
+  }
+  if (typ2.kind === TypeKind.Dyn || typ2.kind === TypeKind.Error) {
+    return DynType;
   }
 
-  // Error is assignable to/from anything
-  if (target.kind === TypeKind.Error || source.kind === TypeKind.Error) {
-    return true;
+  // If types are equivalent, return one of them
+  if (typ1.isEquivalentType(typ2)) {
+    return typ1;
   }
 
-  // Type params need special handling (done in checker with mapping)
-  if (target.kind === TypeKind.TypeParam || source.kind === TypeKind.TypeParam) {
-    return true; // Defer to checker's mapping logic
-  }
-
-  // Null is assignable to any optional type
-  if (source.kind === TypeKind.Null && target.isOptionalType()) {
-    return true;
-  }
-
-  // Same kind required for other types
-  if (target.kind !== source.kind) {
-    return false;
-  }
-
-  // For parameterized types, check parameters
-  if (target.parameters.length !== source.parameters.length) {
-    return false;
-  }
-
-  // For structs and opaques, names must match
-  if (target.kind === TypeKind.Struct || target.kind === TypeKind.Opaque) {
-    if (target.runtimeTypeName !== source.runtimeTypeName) {
-      return false;
-    }
-  }
-
-  // Check type parameters recursively
-  return target.parameters.every((param, i) => {
-    const sourceParam = source.parameters[i];
-    return sourceParam ? isAssignable(param, sourceParam) : false;
-  });
+  // Otherwise, fall back to Dyn
+  return DynType;
 }

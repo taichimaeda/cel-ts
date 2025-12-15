@@ -100,7 +100,7 @@ export class Env {
       if ("overloads" in decl) {
         this.checkerEnv.addFunctions(decl as FunctionDecl);
       } else {
-        this.checkerEnv.addIdents(decl as VariableDecl);
+        this.checkerEnv.addVariables(decl as VariableDecl);
       }
     }
 

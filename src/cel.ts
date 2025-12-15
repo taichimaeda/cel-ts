@@ -2,13 +2,31 @@
 // TypeScript-native top-level API
 // Based on cel-go's cel/cel.go, cel/env.go, cel/program.go
 
+import { getStandardFunctions } from "./checker";
 import { Checker } from "./checker/checker";
 import { FunctionDecl, OverloadDecl, VariableDecl } from "./checker/decls";
 import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
 import type { CheckerError } from "./checker/errors";
-import { getStandardFunctions } from "./checker/stdlib";
-import { Type } from "./checker/types";
+import {
+  AnyType as CheckerAnyType,
+  BoolType as CheckerBoolType,
+  BytesType as CheckerBytesType,
+  DoubleType as CheckerDoubleType,
+  DurationType as CheckerDurationType,
+  DynType as CheckerDynType,
+  IntType as CheckerIntType,
+  NullType as CheckerNullType,
+  StringType as CheckerStringType,
+  TimestampType as CheckerTimestampType,
+  TypeType as CheckerTypeType,
+  UintType as CheckerUintType,
+  ListType,
+  MapType,
+  Type,
+  TypeTypeWithParam,
+} from "./checker/types";
 import type { AST as CommonAST, SourceInfo } from "./common/ast";
+import { registerStandardFunctions } from "./interpreter";
 import {
   type Activation,
   EmptyActivation,
@@ -18,9 +36,8 @@ import {
 import {
   DefaultDispatcher,
   type Dispatcher,
-  type Overload as DispatcherOverload,
+  type Overload as DispatcherOverload
 } from "./interpreter/dispatcher";
-import { registerStandardFunctions } from "./interpreter/functions";
 import { Planner } from "./interpreter/planner";
 import {
   DefaultTypeAdapter,
@@ -73,27 +90,29 @@ export class ParseError extends CELError {
 // ============================================================================
 
 /** Bool type */
-export const BoolType = Type.Bool;
+export const BoolType = CheckerBoolType;
 /** Int type */
-export const IntType = Type.Int;
+export const IntType = CheckerIntType;
 /** Uint type */
-export const UintType = Type.Uint;
+export const UintType = CheckerUintType;
 /** Double type */
-export const DoubleType = Type.Double;
+export const DoubleType = CheckerDoubleType;
 /** String type */
-export const StringType = Type.String;
+export const StringType = CheckerStringType;
 /** Bytes type */
-export const BytesType = Type.Bytes;
+export const BytesType = CheckerBytesType;
 /** Duration type */
-export const DurationType = Type.Duration;
+export const DurationType = CheckerDurationType;
 /** Timestamp type */
-export const TimestampType = Type.Timestamp;
+export const TimestampType = CheckerTimestampType;
 /** Null type */
-export const NullType = Type.Null;
+export const NullType = CheckerNullType;
 /** Dynamic type (any type) */
-export const DynType = Type.Dyn;
-/** Any type (alias for Dyn) */
-export const AnyType = Type.Dyn;
+export const DynType = CheckerDynType;
+/** Any type */
+export const AnyType = CheckerAnyType;
+/** Type type */
+export const TypeType = CheckerTypeType;
 
 /**
  * TypeBuilder provides a fluent, class-based API for creating CEL types.
@@ -103,14 +122,14 @@ export class TypeBuilder {
    * Create a List type.
    */
   list(elemType: Type): Type {
-    return Type.newListType(elemType);
+    return new ListType(elemType);
   }
 
   /**
    * Create a Map type.
    */
   map(keyType: Type, valueType: Type): Type {
-    return Type.newMapType(keyType, valueType);
+    return new MapType(keyType, valueType);
   }
 
   /**
@@ -118,14 +137,14 @@ export class TypeBuilder {
    */
   optional(_type: Type): Type {
     // TODO: Full Optional type implementation needed
-    return Type.Dyn;
+    return DynType;
   }
 
   /**
    * Create a Type type (type of types).
    */
   type(type: Type): Type {
-    return Type.newTypeTypeWithParam(type);
+    return new TypeTypeWithParam(type);
   }
 
   /**
@@ -133,7 +152,7 @@ export class TypeBuilder {
    */
   object(_typeName: string): Type {
     // TODO: Full Object type implementation needed
-    return Type.newMapType(Type.String, Type.Dyn);
+    return new MapType(StringType, DynType);
   }
 }
 
@@ -193,28 +212,28 @@ export class Issues {
  * Ast represents a parsed and optionally type-checked CEL expression.
  */
 export class Ast {
-  readonly ast: CommonAST;
-  readonly source: string;
-  private _isChecked: boolean;
+  private checked: boolean;
 
-  constructor(ast: CommonAST, source: string, isChecked = false) {
-    this.ast = ast;
-    this.source = source;
-    this._isChecked = isChecked;
+  constructor(
+    readonly ast: CommonAST,
+    readonly source: string,
+    isChecked: boolean = false
+  ) {
+    this.checked = isChecked;
   }
 
   /**
    * Returns true if the AST has been type-checked.
    */
   get isChecked(): boolean {
-    return this._isChecked;
+    return this.checked;
   }
 
   /**
    * Returns the output type of the expression (if type-checked).
    */
   get outputType(): Type | undefined {
-    if (!this._isChecked) return undefined;
+    if (!this.checked) return undefined;
     return this.ast.typeMap.get(this.ast.expr.id);
   }
 
@@ -222,7 +241,7 @@ export class Ast {
    * Mark this AST as checked.
    */
   markChecked(): void {
-    this._isChecked = true;
+    this.checked = true;
   }
 }
 
@@ -296,31 +315,11 @@ function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): string {
 }
 
 // ============================================================================
-// EnvOption - Environment Configuration Options
+// Env configuration helpers
 // ============================================================================
 
 /**
- * Internal configuration for environment construction.
- */
-interface EnvConfig {
-  container: string;
-  variables: VariableDecl[];
-  functions: FunctionDecl[];
-  functionOverloads: Map<string, DispatcherOverload[]>;
-  adapter: TypeAdapter;
-  disableStandardLibrary: boolean;
-  disableTypeChecking: boolean;
-}
-
-/**
  * Options used to configure an Env instance.
- */
-export interface EnvOption {
-  apply(config: EnvConfig): void;
-}
-
-/**
- * Object-style options for creating an Env instance.
  */
 export interface EnvOptions {
   /** Variables to declare in the environment */
@@ -337,127 +336,72 @@ export interface EnvOptions {
   disableStandardLibrary?: boolean;
   /** Disable type checking */
   disableTypeChecking?: boolean;
-  /** Escape hatch for providing custom EnvOption instances */
-  extraOptions?: readonly EnvOption[];
-}
-
-export interface EnvVariableOption {
-  name: string;
-  type: Type;
 }
 
 /**
  * Helper class for declaring variables within EnvOptions.
  */
-export class EnvVariable implements EnvVariableOption {
+export class EnvVariableOption {
   constructor(
     readonly name: string,
     readonly type: Type
   ) {}
-}
 
-export interface EnvConstantOption {
-  name: string;
-  type: Type;
-  value: Value;
-}
-
-export interface EnvFunctionOption {
-  name: string;
-  overloads: readonly FunctionOverload[];
-}
-
-/**
- * Helper class for declaring functions within EnvOptions.
- */
-export class EnvFunction implements EnvFunctionOption {
-  readonly overloads: readonly FunctionOverload[];
-
-  constructor(readonly name: string, ...overloads: FunctionOverload[]) {
-    this.overloads = overloads;
-  }
-}
-
-/**
- * Declare a variable with a name and type.
- */
-export class VariableOption implements EnvOption {
-  constructor(
-    readonly name: string,
-    readonly type: Type
-  ) { }
-
-  apply(config: EnvConfig): void {
+  register(config: EnvConfig): void {
     config.variables.push(new VariableDecl(this.name, this.type));
   }
 }
 
 /**
- * Declare a constant with a name, type, and value.
+ * Helper class for declaring constants within EnvOptions.
  */
-export class ConstantOption implements EnvOption {
+export class EnvConstantOption {
   constructor(
     readonly name: string,
     readonly type: Type,
     readonly value: Value
-  ) { }
+  ) {}
 
-  apply(config: EnvConfig): void {
+  register(config: EnvConfig): void {
     // TODO: Proper constant support. For now, treat as variable declaration.
     config.variables.push(new VariableDecl(this.name, this.type));
   }
 }
 
 /**
- * Configure container name resolution.
+ * Helper class for declaring functions within EnvOptions.
  */
-export class ContainerOption implements EnvOption {
-  constructor(readonly name: string) { }
+export class EnvFunctionOption {
+  readonly overloads: readonly FunctionOverloadOption[];
 
-  apply(config: EnvConfig): void {
-    config.container = this.name;
+  constructor(readonly name: string, ...overloads: FunctionOverloadOption[]) {
+    this.overloads = overloads;
+  }
+
+  register(config: EnvConfig): void {
+    const fnDecl = new FunctionDecl(this.name);
+    const runtimeOverloads: DispatcherOverload[] = [];
+
+    for (const overload of this.overloads) {
+      overload.register(fnDecl, runtimeOverloads);
+    }
+
+    config.functions.push(fnDecl);
+    if (runtimeOverloads.length > 0) {
+      const existing = config.functionOverloads.get(this.name) ?? [];
+      config.functionOverloads.set(this.name, [...existing, ...runtimeOverloads]);
+    }
   }
 }
 
 /**
- * Install a custom type adapter.
+ * Function binding types.
  */
-export class AdapterOption implements EnvOption {
-  constructor(readonly adapter: TypeAdapter) { }
+export type UnaryBinding = (arg: Value) => Value;
+export type BinaryBinding = (lhs: Value, rhs: Value) => Value;
+export type FunctionBinding = (args: Value[]) => Value;
 
-  apply(config: EnvConfig): void {
-    config.adapter = this.adapter;
-  }
-}
-
-/**
- * Disable shipping standard library functions.
- */
-export class DisableStandardLibraryOption implements EnvOption {
-  apply(config: EnvConfig): void {
-    config.disableStandardLibrary = true;
-  }
-}
-
-/**
- * Disable type checking.
- */
-export class DisableTypeCheckingOption implements EnvOption {
-  apply(config: EnvConfig): void {
-    config.disableTypeChecking = true;
-  }
-}
-
-/**
- * Describe a function overload declaration and optional runtime binding.
- */
-type FunctionOverloadOptions = {
-  typeParams?: readonly string[];
-  isMember?: boolean;
-  binding?: UnaryBinding | BinaryBinding | FunctionBinding | undefined;
-};
-
-export class FunctionOverload {
+class FunctionOverloadOption {
   readonly typeParams: readonly string[];
   readonly isMember: boolean;
   readonly binding?: UnaryBinding | BinaryBinding | FunctionBinding | undefined;
@@ -466,19 +410,29 @@ export class FunctionOverload {
     readonly id: string,
     readonly argTypes: readonly Type[],
     readonly resultType: Type,
-    options: FunctionOverloadOptions = {}
+    options: {
+      typeParams?: readonly string[];
+      isMember?: boolean;
+      binding?: UnaryBinding | BinaryBinding | FunctionBinding | undefined;
+    } = {}
   ) {
     this.typeParams = options.typeParams ? [...options.typeParams] : [];
     this.isMember = options.isMember ?? false;
     this.binding = options.binding;
   }
 
-  /**
-   * Convert to a dispatcher overload instance if runtime binding is provided.
-   */
-  toDispatcherOverload(): DispatcherOverload | undefined {
+  register(target: FunctionDecl, runtimeOverloads: DispatcherOverload[]): void {
+    const declaration = new OverloadDecl(
+      this.id,
+      [...this.argTypes],
+      this.resultType,
+      [...this.typeParams],
+      this.isMember
+    );
+    target.addOverload(declaration);
+
     if (!this.binding) {
-      return undefined;
+      return;
     }
 
     const dispatcherOverload: DispatcherOverload = {
@@ -497,14 +451,14 @@ export class FunctionOverload {
         dispatcherOverload.nary = (args: Value[]) => (this.binding as FunctionBinding)(args);
         break;
     }
-    return dispatcherOverload;
+    runtimeOverloads.push(dispatcherOverload);
   }
 }
 
 /**
  * Global function overload helper class.
  */
-export class GlobalFunctionOverload extends FunctionOverload {
+class GlobalFunctionOverloadOption extends FunctionOverloadOption {
   constructor(
     id: string,
     argTypes: Type[],
@@ -523,7 +477,7 @@ export class GlobalFunctionOverload extends FunctionOverload {
 /**
  * Member function overload helper class.
  */
-export class MemberFunctionOverload extends FunctionOverload {
+class MemberFunctionOverloadOption extends FunctionOverloadOption {
   constructor(
     id: string,
     argTypes: Type[],
@@ -539,50 +493,14 @@ export class MemberFunctionOverload extends FunctionOverload {
   }
 }
 
-/**
- * Function binding types.
- */
-export type UnaryBinding = (arg: Value) => Value;
-export type BinaryBinding = (lhs: Value, rhs: Value) => Value;
-export type FunctionBinding = (args: Value[]) => Value;
-
-/**
- * Declare functions with overloads.
- */
-export class FunctionOption implements EnvOption {
-  readonly overloads: readonly FunctionOverload[];
-
-  constructor(readonly name: string, ...overloads: FunctionOverload[]) {
-    this.overloads = overloads;
-  }
-
-  apply(config: EnvConfig): void {
-    const fn = new FunctionDecl(this.name);
-    const runtimeOverloads: DispatcherOverload[] = [];
-
-    for (const overload of this.overloads) {
-      const decl = new OverloadDecl(
-        overload.id,
-        [...overload.argTypes],
-        overload.resultType,
-        [...overload.typeParams],
-        overload.isMember
-      );
-      fn.addOverload(decl);
-
-      const dispatcherOverload = overload.toDispatcherOverload();
-      if (dispatcherOverload) {
-        runtimeOverloads.push(dispatcherOverload);
-      }
-    }
-
-    config.functions.push(fn);
-    if (runtimeOverloads.length > 0) {
-      const existing = config.functionOverloads.get(this.name) ?? [];
-      config.functionOverloads.set(this.name, [...existing, ...runtimeOverloads]);
-    }
-  }
-}
+export {
+  EnvConstantOption as Constant,
+  EnvFunctionOption as Function,
+  MemberFunctionOverloadOption as MemberOverload,
+  GlobalFunctionOverloadOption as Overload,
+  EnvVariableOption as Variable
+};
+export type { EnvOptions as Options };
 
 // ============================================================================
 // Env - CEL Environment
@@ -598,9 +516,36 @@ export class Env {
   private parser!: Parser;
 
   constructor(options: EnvOptions = {}) {
-    const config = Env.createDefaultConfig();
-    Env.applyOptions(config, Env.normalizeOptions(options));
+    const config = new EnvConfig();
+    config.apply(options);
     this.initialize(config);
+  }
+
+  private initialize(config: EnvConfig): void {
+    this.config = config;
+    this.checkerEnv = new CheckerEnv(new CheckerContainer(config.container));
+    this.dispatcher = new DefaultDispatcher();
+    this.parser = new Parser();
+
+    if (!config.disableStandardLibrary) {
+      for (const fn of getStandardFunctions()) {
+        this.checkerEnv.addFunctions(fn);
+      }
+      registerStandardFunctions(this.dispatcher);
+    }
+
+    for (const v of config.variables) {
+      this.checkerEnv.addVariables(v);
+    }
+    for (const fn of config.functions) {
+      this.checkerEnv.addFunctions(fn);
+    }
+
+    for (const [, overloads] of config.functionOverloads) {
+      for (const overload of overloads) {
+        this.dispatcher.add(overload);
+      }
+    }
   }
 
   /**
@@ -683,115 +628,82 @@ export class Env {
   }
 
   /**
-   * Extend this environment with additional options.
+   * Create a new Env extending the current configuration.
    */
   extend(options: EnvOptions = {}): Env {
-    const newConfig = Env.cloneConfig(this.config);
-    Env.applyOptions(newConfig, Env.normalizeOptions(options));
-    return Env.fromConfig(newConfig);
-  }
+    const newConfig = this.config.clone();
+    newConfig.apply(options);
 
-  private initialize(config: EnvConfig): void {
-    this.config = config;
-    this.checkerEnv = new CheckerEnv(new CheckerContainer(config.container));
-    this.dispatcher = new DefaultDispatcher();
-    this.parser = new Parser();
-
-    if (!config.disableStandardLibrary) {
-      for (const fn of getStandardFunctions()) {
-        this.checkerEnv.addFunctions(fn);
-      }
-      registerStandardFunctions(this.dispatcher);
-    }
-
-    for (const v of config.variables) {
-      this.checkerEnv.addIdents(v);
-    }
-    for (const fn of config.functions) {
-      this.checkerEnv.addFunctions(fn);
-    }
-
-    for (const [, overloads] of config.functionOverloads) {
-      for (const overload of overloads) {
-        this.dispatcher.add(overload);
-      }
-    }
-  }
-
-  private static fromConfig(config: EnvConfig): Env {
     const env = Object.create(Env.prototype) as Env;
-    env.initialize(config);
+    env.initialize(newConfig);
     return env;
   }
+}
 
-  private static createDefaultConfig(): EnvConfig {
-    return {
-      container: "",
-      variables: [],
-      functions: [],
-      functionOverloads: new Map(),
-      adapter: new DefaultTypeAdapter(),
-      disableStandardLibrary: false,
-      disableTypeChecking: false,
-    };
+/**
+ * Internal configuration for environment construction.
+ */
+class EnvConfig {
+  container: string;
+  variables: VariableDecl[];
+  functions: FunctionDecl[];
+  functionOverloads: Map<string, DispatcherOverload[]>;
+  adapter: TypeAdapter;
+  disableStandardLibrary: boolean;
+  disableTypeChecking: boolean;
+
+  constructor() {
+    this.container = "";
+    this.variables = [];
+    this.functions = [];
+    this.functionOverloads = new Map();
+    this.adapter = new DefaultTypeAdapter();
+    this.disableStandardLibrary = false;
+    this.disableTypeChecking = false;
   }
 
-  private static cloneConfig(config: EnvConfig): EnvConfig {
-    return {
-      container: config.container,
-      variables: [...config.variables],
-      functions: [...config.functions],
-      functionOverloads: new Map(
-        [...config.functionOverloads.entries()].map(([name, overloads]) => [name, [...overloads]])
-      ),
-      adapter: config.adapter,
-      disableStandardLibrary: config.disableStandardLibrary,
-      disableTypeChecking: config.disableTypeChecking,
-    };
+  clone(): EnvConfig {
+    const clone = new EnvConfig();
+    clone.container = this.container;
+    clone.variables = [...this.variables];
+    clone.functions = [...this.functions];
+    clone.functionOverloads = new Map(
+      [...this.functionOverloads.entries()].map(([name, overloads]) => [name, [...overloads]])
+    );
+    clone.adapter = this.adapter;
+    clone.disableStandardLibrary = this.disableStandardLibrary;
+    clone.disableTypeChecking = this.disableTypeChecking;
+    return clone;
   }
 
-  private static applyOptions(config: EnvConfig, options: readonly EnvOption[]): void {
-    for (const opt of options) {
-      opt.apply(config);
-    }
-  }
-
-  private static normalizeOptions(options: EnvOptions): EnvOption[] {
-    const normalized: EnvOption[] = [];
-
+  apply(options: EnvOptions = {}): void {
     for (const variable of options.variables ?? []) {
-      normalized.push(new VariableOption(variable.name, variable.type));
+      variable.register(this);
     }
 
     for (const constant of options.constants ?? []) {
-      normalized.push(new ConstantOption(constant.name, constant.type, constant.value));
+      constant.register(this);
     }
 
-    for (const fn of options.functions ?? []) {
-      normalized.push(new FunctionOption(fn.name, ...fn.overloads));
+    for (const fnOption of options.functions ?? []) {
+      fnOption.register(this);
     }
 
-    if (options.container) {
-      normalized.push(new ContainerOption(options.container));
+    if (options.container !== undefined) {
+      this.container = options.container;
     }
 
     if (options.adapter) {
-      normalized.push(new AdapterOption(options.adapter));
+      this.adapter = options.adapter;
     }
 
     if (options.disableStandardLibrary) {
-      normalized.push(new DisableStandardLibraryOption());
+      this.disableStandardLibrary = true;
     }
 
     if (options.disableTypeChecking) {
-      normalized.push(new DisableTypeCheckingOption());
+      this.disableTypeChecking = true;
     }
-
-    if (options.extraOptions) {
-      normalized.push(...options.extraOptions);
-    }
-
-    return normalized;
   }
 }
 

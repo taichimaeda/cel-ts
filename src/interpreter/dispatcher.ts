@@ -29,11 +29,6 @@ export interface Overload {
   nary?: FunctionOp | undefined;
 
   /**
-   * Whether this function operates on the receiver (method call).
-   */
-  operandTrait?: number | undefined;
-
-  /**
    * Non-strict function evaluation (receives unevaluated args).
    */
   nonStrict?: boolean | undefined;
@@ -45,12 +40,10 @@ export interface Overload {
 export class UnaryDispatcherOverload implements Overload {
   readonly id: string;
   readonly unary: UnaryOp;
-  readonly operandTrait?: number | undefined;
 
-  constructor(id: string, op: UnaryOp, operandTrait?: number) {
+  constructor(id: string, op: UnaryOp) {
     this.id = id;
     this.unary = op;
-    this.operandTrait = operandTrait;
   }
 }
 
@@ -60,12 +53,10 @@ export class UnaryDispatcherOverload implements Overload {
 export class BinaryDispatcherOverload implements Overload {
   readonly id: string;
   readonly binary: BinaryOp;
-  readonly operandTrait?: number | undefined;
 
-  constructor(id: string, op: BinaryOp, operandTrait?: number) {
+  constructor(id: string, op: BinaryOp) {
     this.id = id;
     this.binary = op;
-    this.operandTrait = operandTrait;
   }
 }
 
@@ -341,11 +332,6 @@ export class FunctionResolver {
       if (args.length !== 1) {
         return false;
       }
-      // Check operand trait if present
-      if (overload.operandTrait !== undefined) {
-        const operand = args[0];
-        return operand?.hasTrait(overload.operandTrait) ?? false;
-      }
       return args[0] !== undefined;
     }
 
@@ -353,11 +339,6 @@ export class FunctionResolver {
     if (overload.binary) {
       if (args.length !== 2) {
         return false;
-      }
-      // Check operand trait if present
-      if (overload.operandTrait !== undefined) {
-        const operand = args[0];
-        return operand?.hasTrait(overload.operandTrait) ?? false;
       }
       return args[0] !== undefined && args[1] !== undefined;
     }

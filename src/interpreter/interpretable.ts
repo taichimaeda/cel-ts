@@ -17,13 +17,13 @@ import {
   MapValue,
   OptionalValue,
   StringValue,
-  TypeValue,
   UintValue,
   type UnknownValue,
   type Value,
   isError,
   isErrorOrUnknown,
   isUnknown,
+  toTypeValue,
 } from "./values";
 
 /**
@@ -1223,29 +1223,6 @@ export class TypeConversionValue implements Interpretable {
   }
 
   private getType(val: Value): Value {
-    switch (val.type()) {
-      case "bool":
-        return TypeValue.BoolType;
-      case "int":
-        return TypeValue.IntType;
-      case "uint":
-        return TypeValue.UintType;
-      case "double":
-        return TypeValue.DoubleType;
-      case "string":
-        return TypeValue.StringType;
-      case "bytes":
-        return TypeValue.BytesType;
-      case "null_type":
-        return TypeValue.NullType;
-      case "list":
-        return TypeValue.ListType;
-      case "map":
-        return TypeValue.MapType;
-      case "type":
-        return TypeValue.TypeType;
-      default:
-        return new TypeValue(val.type());
-    }
+    return toTypeValue(val.type());
   }
 }

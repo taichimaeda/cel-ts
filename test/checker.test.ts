@@ -1,19 +1,29 @@
-import { describe, expect, test } from "bun:test";
 import { CharStream, CommonTokenStream } from "antlr4";
+import { describe, expect, test } from "bun:test";
 import {
   Checker,
   CheckerEnv,
   CheckerErrors,
   Container,
   FunctionDecl,
+  BoolType,
+  BytesType,
+  DoubleType,
+  DynType,
+  ErrorType,
+  IntType,
+  ListType,
+  MapType,
+  NullType,
   OverloadDecl,
+  StringType,
   Type,
   TypeKind,
+  TimestampType,
+  UintType,
   VariableDecl,
-  formatType,
   getStandardFunctions,
   isAssignable,
-  isDynOrError,
 } from "../src/checker";
 import { CELLexer, CELParser, ParserHelper } from "../src/parser";
 
@@ -31,7 +41,7 @@ const parseAndCheck = (expression: string, env: CheckerEnv = createDefaultEnv())
   // Return type from the root expression
   return {
     errors: result.errors,
-    type: result.ast.typeMap.get(result.ast.expr.id) ?? Type.Dyn,
+    type: result.ast.typeMap.get(result.ast.expr.id) ?? DynType,
   };
 };
 
@@ -50,14 +60,14 @@ const createTestEnv = () => {
   const env = createDefaultEnv();
 
   // Add variable declarations
-  env.addIdents(
-    new VariableDecl("x", Type.Int),
-    new VariableDecl("y", Type.Int),
-    new VariableDecl("s", Type.String),
-    new VariableDecl("b", Type.Bool),
-    new VariableDecl("d", Type.Double),
-    new VariableDecl("list", Type.newListType(Type.Int)),
-    new VariableDecl("map", Type.newMapType(Type.String, Type.Int))
+  env.addVariables(
+    new VariableDecl("x", IntType),
+    new VariableDecl("y", IntType),
+    new VariableDecl("s", StringType),
+    new VariableDecl("b", BoolType),
+    new VariableDecl("d", DoubleType),
+    new VariableDecl("list", new ListType(IntType)),
+    new VariableDecl("map", new MapType(StringType, IntType))
   );
 
   return env;
@@ -65,56 +75,56 @@ const createTestEnv = () => {
 
 describe("Type System", () => {
   test("primitive types should have correct kinds", () => {
-    expect(Type.Bool.kind).toBe(TypeKind.Bool);
-    expect(Type.Int.kind).toBe(TypeKind.Int);
-    expect(Type.Uint.kind).toBe(TypeKind.Uint);
-    expect(Type.Double.kind).toBe(TypeKind.Double);
-    expect(Type.String.kind).toBe(TypeKind.String);
-    expect(Type.Bytes.kind).toBe(TypeKind.Bytes);
-    expect(Type.Null.kind).toBe(TypeKind.Null);
+    expect(BoolType.kind).toBe(TypeKind.Bool);
+    expect(IntType.kind).toBe(TypeKind.Int);
+    expect(UintType.kind).toBe(TypeKind.Uint);
+    expect(DoubleType.kind).toBe(TypeKind.Double);
+    expect(StringType.kind).toBe(TypeKind.String);
+    expect(BytesType.kind).toBe(TypeKind.Bytes);
+    expect(NullType.kind).toBe(TypeKind.Null);
   });
 
   test("special types should have correct kinds", () => {
-    expect(Type.Dyn.kind).toBe(TypeKind.Dyn);
-    expect(Type.Error.kind).toBe(TypeKind.Error);
+    expect(DynType.kind).toBe(TypeKind.Dyn);
+    expect(ErrorType.kind).toBe(TypeKind.Error);
   });
 
   test("list type should preserve element type", () => {
-    const listInt = Type.newListType(Type.Int);
+    const listInt = new ListType(IntType);
     expect(listInt.kind).toBe(TypeKind.List);
     expect(listInt.listElementType()?.kind).toBe(TypeKind.Int);
   });
 
   test("map type should preserve key and value types", () => {
-    const mapType = Type.newMapType(Type.String, Type.Int);
+    const mapType = new MapType(StringType, IntType);
     expect(mapType.kind).toBe(TypeKind.Map);
     expect(mapType.mapKeyType()?.kind).toBe(TypeKind.String);
     expect(mapType.mapValueType()?.kind).toBe(TypeKind.Int);
   });
 
   test("type equivalence should work correctly", () => {
-    expect(Type.Int.isEquivalentType(Type.Int)).toBe(true);
-    expect(Type.Int.isEquivalentType(Type.Double)).toBe(false);
-    expect(Type.newListType(Type.Int).isEquivalentType(Type.newListType(Type.Int))).toBe(true);
-    expect(Type.newListType(Type.Int).isEquivalentType(Type.newListType(Type.String))).toBe(false);
+    expect(IntType.isEquivalentType(IntType)).toBe(true);
+    expect(IntType.isEquivalentType(DoubleType)).toBe(false);
+    expect(new ListType(IntType).isEquivalentType(new ListType(IntType))).toBe(true);
+    expect(new ListType(IntType).isEquivalentType(new ListType(StringType))).toBe(false);
   });
 
   test("isAssignable should handle dyn types", () => {
-    expect(isAssignable(Type.Dyn, Type.Int)).toBe(true);
-    expect(isAssignable(Type.Int, Type.Dyn)).toBe(true);
+    expect(isAssignable(DynType, IntType)).toBe(true);
+    expect(isAssignable(IntType, DynType)).toBe(true);
   });
 
-  test("isDynOrError should identify special types", () => {
-    expect(isDynOrError(Type.Dyn)).toBe(true);
-    expect(isDynOrError(Type.Error)).toBe(true);
-    expect(isDynOrError(Type.Int)).toBe(false);
+  test("Type.isDynOrError should identify special types", () => {
+    expect(DynType.isDynOrError()).toBe(true);
+    expect(ErrorType.isDynOrError()).toBe(true);
+    expect(IntType.isDynOrError()).toBe(false);
   });
 
-  test("formatType should produce readable strings", () => {
-    expect(formatType(Type.Int)).toBe("int");
-    expect(formatType(Type.String)).toBe("string");
-    expect(formatType(Type.newListType(Type.Int))).toBe("list(int)");
-    expect(formatType(Type.newMapType(Type.String, Type.Int))).toBe("map(string, int)");
+  test("Type.toString should produce readable strings", () => {
+    expect(IntType.toString()).toBe("int");
+    expect(StringType.toString()).toBe("string");
+    expect(new ListType(IntType).toString()).toBe("list(int)");
+    expect(new MapType(StringType, IntType).toString()).toBe("map(string, int)");
   });
 });
 
@@ -209,7 +219,7 @@ describe("Checker - Arithmetic Operations", () => {
 
   test("should type check string concatenation", () => {
     const env = createTestEnv();
-    env.addIdents(new VariableDecl("s2", Type.String));
+    env.addVariables(new VariableDecl("s2", StringType));
     const result = parseAndCheck("s + s2", env);
     expect(result.errors.hasErrors()).toBe(false);
     expect(result.type.kind).toBe(TypeKind.String);
@@ -438,7 +448,7 @@ describe("Checker Errors", () => {
 
   test("should format errors as string", () => {
     const errors = new CheckerErrors();
-    errors.reportTypeMismatch(1, Type.Int, Type.String);
+    errors.reportTypeMismatch(1, IntType, StringType);
     const output = errors.toString();
     expect(output).toContain("type mismatch");
     expect(output).toContain("int");
@@ -465,15 +475,15 @@ describe("Container", () => {
 
 describe("Declarations", () => {
   test("should create variable declarations", () => {
-    const decl = new VariableDecl("myVar", Type.Int);
+    const decl = new VariableDecl("myVar", IntType);
     expect(decl.name).toBe("myVar");
     expect(decl.type.kind).toBe(TypeKind.Int);
   });
 
   test("should create function declarations with overloads", () => {
     const fn = new FunctionDecl("myFunc");
-    fn.addOverload(new OverloadDecl("myFunc_int", [Type.Int], Type.Bool));
-    fn.addOverload(new OverloadDecl("myFunc_string", [Type.String], Type.Bool));
+    fn.addOverload(new OverloadDecl("myFunc_int", [IntType], BoolType));
+    fn.addOverload(new OverloadDecl("myFunc_string", [StringType], BoolType));
 
     expect(fn.name).toBe("myFunc");
     expect(fn.overloads().length).toBe(2);
@@ -481,10 +491,10 @@ describe("Declarations", () => {
 
   test("should merge function declarations", () => {
     const fn1 = new FunctionDecl("myFunc");
-    fn1.addOverload(new OverloadDecl("myFunc_int", [Type.Int], Type.Bool));
+    fn1.addOverload(new OverloadDecl("myFunc_int", [IntType], BoolType));
 
     const fn2 = new FunctionDecl("myFunc");
-    fn2.addOverload(new OverloadDecl("myFunc_string", [Type.String], Type.Bool));
+    fn2.addOverload(new OverloadDecl("myFunc_string", [StringType], BoolType));
 
     fn1.merge(fn2);
     expect(fn1.overloads().length).toBe(2);

@@ -2,20 +2,20 @@
 // Manages scopes, declarations, and lookups for type checking
 
 import type { FunctionDecl, VariableDecl } from "./decls";
-import { Type } from "./types";
+import { Type, TypeTypeWithParam } from "./types";
 
 /**
  * A single scope level containing declarations
  */
 class Scope {
-  private readonly idents: Map<string, VariableDecl> = new Map();
+  private readonly variables: Map<string, VariableDecl> = new Map();
   private readonly functions: Map<string, FunctionDecl> = new Map();
 
   /**
    * Add a variable declaration to this scope
    */
-  addIdent(decl: VariableDecl): void {
-    this.idents.set(decl.name, decl);
+  addVariable(decl: VariableDecl): void {
+    this.variables.set(decl.name, decl);
   }
 
   /**
@@ -33,8 +33,8 @@ class Scope {
   /**
    * Find a variable in this scope
    */
-  findIdent(name: string): VariableDecl | undefined {
-    return this.idents.get(name);
+  findVariable(name: string): VariableDecl | undefined {
+    return this.variables.get(name);
   }
 
   /**
@@ -60,8 +60,8 @@ class Scopes {
   /**
    * Add a variable declaration to the current scope
    */
-  addIdent(decl: VariableDecl): void {
-    this.scope.addIdent(decl);
+  addVariable(decl: VariableDecl): void {
+    this.scope.addVariable(decl);
   }
 
   /**
@@ -74,10 +74,17 @@ class Scopes {
   /**
    * Find a variable by searching from inner to outer scopes
    */
-  findIdent(name: string): VariableDecl | undefined {
-    const local = this.scope.findIdent(name);
+  findVariable(name: string): VariableDecl | undefined {
+    const local = this.scope.findVariable(name);
     if (local) return local;
-    return this.parent?.findIdent(name);
+    return this.parent?.findVariable(name);
+  }
+
+  /**
+   * Find a variable only in the current scope (not parent scopes)
+   */
+  findVariableInScope(name: string): VariableDecl | undefined {
+    return this.scope.findVariable(name);
   }
 
   /**
@@ -87,13 +94,6 @@ class Scopes {
     const local = this.scope.findFunction(name);
     if (local) return local;
     return this.parent?.findFunction(name);
-  }
-
-  /**
-   * Find a variable only in the current scope (not parent scopes)
-   */
-  findIdentInScope(name: string): VariableDecl | undefined {
-    return this.scope.findIdent(name);
   }
 
   /**
@@ -129,23 +129,6 @@ export interface TypeProvider {
    * Get all field names for a struct type
    */
   structFieldNames(typeName: string): string[];
-}
-
-/**
- * Default type provider that returns undefined for all lookups
- */
-export class DefaultTypeProvider implements TypeProvider {
-  findStructType(_typeName: string): Type | undefined {
-    return undefined;
-  }
-
-  findStructFieldType(_typeName: string, _fieldName: string): Type | undefined {
-    return undefined;
-  }
-
-  structFieldNames(_typeName: string): string[] {
-    return [];
-  }
 }
 
 /**
@@ -215,26 +198,20 @@ export class Container {
  * Manages scopes, declarations, and type resolution
  */
 export class CheckerEnv {
-  private readonly container: Container;
-  private readonly provider: TypeProvider;
-  private scopes: Scopes;
-  private readonly disabledOverloads: Set<string> = new Set();
+  private scopes: Scopes = new Scopes();
+  private disabledOverloads: Set<string> = new Set();
 
   constructor(
-    container: Container = new Container(),
-    provider: TypeProvider = new DefaultTypeProvider()
-  ) {
-    this.container = container;
-    this.provider = provider;
-    this.scopes = new Scopes();
-  }
+    readonly container: Container = new Container(),
+    readonly provider: TypeProvider | undefined = undefined,
+  ) {}
 
   /**
    * Add variable declarations to the environment
    */
-  addIdents(...decls: VariableDecl[]): void {
+  addVariables(...decls: VariableDecl[]): void {
     for (const decl of decls) {
-      this.scopes.addIdent(decl);
+      this.scopes.addVariable(decl);
     }
   }
 
@@ -272,7 +249,7 @@ export class CheckerEnv {
 
     for (const candidate of candidates) {
       // Check variable declarations
-      const varDecl = this.scopes.findIdent(candidate);
+      const varDecl = this.scopes.findVariable(candidate);
       if (varDecl) {
         return {
           name: candidate,
@@ -282,11 +259,11 @@ export class CheckerEnv {
       }
 
       // Check for type names (struct types)
-      const structType = this.provider.findStructType(candidate);
+      const structType = this.provider?.findStructType(candidate);
       if (structType) {
         return {
           name: candidate,
-          type: Type.newTypeTypeWithParam(structType),
+          type: new TypeTypeWithParam(structType),
           kind: "type",
         };
       }
@@ -318,7 +295,7 @@ export class CheckerEnv {
     if (structType.kind !== "struct") {
       return undefined;
     }
-    return this.provider.findStructFieldType(structType.runtimeTypeName, fieldName);
+    return this.provider?.findStructFieldType(structType.runtimeTypeName, fieldName);
   }
 
   /**
@@ -341,20 +318,6 @@ export class CheckerEnv {
     const env = new CheckerEnv(this.container, this.provider);
     env.scopes = parent;
     return env;
-  }
-
-  /**
-   * Get the container for this environment
-   */
-  getContainer(): Container {
-    return this.container;
-  }
-
-  /**
-   * Get the type provider for this environment
-   */
-  getProvider(): TypeProvider {
-    return this.provider;
   }
 }
 

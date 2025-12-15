@@ -3,10 +3,10 @@
 // Implementation based on cel-go's cel/library.go and checker/standard.go
 
 import {
-  type Dispatcher,
   BinaryDispatcherOverload,
-  VariadicDispatcherOverload,
+  type Dispatcher,
   UnaryDispatcherOverload,
+  VariadicDispatcherOverload,
 } from "./dispatcher";
 import {
   BoolValue,
@@ -19,10 +19,10 @@ import {
   MapValue,
   StringValue,
   TimestampValue,
-  TypeValue,
   UintValue,
   type Value,
   isError,
+  toTypeValue,
 } from "./values";
 
 /**
@@ -376,34 +376,7 @@ function registerTypeConversions(dispatcher: Dispatcher): void {
   // type(value) -> type
   dispatcher.add(
     new UnaryDispatcherOverload("type", (val: Value): Value => {
-      switch (val.type()) {
-        case "bool":
-          return TypeValue.BoolType;
-        case "int":
-          return TypeValue.IntType;
-        case "uint":
-          return TypeValue.UintType;
-        case "double":
-          return TypeValue.DoubleType;
-        case "string":
-          return TypeValue.StringType;
-        case "bytes":
-          return TypeValue.BytesType;
-        case "null_type":
-          return TypeValue.NullType;
-        case "list":
-          return TypeValue.ListType;
-        case "map":
-          return TypeValue.MapType;
-        case "type":
-          return TypeValue.TypeType;
-        case "duration":
-          return TypeValue.DurationType;
-        case "timestamp":
-          return TypeValue.TimestampType;
-        default:
-          return new TypeValue(val.type());
-      }
+      return toTypeValue(val.type());
     })
   );
 
