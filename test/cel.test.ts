@@ -7,21 +7,20 @@ import {
   type BoolValue,
   CELError,
   CompileError,
-  DisableStandardLibraryOption,
-  DisableTypeCheckingOption,
   EmptyActivation,
   Env,
-  FunctionOption,
-  FunctionOverload,
+  EnvFunction,
+  EnvVariable,
+  GlobalFunctionOverload,
   IntType,
   type IntValue,
   IntValue as IntValueClass,
+  MemberFunctionOverload,
   ParseError,
   StringType,
   StringValue as StringValueClass,
   type Value,
   Types,
-  VariableOption,
 } from "../src/cel";
 
 describe("CEL API - Env", () => {
@@ -31,7 +30,9 @@ describe("CEL API - Env", () => {
   });
 
   test("should create environment with variables", () => {
-    const env = new Env(new VariableOption("x", IntType), new VariableOption("name", StringType));
+    const env = new Env({
+      variables: [new EnvVariable("x", IntType), new EnvVariable("name", StringType)],
+    });
     expect(env).toBeDefined();
   });
 
@@ -47,7 +48,9 @@ describe("CEL API - Env", () => {
   });
 
   test("should compile and evaluate expression with variables", () => {
-    const env = new Env(new VariableOption("x", IntType), new VariableOption("y", IntType));
+    const env = new Env({
+      variables: [new EnvVariable("x", IntType), new EnvVariable("y", IntType)],
+    });
     const ast = env.compile("x + y");
     const prg = env.program(ast);
     const result = prg.eval({ x: 10, y: 20 });
@@ -55,7 +58,9 @@ describe("CEL API - Env", () => {
   });
 
   test("should throw CompileError on type errors", () => {
-    const env = new Env(new VariableOption("x", IntType));
+    const env = new Env({
+      variables: [new EnvVariable("x", IntType)],
+    });
     expect(() => env.compile("y + 1")).toThrow(CompileError);
   });
 
@@ -65,7 +70,9 @@ describe("CEL API - Env", () => {
   });
 
   test("should throw CELError on evaluation error", () => {
-    const env = new Env(new VariableOption("x", IntType));
+    const env = new Env({
+      variables: [new EnvVariable("x", IntType)],
+    });
     const ast = env.compile("x / 0");
     const prg = env.program(ast);
     expect(() => prg.eval({ x: 10 })).toThrow(CELError);
@@ -90,8 +97,12 @@ describe("CEL API - Parse and Check", () => {
 
 describe("CEL API - Extend Environment", () => {
   test("should extend environment with new variables", () => {
-    const env = new Env(new VariableOption("x", IntType));
-    const extEnv = env.extend(new VariableOption("y", IntType));
+    const env = new Env({
+      variables: [new EnvVariable("x", IntType)],
+    });
+    const extEnv = env.extend({
+      variables: [new EnvVariable("y", IntType)],
+    });
     const ast = extEnv.compile("x + y");
     const prg = extEnv.program(ast);
     const result = prg.eval({ x: 5, y: 10 });
@@ -101,17 +112,19 @@ describe("CEL API - Extend Environment", () => {
 
 describe("CEL API - Custom Functions", () => {
   test("should declare and evaluate global function with unary binding", () => {
-    const env = new Env(
-      new FunctionOption(
-        "greet",
-        FunctionOverload.global(
-          "greet_string",
-          [StringType],
-          StringType,
-          (arg: Value) => new StringValueClass(`Hello, ${arg.value()}!`)
-        )
-      )
-    );
+    const env = new Env({
+      functions: [
+        new EnvFunction(
+          "greet",
+          new GlobalFunctionOverload(
+            "greet_string",
+            [StringType],
+            StringType,
+            (arg: Value) => new StringValueClass(`Hello, ${arg.value()}!`)
+          )
+        ),
+      ],
+    });
     const ast = env.compile('greet("world")');
     expect(ast.outputType?.toString()).toBe("string");
     const prg = env.program(ast);
@@ -120,14 +133,16 @@ describe("CEL API - Custom Functions", () => {
   });
 
   test("should declare and evaluate global function with binary binding", () => {
-    const env = new Env(
-      new FunctionOption(
-        "add",
-        FunctionOverload.global("add_int_int", [IntType, IntType], IntType, (lhs, rhs) =>
-          IntValueClass.of((lhs.value() as bigint) + (rhs.value() as bigint))
-        )
-      )
-    );
+    const env = new Env({
+      functions: [
+        new EnvFunction(
+          "add",
+          new GlobalFunctionOverload("add_int_int", [IntType, IntType], IntType, (lhs, rhs) =>
+            IntValueClass.of((lhs.value() as bigint) + (rhs.value() as bigint))
+          )
+        ),
+      ],
+    });
     const ast = env.compile("add(10, 20)");
     const prg = env.program(ast);
     const result = prg.eval();
@@ -135,17 +150,19 @@ describe("CEL API - Custom Functions", () => {
   });
 
   test("should declare and evaluate member function", () => {
-    const env = new Env(
-      new FunctionOption(
-        "reverse",
-        FunctionOverload.member(
-          "string_reverse",
-          [StringType],
-          StringType,
-          (arg: Value) => new StringValueClass(String(arg.value()).split("").reverse().join(""))
-        )
-      )
-    );
+    const env = new Env({
+      functions: [
+        new EnvFunction(
+          "reverse",
+          new MemberFunctionOverload(
+            "string_reverse",
+            [StringType],
+            StringType,
+            (arg: Value) => new StringValueClass(String(arg.value()).split("").reverse().join(""))
+          )
+        ),
+      ],
+    });
     const ast = env.compile('"hello".reverse()');
     expect(ast.outputType?.toString()).toBe("string");
     const prg = env.program(ast);
@@ -168,12 +185,15 @@ describe("CEL API - Type Helpers", () => {
 
 describe("CEL API - Environment Options", () => {
   test("should create environment without standard library", () => {
-    const env = new Env(new DisableStandardLibraryOption(), new VariableOption("x", IntType));
+    const env = new Env({
+      disableStandardLibrary: true,
+      variables: [new EnvVariable("x", IntType)],
+    });
     expect(() => env.compile('size("hello")')).toThrow(CompileError);
   });
 
   test("should skip type checking when disabled", () => {
-    const env = new Env(new DisableTypeCheckingOption());
+    const env = new Env({ disableTypeChecking: true });
     const ast = env.compile("unknown_var + 1");
     expect(ast.isChecked).toBe(false);
   });
@@ -189,7 +209,13 @@ describe("CEL API - Environment Options", () => {
 
 describe("CEL API - Property-Based Tests", () => {
   test("should agree with JS arithmetic for arbitrary activations", () => {
-    const env = new Env(new VariableOption("a", IntType), new VariableOption("b", IntType), new VariableOption("c", IntType));
+    const env = new Env({
+      variables: [
+        new EnvVariable("a", IntType),
+        new EnvVariable("b", IntType),
+        new EnvVariable("c", IntType),
+      ],
+    });
     const ast = env.compile("(a * b) - c + (a > c ? a : c)");
     const prg = env.program(ast);
 
@@ -213,7 +239,9 @@ describe("CEL API - Property-Based Tests", () => {
   });
 
   test("should report list length via size()", () => {
-    const env = new Env(new VariableOption("numbers", Types.list(IntType)));
+    const env = new Env({
+      variables: [new EnvVariable("numbers", Types.list(IntType))],
+    });
     const ast = env.compile("size(numbers)");
     const prg = env.program(ast);
 
@@ -226,7 +254,12 @@ describe("CEL API - Property-Based Tests", () => {
   });
 
   test("should match JS includes for `in` operator on lists", () => {
-    const env = new Env(new VariableOption("roles", Types.list(StringType)), new VariableOption("target", StringType));
+    const env = new Env({
+      variables: [
+        new EnvVariable("roles", Types.list(StringType)),
+        new EnvVariable("target", StringType),
+      ],
+    });
     const ast = env.compile("target in roles");
     const prg = env.program(ast);
 

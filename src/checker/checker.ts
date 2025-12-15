@@ -2,6 +2,7 @@
 // Type checks CEL expressions using the AST representation
 // Ported from cel-go/checker/checker.go
 
+import type { SourceInfo } from "../common/ast";
 import {
   type AST,
   type CallExpr,
@@ -18,7 +19,6 @@ import {
   createFunctionReference,
   createIdentReference,
 } from "../common/ast";
-import type { SourceInfo } from "../common/ast";
 import { type OverloadDecl, VariableDecl } from "./decls";
 import type { CheckerEnv } from "./env";
 import { CheckerErrors, type Location } from "./errors";
@@ -252,7 +252,7 @@ export class Checker {
    * Check a global function call
    */
   private checkGlobalCall(e: CallExpr): void {
-    const fnName = e.function;
+    const fnName = e.funcName;
 
     // Special-case the conditional (ternary) operator.
     // Join differing branch types with joinTypes.
@@ -313,7 +313,7 @@ export class Checker {
    * Check a member function call
    */
   private checkMemberCall(e: CallExpr): void {
-    const fnName = e.function;
+    const fnName = e.funcName;
     const target = e.target!;
 
     // Check target first
@@ -527,7 +527,7 @@ export class Checker {
     if (!resolved) {
       this.errors.reportNoMatchingOverload(
         e.id,
-        e.function,
+        e.funcName,
         argTypes,
         isMemberCall,
         this.getLocation(e.id)

@@ -156,7 +156,7 @@ export class Planner {
    * Plan a call expression.
    */
   private planCall(e: CallExpr): Interpretable {
-    const fnName = e.function;
+    const fnName = e.funcName;
 
     // Handle built-in operators
     switch (fnName) {
@@ -297,9 +297,9 @@ export class Planner {
     }
 
     const ref = this.refMap.get(e.id);
-    const overloadId = ref?.overloadIds[0] ?? `${e.function}_${args.length}`;
+    const overloadId = ref?.overloadIds[0] ?? `${e.funcName}_${args.length}`;
 
-    return new CallValue(e.id, e.function, overloadId, args, this.resolver);
+    return new CallValue(e.id, e.funcName, overloadId, args, this.resolver);
   }
 
   /**
@@ -313,14 +313,14 @@ export class Planner {
     }
 
     // Check for type conversion function
-    if (this.isTypeConversion(e.function) && args.length === 1) {
-      return new TypeConversionValue(e.id, args[0]!, e.function);
+    if (this.isTypeConversion(e.funcName) && args.length === 1) {
+      return new TypeConversionValue(e.id, args[0]!, e.funcName);
     }
 
     const ref = this.refMap.get(e.id);
-    const overloadId = ref?.overloadIds[0] ?? `${e.function}_${args.length}`;
+    const overloadId = ref?.overloadIds[0] ?? `${e.funcName}_${args.length}`;
 
-    return new CallValue(e.id, e.function, overloadId, args, this.resolver);
+    return new CallValue(e.id, e.funcName, overloadId, args, this.resolver);
   }
 
   /**

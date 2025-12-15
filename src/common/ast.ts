@@ -9,15 +9,21 @@ import type { Type } from "../checker/types";
  * Expression kinds in the CEL AST.
  */
 export enum ExprKind {
-  Unspecified = 0,
-  Literal = 1,
-  Ident = 2,
-  Select = 3,
-  Call = 4,
-  List = 5,
-  Map = 6,
-  Struct = 7,
-  Comprehension = 8,
+  Unspecified,
+  Literal,
+  Ident,
+  Select,
+  Call,
+  List,
+  Map,
+  Struct,
+  Comprehension,
+}
+
+/** Order to visit nodes during traversal. */
+export enum VisitOrder {
+  Pre = "pre",
+  Post = "post",
 }
 
 /**
@@ -28,14 +34,92 @@ export interface Expr {
   readonly id: number;
   /** The kind of expression */
   readonly kind: ExprKind;
+  /** Traverse the expression with a visitor. */
+  accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
+}
+
+/**
+ * Base class providing shared behavior for expressions.
+ */
+export abstract class BaseExpr implements Expr {
+  constructor(public readonly id: number, public readonly kind: ExprKind) {}
+
+  accept(
+    visitor: Visitor,
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
+  ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitExpr(this);
+    }
+    this.visitChildren(visitor, order, depth, maxDepth);
+    if (order === VisitOrder.Post) {
+      visitor.visitExpr(this);
+    }
+  }
+
+  // Subclasses override to walk their child nodes.
+  protected visitChildren(
+    _visitor: Visitor,
+    _order: VisitOrder,
+    _depth: number,
+    _maxDepth: number
+  ): void {}
+
+  // Type guard helpers
+  static isLiteral(expr: Expr): expr is LiteralExpr {
+    return expr.kind === ExprKind.Literal;
+  }
+
+  static isIdent(expr: Expr): expr is IdentExpr {
+    return expr.kind === ExprKind.Ident;
+  }
+
+  static isSelect(expr: Expr): expr is SelectExpr {
+    return expr.kind === ExprKind.Select;
+  }
+
+  static isCall(expr: Expr): expr is CallExpr {
+    return expr.kind === ExprKind.Call;
+  }
+
+  static isList(expr: Expr): expr is ListExpr {
+    return expr.kind === ExprKind.List;
+  }
+
+  static isMap(expr: Expr): expr is MapExpr {
+    return expr.kind === ExprKind.Map;
+  }
+
+  static isStruct(expr: Expr): expr is StructExpr {
+    return expr.kind === ExprKind.Struct;
+  }
+
+  static isComprehension(expr: Expr): expr is ComprehensionExpr {
+    return expr.kind === ExprKind.Comprehension;
+  }
+}
+
+/**
+ * Placeholder expression representing unspecified nodes.
+ */
+export class UnspecifiedExpr extends BaseExpr {
+  constructor(id: number) {
+    super(id, ExprKind.Unspecified);
+  }
 }
 
 /**
  * Literal value expression.
  */
-export class LiteralExpr implements Expr {
-  readonly kind = ExprKind.Literal;
-  constructor(public readonly id: number, public readonly value: LiteralValue) {}
+export class LiteralExpr extends BaseExpr {
+  constructor(id: number, public readonly value: LiteralValue) {
+    super(id, ExprKind.Literal);
+  }
 }
 
 /**
@@ -53,62 +137,97 @@ export type LiteralValue =
 /**
  * Identifier expression.
  */
-export class IdentExpr implements Expr {
-  readonly kind = ExprKind.Ident;
-  constructor(public readonly id: number, public readonly name: string) {}
+export class IdentExpr extends BaseExpr {
+  constructor(id: number, public readonly name: string) {
+    super(id, ExprKind.Ident);
+  }
 }
 
 /**
  * Field selection expression (e.g., `obj.field`).
  */
-export class SelectExpr implements Expr {
-  readonly kind = ExprKind.Select;
+export class SelectExpr extends BaseExpr {
   /** If true, this is a presence test (has()) rather than a selection */
   constructor(
-    public readonly id: number,
+    id: number,
     public readonly operand: Expr,
     public readonly field: string,
     public readonly testOnly: boolean
-  ) {}
+  ) {
+    super(id, ExprKind.Select);
+  }
+
+  protected override visitChildren(
+    visitor: Visitor,
+    order: VisitOrder,
+    depth: number,
+    maxDepth: number
+  ): void {
+    this.operand.accept(visitor, order, depth + 1, maxDepth);
+  }
 }
 
 /**
  * Function call expression.
  */
-export class CallExpr implements Expr {
-  readonly kind = ExprKind.Call;
-  readonly function: string;
+export class CallExpr extends BaseExpr {
   /** Target for member calls (e.g., the `obj` in `obj.method(args)`) */
   constructor(
-    public readonly id: number,
-    funcName: string,
+    id: number,
+    public readonly funcName: string,
     public readonly args: readonly Expr[],
     public readonly target?: Expr
   ) {
-    this.function = funcName;
+    super(id, ExprKind.Call);
+  }
+
+  protected override visitChildren(
+    visitor: Visitor,
+    order: VisitOrder,
+    depth: number,
+    maxDepth: number
+  ): void {
+    if (this.target) {
+      this.target.accept(visitor, order, depth + 1, maxDepth);
+    }
+    for (const arg of this.args) {
+      arg.accept(visitor, order, depth + 1, maxDepth);
+    }
   }
 }
 
 /**
  * List creation expression.
  */
-export class ListExpr implements Expr {
-  readonly kind = ExprKind.List;
+export class ListExpr extends BaseExpr {
   /** Indices of optional elements */
   constructor(
-    public readonly id: number,
+    id: number,
     public readonly elements: readonly Expr[],
     public readonly optionalIndices: readonly number[]
-  ) {}
+  ) {
+    super(id, ExprKind.List);
+  }
+
+  protected override visitChildren(
+    visitor: Visitor,
+    order: VisitOrder,
+    depth: number,
+    maxDepth: number
+  ): void {
+    for (const elem of this.elements) {
+      elem.accept(visitor, order, depth + 1, maxDepth);
+    }
+  }
 }
 
 /**
  * Entry expression kinds.
  */
 export enum EntryExprKind {
-  Unspecified = 0,
-  MapEntry = 1,
-  StructField = 2,
+  Unspecified,
+  MapEntry,
+  StructField,
 }
 
 /**
@@ -117,63 +236,150 @@ export enum EntryExprKind {
 export interface EntryExpr {
   readonly id: number;
   readonly entryKind: EntryExprKind;
+
+  accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
+}
+
+/**
+ * Base class providing shared behavior for entries.
+ */
+export abstract class BaseEntry implements EntryExpr {
+  constructor(public readonly id: number, public readonly entryKind: EntryExprKind) {}
+
+  accept(
+    visitor: Visitor,
+    order: VisitOrder = VisitOrder.Pre,
+    depth = 0,
+    maxDepth = 0
+  ): void {
+    if (maxDepth > 0 && depth >= maxDepth) {
+      return;
+    }
+    if (order === VisitOrder.Pre) {
+      visitor.visitEntryExpr(this);
+    }
+    this.visitChildren(visitor, order, depth, maxDepth);
+    if (order === VisitOrder.Post) {
+      visitor.visitEntryExpr(this);
+    }
+  }
+
+  protected visitChildren(
+    _visitor: Visitor,
+    _order: VisitOrder,
+    _depth: number,
+    _maxDepth: number
+  ): void {}
+
+  static isMapEntry(entry: EntryExpr): entry is MapEntry {
+    return entry.entryKind === EntryExprKind.MapEntry;
+  }
+
+  static isStructField(entry: EntryExpr): entry is StructField {
+    return entry.entryKind === EntryExprKind.StructField;
+  }
 }
 
 /**
  * Map entry expression.
+ * Example: `{ "a": 1 ? }`
  */
-export class MapEntry implements EntryExpr {
-  readonly entryKind = EntryExprKind.MapEntry;
+export class MapEntry extends BaseEntry {
   constructor(
-    public readonly id: number,
+    id: number,
     public readonly key: Expr,
     public readonly value: Expr,
     public readonly optional: boolean
-  ) {}
+  ) {
+    super(id, EntryExprKind.MapEntry);
+  }
+
+  protected override visitChildren(
+    visitor: Visitor,
+    order: VisitOrder,
+    depth: number,
+    maxDepth: number
+  ): void {
+    this.key.accept(visitor, order, depth + 1, maxDepth);
+    this.value.accept(visitor, order, depth + 1, maxDepth);
+  }
 }
 
 /**
  * Map creation expression.
  */
-export class MapExpr implements Expr {
-  readonly kind = ExprKind.Map;
-  constructor(public readonly id: number, public readonly entries: readonly MapEntry[]) {}
+export class MapExpr extends BaseExpr {
+  constructor(id: number, public readonly entries: readonly MapEntry[]) {
+    super(id, ExprKind.Map);
+  }
+
+  protected override visitChildren(
+    visitor: Visitor,
+    order: VisitOrder,
+    depth: number,
+    maxDepth: number
+  ): void {
+    for (const entry of this.entries) {
+      entry.accept(visitor, order, depth, maxDepth);
+    }
+  }
 }
 
 /**
  * Struct field initializer.
+ * Example: `{foo: bar?}`
  */
-export class StructField implements EntryExpr {
-  readonly entryKind = EntryExprKind.StructField;
+export class StructField extends BaseEntry {
   constructor(
-    public readonly id: number,
+    id: number,
     public readonly name: string,
     public readonly value: Expr,
     public readonly optional: boolean
-  ) {}
+  ) {
+    super(id, EntryExprKind.StructField);
+  }
+
+  protected override visitChildren(
+    visitor: Visitor,
+    order: VisitOrder,
+    depth: number,
+    maxDepth: number
+  ): void {
+    this.value.accept(visitor, order, depth + 1, maxDepth);
+  }
 }
 
 /**
  * Struct/message creation expression.
  */
-export class StructExpr implements Expr {
-  readonly kind = ExprKind.Struct;
+export class StructExpr extends BaseExpr {
   constructor(
-    public readonly id: number,
+    id: number,
     public readonly typeName: string,
     public readonly fields: readonly StructField[]
-  ) {}
+  ) {
+    super(id, ExprKind.Struct);
+  }
+
+  protected override visitChildren(
+    visitor: Visitor,
+    order: VisitOrder,
+    depth: number,
+    maxDepth: number
+  ): void {
+    for (const field of this.fields) {
+      field.accept(visitor, order, depth, maxDepth);
+    }
+  }
 }
 
 /**
  * Comprehension (fold) expression.
- * Represents operations like all(), exists(), map(), filter().
+ * Example: `list.all(x, x > 0)`
  */
-export class ComprehensionExpr implements Expr {
-  readonly kind = ExprKind.Comprehension;
-  /** Second iteration variable name (for two-variable comprehensions, optional) */
+export class ComprehensionExpr extends BaseExpr {
   constructor(
-    public readonly id: number,
+    id: number,
     /** Expression that evaluates to the iterable (list or map) */
     public readonly iterRange: Expr,
     /** Iteration variable name */
@@ -190,13 +396,29 @@ export class ComprehensionExpr implements Expr {
     public readonly result: Expr,
     /** Second iteration variable name (optional) */
     public readonly iterVar2?: string
-  ) {}
+  ) {
+    super(id, ExprKind.Comprehension);
+  }
+
+  protected override visitChildren(
+    visitor: Visitor,
+    order: VisitOrder,
+    depth: number,
+    maxDepth: number
+  ): void {
+    this.iterRange.accept(visitor, order, depth + 1, maxDepth);
+    this.accuInit.accept(visitor, order, depth + 1, maxDepth);
+    this.loopCondition.accept(visitor, order, depth + 1, maxDepth);
+    this.loopStep.accept(visitor, order, depth + 1, maxDepth);
+    this.result.accept(visitor, order, depth + 1, maxDepth);
+  }
 }
 
 /**
  * Union type for all expression types.
  */
 export type AnyExpr =
+  | UnspecifiedExpr
   | LiteralExpr
   | IdentExpr
   | SelectExpr
@@ -212,49 +434,6 @@ export type AnyExpr =
 export type AnyEntryExpr = MapEntry | StructField;
 
 // ============================================================================
-// Type Guards
-// ============================================================================
-
-export function isLiteral(expr: Expr): expr is LiteralExpr {
-  return expr.kind === ExprKind.Literal;
-}
-
-export function isIdent(expr: Expr): expr is IdentExpr {
-  return expr.kind === ExprKind.Ident;
-}
-
-export function isSelect(expr: Expr): expr is SelectExpr {
-  return expr.kind === ExprKind.Select;
-}
-
-export function isCall(expr: Expr): expr is CallExpr {
-  return expr.kind === ExprKind.Call;
-}
-
-export function isList(expr: Expr): expr is ListExpr {
-  return expr.kind === ExprKind.List;
-}
-
-export function isMap(expr: Expr): expr is MapExpr {
-  return expr.kind === ExprKind.Map;
-}
-
-export function isStruct(expr: Expr): expr is StructExpr {
-  return expr.kind === ExprKind.Struct;
-}
-
-export function isComprehension(expr: Expr): expr is ComprehensionExpr {
-  return expr.kind === ExprKind.Comprehension;
-}
-
-export function isMapEntry(entry: EntryExpr): entry is MapEntry {
-  return entry.entryKind === EntryExprKind.MapEntry;
-}
-
-export function isStructField(entry: EntryExpr): entry is StructField {
-  return entry.entryKind === EntryExprKind.StructField;
-}
-
 // ============================================================================
 // Visitor Pattern
 // ============================================================================
@@ -282,120 +461,63 @@ export class BaseVisitor implements Visitor {
 }
 
 /**
- * Create a visitor that only visits expression nodes.
+ * Visitor implementation that only handles expressions.
  */
-export function createExprVisitor(fn: (expr: Expr) => void): Visitor {
-  return {
-    visitExpr: fn,
-    visitEntryExpr: () => {},
-  };
+export class ExprVisitor implements Visitor {
+  constructor(private readonly exprFn: (expr: Expr) => void) {}
+
+  visitExpr(expr: Expr): void {
+    this.exprFn(expr);
+  }
+
+  visitEntryExpr(_entry: EntryExpr): void {
+    // Ignore entries
+  }
 }
 
 /**
- * Create a visitor that visits both expressions and entries.
+ * Visitor implementation that only handles entry nodes.
  */
-export function createVisitor(
-  exprFn: (expr: Expr) => void,
-  entryFn: (entry: EntryExpr) => void
-): Visitor {
-  return {
-    visitExpr: exprFn,
-    visitEntryExpr: entryFn,
-  };
+export class EntryVisitor implements Visitor {
+  constructor(private readonly entryFn: (entry: EntryExpr) => void) {}
+
+  visitExpr(_expr: Expr): void {
+    // Ignore expressions
+  }
+
+  visitEntryExpr(entry: EntryExpr): void {
+    this.entryFn(entry);
+  }
 }
 
-type VisitOrder = "pre" | "post";
+/**
+ * Visitor implementation that handles both expressions and entries.
+ */
+export class CompositeVisitor implements Visitor {
+  constructor(
+    private readonly exprFn: (expr: Expr) => void,
+    private readonly entryFn: (entry: EntryExpr) => void
+  ) {}
+
+  visitExpr(expr: Expr): void {
+    this.exprFn(expr);
+  }
+
+  visitEntryExpr(entry: EntryExpr): void {
+    this.entryFn(entry);
+  }
+}
 
 /**
- * Traversal utilities for walking expression trees.
+ * Convenience helper that traverses the expression with the given visitor.
  */
-export class ExprTraversal {
-  private static visit(
-    expr: Expr,
-    visitor: Visitor,
-    order: VisitOrder,
-    depth: number,
-    maxDepth: number
-  ): void {
-    if (maxDepth > 0 && depth >= maxDepth) {
-      return;
-    }
-
-    if (order === "pre") {
-      visitor.visitExpr(expr);
-    }
-
-    // Visit children based on expression kind
-    switch (expr.kind) {
-      case ExprKind.Select: {
-        const sel = expr as SelectExpr;
-        ExprTraversal.visit(sel.operand, visitor, order, depth + 1, maxDepth);
-        break;
-      }
-      case ExprKind.Call: {
-        const call = expr as CallExpr;
-        if (call.target) {
-          ExprTraversal.visit(call.target, visitor, order, depth + 1, maxDepth);
-        }
-        for (const arg of call.args) {
-          ExprTraversal.visit(arg, visitor, order, depth + 1, maxDepth);
-        }
-        break;
-      }
-      case ExprKind.List: {
-        const list = expr as ListExpr;
-        for (const elem of list.elements) {
-          ExprTraversal.visit(elem, visitor, order, depth + 1, maxDepth);
-        }
-        break;
-      }
-      case ExprKind.Map: {
-        const map = expr as MapExpr;
-        for (const entry of map.entries) {
-          visitor.visitEntryExpr(entry);
-          ExprTraversal.visit(entry.key, visitor, order, depth + 1, maxDepth);
-          ExprTraversal.visit(entry.value, visitor, order, depth + 1, maxDepth);
-        }
-        break;
-      }
-      case ExprKind.Struct: {
-        const struct = expr as StructExpr;
-        for (const field of struct.fields) {
-          visitor.visitEntryExpr(field);
-          ExprTraversal.visit(field.value, visitor, order, depth + 1, maxDepth);
-        }
-        break;
-      }
-      case ExprKind.Comprehension: {
-        const comp = expr as ComprehensionExpr;
-        ExprTraversal.visit(comp.iterRange, visitor, order, depth + 1, maxDepth);
-        ExprTraversal.visit(comp.accuInit, visitor, order, depth + 1, maxDepth);
-        ExprTraversal.visit(comp.loopCondition, visitor, order, depth + 1, maxDepth);
-        ExprTraversal.visit(comp.loopStep, visitor, order, depth + 1, maxDepth);
-        ExprTraversal.visit(comp.result, visitor, order, depth + 1, maxDepth);
-        break;
-      }
-      // Literal, Ident, Unspecified have no children
-    }
-
-    if (order === "post") {
-      visitor.visitExpr(expr);
-    }
-  }
-
-  /**
-   * Visit expression tree in post-order (bottom-up).
-   */
-  static postOrder(expr: Expr, visitor: Visitor, maxDepth = 0): void {
-    ExprTraversal.visit(expr, visitor, "post", 0, maxDepth);
-  }
-
-  /**
-   * Visit expression tree in pre-order (top-down).
-   */
-  static preOrder(expr: Expr, visitor: Visitor, maxDepth = 0): void {
-    ExprTraversal.visit(expr, visitor, "pre", 0, maxDepth);
-  }
+export function traverseExpr(
+  expr: Expr,
+  visitor: Visitor,
+  order: VisitOrder = VisitOrder.Pre,
+  maxDepth = 0
+): void {
+  expr.accept(visitor, order, 0, maxDepth);
 }
 
 /**
@@ -409,13 +531,14 @@ export type ExprMatcher = (expr: Expr) => boolean;
  */
 export function matchDescendants(expr: Expr, matcher: ExprMatcher): Expr[] {
   const matches: Expr[] = [];
-  ExprTraversal.postOrder(
+  traverseExpr(
     expr,
-    createExprVisitor((e) => {
+    new ExprVisitor((e) => {
       if (matcher(e)) {
         matches.push(e);
       }
-    })
+    }),
+    VisitOrder.Post
   );
   return matches;
 }
@@ -438,7 +561,7 @@ export function kindMatcher(kind: ExprKind): ExprMatcher {
  * Matcher that matches function calls with a specific name.
  */
 export function functionMatcher(funcName: string): ExprMatcher {
-  return (e) => e.kind === ExprKind.Call && (e as CallExpr).function === funcName;
+  return (e) => e.kind === ExprKind.Call && (e as CallExpr).funcName === funcName;
 }
 
 /**
@@ -453,16 +576,17 @@ export function constantValueMatcher(): ExprMatcher {
  */
 export function maxId(expr: Expr): number {
   let max = 0;
-  ExprTraversal.postOrder(
+  traverseExpr(
     expr,
-    createVisitor(
+    new CompositeVisitor(
       (e) => {
         if (e.id > max) max = e.id;
       },
       (entry) => {
         if (entry.id > max) max = entry.id;
       }
-    )
+    ),
+    VisitOrder.Post
   );
   return max;
 }

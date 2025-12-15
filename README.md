@@ -29,10 +29,12 @@ bun add cel-ts
 ## Quick Start
 
 ```typescript
-import { Env, IntType, StringType, VariableOption } from "cel-ts";
+import { Env, EnvVariable, IntType, StringType } from "cel-ts";
 
 // Create an environment with variable declarations
-const env = new Env(new VariableOption("name", StringType), new VariableOption("age", IntType));
+const env = new Env({
+  variables: [new EnvVariable("name", StringType), new EnvVariable("age", IntType)],
+});
 
 // Compile an expression
 const ast = env.compile('name + " is " + string(age) + " years old"');
@@ -64,62 +66,70 @@ bun run examples/cel-eval.ts
 ### Environment
 
 ```typescript
-import { DisableStandardLibraryOption, Env } from "cel-ts";
+import {
+  Env,
+  EnvFunction,
+  EnvVariable,
+  GlobalFunctionOverload,
+  IntType,
+  MemberFunctionOverload,
+  StringType,
+  StringValue,
+} from "cel-ts";
 
 // Create environment with standard library
-const env = new Env(...options);
+const env = new Env({
+  variables: [new EnvVariable("name", StringType), new EnvVariable("age", IntType)],
+  functions: [
+    new EnvFunction(
+      "greet",
+      new GlobalFunctionOverload(
+        "greet_string",
+        [StringType],
+        StringType,
+        (arg) => new StringValue(`Hello, ${arg.value()}!`)
+      )
+    ),
+  ],
+});
 
 // Create environment without standard library
-const customEnv = new Env(new DisableStandardLibraryOption(), ...options);
+const customEnv = new Env({
+  disableStandardLibrary: true,
+  variables: [new EnvVariable("id", IntType)],
+});
 
 // Extend an existing environment
-const extendedEnv = env.extend(...additionalOptions);
+const extendedEnv = env.extend({
+  variables: [new EnvVariable("country", StringType)],
+});
 ```
 
 ### Environment Options
 
+`Env` accepts a single options object:
+
 ```typescript
-import {
-  ContainerOption,
-  DisableStandardLibraryOption,
-  DisableTypeCheckingOption,
-  FunctionOption,
-  FunctionOverload,
-  StringType,
-  StringValue,
-  VariableOption,
-} from "cel-ts";
-
-// Declare a variable
-new VariableOption("name", StringType);
-
-// Declare a function
-new FunctionOption(
-  "greet",
-  FunctionOverload.global(
-    "greet_string",
-    [StringType],
-    StringType,
-    (arg) => new StringValue(`Hello, ${arg.value()}!`)
-  )
-);
-
-// Declare a member function
-new FunctionOption(
-  "upper",
-  FunctionOverload.member(
-    "string_upper",
-    [StringType],
-    StringType,
-    (arg) => new StringValue(String(arg.value()).toUpperCase())
-  )
-);
-
-// Configure containers and optional toggles
-new ContainerOption("acme.types");
-new DisableStandardLibraryOption();
-new DisableTypeCheckingOption();
+const env = new Env({
+  container: "acme.types",
+  disableTypeChecking: false,
+  disableStandardLibrary: false,
+  variables: [new EnvVariable("name", StringType)],
+  functions: [
+    new EnvFunction(
+      "upper",
+      new MemberFunctionOverload(
+        "string_upper",
+        [StringType],
+        StringType,
+        (arg) => new StringValue(String(arg.value()).toUpperCase())
+      )
+    ),
+  ],
+});
 ```
+
+For advanced scenarios, you can still provide legacy `EnvOption` instances via the `extraOptions` field.
 
 ### Types
 
@@ -232,40 +242,42 @@ has(request.auth)      // true if auth field exists
 ```typescript
 import {
   Env,
-  FunctionOption,
-  FunctionOverload,
+  EnvFunction,
+  GlobalFunctionOverload,
   IntType,
+  MemberFunctionOverload,
   StringType,
   StringValue,
 } from "cel-ts";
 
-const env = new Env(
-  // Global function: repeat("ab", 3) -> "ababab"
-  new FunctionOption(
-    "repeat",
-    FunctionOverload.global(
-      "repeat_string_int",
-      [StringType, IntType],
-      StringType,
-      (strValue, countValue) => {
-        const str = String(strValue.value());
-        const count = Number(countValue.value());
-        return new StringValue(str.repeat(count));
-      }
-    )
-  ),
-
-  // Member function: "hello".reverse() -> "olleh"
-  new FunctionOption(
-    "reverse",
-    FunctionOverload.member(
-      "string_reverse",
-      [StringType],
-      StringType,
-      (arg) => new StringValue(String(arg.value()).split("").reverse().join(""))
-    )
-  )
-);
+const env = new Env({
+  functions: [
+    new EnvFunction(
+      "repeat",
+      // Global function: repeat("ab", 3) -> "ababab"
+      new GlobalFunctionOverload(
+        "repeat_string_int",
+        [StringType, IntType],
+        StringType,
+        (strValue, countValue) => {
+          const str = String(strValue.value());
+          const count = Number(countValue.value());
+          return new StringValue(str.repeat(count));
+        }
+      )
+    ),
+    new EnvFunction(
+      "reverse",
+      // Member function: "hello".reverse() -> "olleh"
+      new MemberFunctionOverload(
+        "string_reverse",
+        [StringType],
+        StringType,
+        (arg) => new StringValue(String(arg.value()).split("").reverse().join(""))
+      )
+    ),
+  ],
+});
 
 const ast = env.compile('repeat("ab", 3) + " - " + "hello".reverse()');
 const program = env.program(ast);

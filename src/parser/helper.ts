@@ -9,7 +9,6 @@ import {
   CallExpr,
   ComprehensionExpr,
   type Expr,
-  ExprKind,
   IdentExpr,
   ListExpr,
   LiteralExpr,
@@ -19,6 +18,7 @@ import {
   SourceInfo,
   StructExpr,
   StructField,
+  UnspecifiedExpr,
 } from "../common/ast";
 import {
   BoolFalseContext,
@@ -34,7 +34,6 @@ import {
   DoubleContext,
   type EscapeIdentContext,
   type ExprContext,
-  type ExprListContext,
   GlobalCallContext,
   IdentContext,
   IndexContext,
@@ -53,41 +52,10 @@ import {
   type StartContext,
   StringContext,
   UintContext,
-  type UnaryContext,
+  type UnaryContext
 } from "./gen/CELParser.js";
-import { AllMacros, type Macro, MacroError, MacroRegistry } from "./macro";
-
-/**
- * Operator names for CEL.
- */
-export const Operators = {
-  // Arithmetic
-  Add: "_+_",
-  Subtract: "_-_",
-  Multiply: "_*_",
-  Divide: "_/_",
-  Modulo: "_%_",
-  Negate: "-_",
-
-  // Comparison
-  Equals: "_==_",
-  NotEquals: "_!=_",
-  Less: "_<_",
-  LessEquals: "_<=_",
-  Greater: "_>_",
-  GreaterEquals: "_>=_",
-  In: "_in_",
-
-  // Logical
-  LogicalAnd: "_&&_",
-  LogicalOr: "_||_",
-  LogicalNot: "!_",
-  NotStrictlyFalse: "@not_strictly_false",
-  Conditional: "_?_:_",
-
-  // Index
-  Index: "_[_]",
-};
+import { AllMacros, type Macro, MacroError, MacroRegistry } from "./macros";
+import { Operators } from "./operators";
 
 /**
  * Options for the parser helper.
@@ -132,12 +100,12 @@ export class ParserHelper {
   // Builder methods used by macro expansion
   // ============================================================================
 
-  private createUnspecified(): Expr {
-    return { id: this.nextId(), kind: ExprKind.Unspecified };
-  }
-
   nextId(): number {
     return this.nextIdCounter++;
+  }
+
+  createUnspecified(): Expr {
+    return new UnspecifiedExpr(this.nextId());
   }
 
   createLiteral(value: boolean | bigint | number | string | null): Expr {
@@ -195,19 +163,20 @@ export class ParserHelper {
   }
 
   createAccuIdent(): IdentExpr {
-    return this.createIdent(this.accuIdentName());
-  }
-
-  accuIdentName(): string {
-    return AccumulatorName;
+    return this.createIdent(AccumulatorName);
   }
 
   createPresenceTest(operand: Expr, field: string): SelectExpr {
     return new SelectExpr(this.nextId(), operand, field, true);
   }
 
-  createError(message: string): MacroError {
-    return new MacroError(message);
+  createError(ctx: ParserRuleContext, message: string): Expr {
+    // Create an error placeholder expression
+    // In a full implementation, we'd collect errors
+    console.error(`Parse error at ${ctx.start?.line}:${ctx.start?.column}: ${message}`);
+    const expr = this.createUnspecified();
+    this.setPosition(expr.id, ctx);
+    return expr;
   }
 
   // ============================================================================
@@ -217,7 +186,7 @@ export class ParserHelper {
   private buildExpr(ctx: ExprContext): Expr {
     const conditionalOr = ctx.conditionalOr(0);
     if (!conditionalOr) {
-      return this.reportError(ctx, "missing expression");
+      return this.createError(ctx, "missing expression");
     }
 
     let result = this.buildConditionalOr(conditionalOr);
@@ -228,7 +197,7 @@ export class ParserHelper {
       const trueExpr = ctx.conditionalOr(1);
       const falseExpr = ctx.expr();
       if (!trueExpr || !falseExpr) {
-        return this.reportError(ctx, "invalid ternary expression");
+        return this.createError(ctx, "invalid ternary expression");
       }
 
       const id = this.nextId();
@@ -245,7 +214,7 @@ export class ParserHelper {
   private buildConditionalOr(ctx: ConditionalOrContext): Expr {
     const andExprs = ctx.conditionalAnd_list();
     if (andExprs.length === 0) {
-      return this.reportError(ctx, "missing conditionalAnd");
+      return this.createError(ctx, "missing conditionalAnd");
     }
 
     let result = this.buildConditionalAnd(andExprs[0]!);
@@ -262,7 +231,7 @@ export class ParserHelper {
   private buildConditionalAnd(ctx: ConditionalAndContext): Expr {
     const relations = ctx.relation_list();
     if (relations.length === 0) {
-      return this.reportError(ctx, "missing relation");
+      return this.createError(ctx, "missing relation");
     }
 
     let result = this.buildRelation(relations[0]!);
@@ -284,7 +253,7 @@ export class ParserHelper {
 
     const relations = ctx.relation_list();
     if (relations.length !== 2) {
-      return this.reportError(ctx, "invalid relation");
+      return this.createError(ctx, "invalid relation");
     }
 
     const left = this.buildRelation(relations[0]!);
@@ -293,12 +262,15 @@ export class ParserHelper {
 
     // Determine operator
     const op = this.getRelationOp(ctx);
+    if (!op) {
+      return this.createError(ctx, "invalid relation operator");
+    }
     const result = new CallExpr(id, op, [left, right]);
     this.setPosition(id, ctx);
     return result;
   }
 
-  private getRelationOp(ctx: RelationContext): string {
+  private getRelationOp(ctx: RelationContext): string | null {
     if (ctx.LESS()) return Operators.Less;
     if (ctx.LESS_EQUALS()) return Operators.LessEquals;
     if (ctx.GREATER()) return Operators.Greater;
@@ -306,7 +278,7 @@ export class ParserHelper {
     if (ctx.EQUALS()) return Operators.Equals;
     if (ctx.NOT_EQUALS()) return Operators.NotEquals;
     if (ctx.IN()) return Operators.In;
-    return Operators.Equals; // Default
+    return null;
   }
 
   private buildCalc(ctx: CalcContext): Expr {
@@ -318,7 +290,7 @@ export class ParserHelper {
     // Binary calc expression
     const calcs = ctx.calc_list();
     if (calcs.length !== 2) {
-      return this.reportError(ctx, "invalid calc");
+      return this.createError(ctx, "invalid calc");
     }
 
     const left = this.buildCalc(calcs[0]!);
@@ -327,21 +299,28 @@ export class ParserHelper {
 
     // Determine operator
     const op = this.getCalcOp(ctx);
+    if (!op) {
+      return this.createError(ctx, "invalid calc operator");
+    }
     const result = new CallExpr(id, op, [left, right]);
     this.setPosition(id, ctx);
     return result;
   }
 
-  private getCalcOp(ctx: CalcContext): string {
+  private getCalcOp(ctx: CalcContext): string | null {
     if (ctx.STAR()) return Operators.Multiply;
     if (ctx.SLASH()) return Operators.Divide;
     if (ctx.PERCENT()) return Operators.Modulo;
     if (ctx.PLUS()) return Operators.Add;
     if (ctx.MINUS()) return Operators.Subtract;
-    return Operators.Add; // Default
+    return null;
   }
 
   private buildUnary(ctx: UnaryContext): Expr {
+    if (ctx instanceof MemberExprContext) {
+      return this.buildMember(ctx.member());
+    }
+
     if (ctx instanceof LogicalNotContext) {
       const inner = this.buildMember(ctx.member());
       const id = this.nextId();
@@ -368,16 +347,10 @@ export class ParserHelper {
       return result;
     }
 
-    // MemberExprContext
-    if (ctx instanceof MemberExprContext) {
-      return this.buildMember(ctx.member());
-    }
-
-    return this.reportError(ctx, "unknown unary expression");
+    return this.createError(ctx, "unknown unary expression");
   }
 
   private buildMember(ctx: MemberContext): Expr {
-    // PrimaryExpr
     if (ctx instanceof PrimaryExprContext) {
       return this.buildPrimary(ctx.primary());
     }
@@ -388,10 +361,14 @@ export class ParserHelper {
       const id = this.nextId();
 
       // Get the field name from escapeIdent()
-      const field = this.getEscapeIdentName(ctx.escapeIdent());
+      const escapeIdentCtx = ctx.escapeIdent();
+      if (!escapeIdentCtx) {
+        return this.createError(ctx, "missing field name");
+      }
+      const field = this.getEscapeIdentName(escapeIdentCtx);
 
       if (ctx.QUESTIONMARK() !== null) {
-        return this.reportError(ctx, "optional field access (?.) is not supported");
+        return this.createError(ctx, "optional field access (?.) is not supported");
       }
 
       const result = new SelectExpr(id, operand, field, false);
@@ -405,10 +382,15 @@ export class ParserHelper {
       const id = this.nextId();
 
       // Get method name - MemberCallContext has IDENTIFIER() not escapeIdent()
-      const methodName = ctx.IDENTIFIER()?.getText() ?? "";
+      const identToken = ctx.IDENTIFIER();
+      if (!identToken) {
+        return this.createError(ctx, "missing method name");
+      }
+      const methodName = identToken.getText();
 
       // Build arguments
-      const args = this.buildExprListContext(ctx.exprList());
+      const exprList = ctx.exprList();
+      const args = exprList ? exprList.expr_list().map((e) => this.buildExpr(e)) : [];
 
       // Try macro expansion first
       const expanded = this.expandMacro(id, methodName, target, args);
@@ -428,7 +410,7 @@ export class ParserHelper {
       const index = this.buildExpr(ctx.expr());
 
       if (ctx.QUESTIONMARK() !== null) {
-        return this.reportError(ctx, "optional index access ([?]) is not supported");
+        return this.createError(ctx, "optional index access ([?]) is not supported");
       }
 
       const result = new CallExpr(id, Operators.Index, [operand, index]);
@@ -436,7 +418,7 @@ export class ParserHelper {
       return result;
     }
 
-    return this.reportError(ctx, "unknown member expression");
+    return this.createError(ctx, "unknown member expression");
   }
 
   private buildPrimary(ctx: PrimaryContext): Expr {
@@ -445,7 +427,11 @@ export class ParserHelper {
       const id = this.nextId();
       const leadingDot = ctx.DOT() !== null;
       // IdentContext has IDENTIFIER() not escapeIdent()
-      let name = ctx.IDENTIFIER()?.getText() ?? "";
+      const identToken = ctx.IDENTIFIER();
+      if (!identToken) {
+        return this.createError(ctx, "missing identifier");
+      }
+      let name = identToken.getText();
       if (leadingDot) {
         name = "." + name;
       }
@@ -464,13 +450,18 @@ export class ParserHelper {
       const id = this.nextId();
       const leadingDot = ctx.DOT() !== null;
       // GlobalCallContext has IDENTIFIER() not escapeIdent()
-      let functionName = ctx.IDENTIFIER()?.getText() ?? "";
+      const identToken = ctx.IDENTIFIER();
+      if (!identToken) {
+        return this.createError(ctx, "missing function name");
+      }
+      let functionName = identToken.getText();
       if (leadingDot) {
         functionName = "." + functionName;
       }
 
       // Build arguments
-      const args = this.buildExprListContext(ctx.exprList());
+      const exprList = ctx.exprList();
+      const args = exprList ? exprList.expr_list().map((e) => this.buildExpr(e)) : [];
 
       // Try macro expansion first (global macros like has())
       const expanded = this.expandMacro(id, functionName, null, args);
@@ -503,7 +494,7 @@ export class ParserHelper {
       return this.buildLiteral(ctx);
     }
 
-    return this.reportError(ctx, "unknown primary expression");
+    return this.createError(ctx, "unknown primary expression");
   }
 
   private buildCreateList(ctx: CreateListContext): Expr {
@@ -576,6 +567,9 @@ export class ParserHelper {
     // Get type name (possibly qualified) - uses IDENTIFIER_list()
     const leadingDot = ctx.DOT(0) !== null;
     const identParts = ctx.IDENTIFIER_list();
+    if (identParts.length === 0) {
+      return this.createError(ctx, "missing message name");
+    }
     let typeName = identParts.map((part: TerminalNode) => part.getText()).join(".");
     if (leadingDot) {
       typeName = "." + typeName;
@@ -596,10 +590,14 @@ export class ParserHelper {
     for (let i = 0; i < optFields.length; i++) {
       const optField = optFields[i]!;
       const fieldIdent = optField.escapeIdent();
+      if (!fieldIdent) {
+        this.createError(optField, "missing field name");
+        continue;
+      }
       const fieldName = this.getEscapeIdentName(fieldIdent);
       const fieldExpr = exprs[i]
         ? this.buildExpr(exprs[i]!)
-        : this.reportError(ctx, "missing field value");
+        : this.createError(ctx, "missing field value");
       const optional = optField.QUESTIONMARK() !== null;
       const fieldId = this.nextId();
 
@@ -670,7 +668,7 @@ export class ParserHelper {
       return result;
     }
 
-    return this.reportError(ctx, "unknown literal type");
+    return this.createError(ctx, "unknown literal type");
   }
 
   // ============================================================================
@@ -692,7 +690,7 @@ export class ParserHelper {
     }
 
     try {
-      const expanded = macro.expander()(this, target, args);
+      const expanded = macro.expander(this, target, args);
       if (expanded && this.populateMacroCalls) {
         // Record the original call expression for unparsing
         const originalCall = receiverStyle
@@ -714,17 +712,7 @@ export class ParserHelper {
   // Helper methods
   // ============================================================================
 
-  private buildExprListContext(ctx: ExprListContext | null): Expr[] {
-    if (!ctx) {
-      return [];
-    }
-    return ctx.expr_list().map((e) => this.buildExpr(e));
-  }
-
-  private getEscapeIdentName(ctx: EscapeIdentContext | null): string {
-    if (!ctx) {
-      return "";
-    }
+  private getEscapeIdentName(ctx: EscapeIdentContext): string {
     // Get text and remove backticks if present (for escaped identifiers)
     const text = ctx.getText();
     return text.replace(/^`|`$/g, "");
@@ -736,14 +724,7 @@ export class ParserHelper {
     this.sourceInfo.setPosition(id, { start, end: stop + 1 });
   }
 
-  private reportError(ctx: ParserRuleContext, message: string): Expr {
-    // Create an error placeholder expression
-    // In a full implementation, we'd collect errors
-    console.error(`Parse error at ${ctx.start?.line}:${ctx.start?.column}: ${message}`);
-    const expr = this.createUnspecified();
-    this.setPosition(expr.id, ctx);
-    return expr;
-  }
+
 
   // ============================================================================
   // Literal parsing
@@ -817,85 +798,33 @@ export class ParserHelper {
   }
 
   private processEscapes(str: string): string {
-    let result = "";
-    let i = 0;
+    const escapeRegex =
+      /\\(u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|x[0-9a-fA-F]{2}|[0-7]{1,3}|[nrt\\'"])/g;
 
-    while (i < str.length) {
-      if (str[i] === "\\" && i + 1 < str.length) {
-        const next = str[i + 1];
-        switch (next) {
-          case "n":
-            result += "\n";
-            i += 2;
-            break;
-          case "r":
-            result += "\r";
-            i += 2;
-            break;
-          case "t":
-            result += "\t";
-            i += 2;
-            break;
-          case "\\":
-            result += "\\";
-            i += 2;
-            break;
-          case '"':
-            result += '"';
-            i += 2;
-            break;
-          case "'":
-            result += "'";
-            i += 2;
-            break;
-          case "x": {
-            // Hex escape \xNN
-            const hex = str.slice(i + 2, i + 4);
-            result += String.fromCharCode(Number.parseInt(hex, 16));
-            i += 4;
-            break;
-          }
-          case "u": {
-            // Unicode escape \uNNNN
-            const unicode = str.slice(i + 2, i + 6);
-            result += String.fromCharCode(Number.parseInt(unicode, 16));
-            i += 6;
-            break;
-          }
-          case "U": {
-            // Extended unicode escape \UNNNNNNNN
-            const extUnicode = str.slice(i + 2, i + 10);
-            result += String.fromCodePoint(Number.parseInt(extUnicode, 16));
-            i += 10;
-            break;
-          }
-          default:
-            // Octal escape or unknown
-            if (next !== undefined && next >= "0" && next <= "7") {
-              let octal = next;
-              let j = i + 2;
-              while (j < str.length && j < i + 4) {
-                const ch = str[j];
-                if (ch !== undefined && ch >= "0" && ch <= "7") {
-                  octal += ch;
-                  j++;
-                } else {
-                  break;
-                }
-              }
-              result += String.fromCharCode(Number.parseInt(octal, 8));
-              i = j;
-            } else {
-              result += str[i];
-              i++;
-            }
-        }
-      } else {
-        result += str[i];
-        i++;
+    return str.replace(escapeRegex, (_match, seq: string) => {
+      switch (seq[0]) {
+        case "n":
+          return "\n";
+        case "r":
+          return "\r";
+        case "t":
+          return "\t";
+        case "\\":
+          return "\\";
+        case '"':
+          return '"';
+        case "'":
+          return "'";
+        case "x":
+          return String.fromCharCode(Number.parseInt(seq.slice(1), 16));
+        case "u":
+          return String.fromCharCode(Number.parseInt(seq.slice(1), 16));
+        case "U":
+          return String.fromCodePoint(Number.parseInt(seq.slice(1), 16));
+        default:
+          // Octal escape
+          return String.fromCharCode(Number.parseInt(seq, 8));
       }
-    }
-
-    return result;
+    });
   }
 }

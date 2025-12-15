@@ -68,12 +68,11 @@ The cel-ts architecture follows the cel-go design pattern where:
 ### Step 1: Environment Setup
 
 ```typescript
-import { Env, IntType, StringType, VariableOption } from "cel-ts";
+import { Env, EnvVariable, IntType, StringType } from "cel-ts";
 
-const env = new Env(
-  new VariableOption("name", StringType),
-  new VariableOption("age", IntType)
-);
+const env = new Env({
+  variables: [new EnvVariable("name", StringType), new EnvVariable("age", IntType)],
+});
 ```
 
 ### Step 2: Compile (Parse + Type Check)
@@ -247,25 +246,26 @@ interface Value {
 ### Environment Options
 
 ```typescript
-// Variable declaration
-new VariableOption(name: string, type: Type): EnvOption
-
-// Function declaration with overloads
-new FunctionOption(name: string, ...overloads: FunctionOverload[]): EnvOption
-
-// Function overload helpers
-FunctionOverload.global(id, argTypes, resultType, binding?)
-FunctionOverload.member(id, argTypes, resultType, binding?)
-
-// Container for qualified names
-new ContainerOption(name: string): EnvOption
-
-// Disable standard library
-new DisableStandardLibraryOption(): EnvOption
-
-// Disable type checking
-new DisableTypeCheckingOption(): EnvOption
+const env = new Env({
+  container: "acme.types",
+  disableStandardLibrary: false,
+  disableTypeChecking: false,
+  variables: [new EnvVariable("name", StringType)],
+  functions: [
+    new EnvFunction(
+      "greet",
+      new GlobalFunctionOverload(
+        "greet_string",
+        [StringType],
+        StringType,
+        (arg) => new StringValue(`Hello, ${arg.value()}!`)
+      )
+    ),
+  ],
+});
 ```
+
+Advanced scenarios can pass legacy `EnvOption` instances through the `extraOptions` field.
 
 ### Type Helpers
 
@@ -362,24 +362,25 @@ import {
   BoolType,
   BoolValue,
   Env,
-  FunctionOption,
-  FunctionOverload,
+  EnvFunction,
+  EnvVariable,
+  GlobalFunctionOverload,
   IntType,
   StringType,
-  VariableOption
 } from "cel-ts";
 
 // Create environment with custom function
-const env = new Env(
-  new VariableOption("user", StringType),
-  new VariableOption("age", IntType),
-  new FunctionOption(
-    "isAdult",
-    FunctionOverload.global("isAdult_int", [IntType], BoolType, (value) =>
-      new BoolValue(value.value() >= 18n)
-    )
-  )
-);
+const env = new Env({
+  variables: [new EnvVariable("user", StringType), new EnvVariable("age", IntType)],
+  functions: [
+    new EnvFunction(
+      "isAdult",
+      new GlobalFunctionOverload("isAdult_int", [IntType], BoolType, (value) =>
+        new BoolValue(value.value() >= 18n)
+      )
+    ),
+  ],
+});
 
 // Compile and run
 const ast = env.compile('user + " is adult: " + string(isAdult(age))');
@@ -396,11 +397,11 @@ console.log(result.value()); // "Alice is adult: true"
 ### Macro Example
 
 ```typescript
-import { Env, IntType, Types, VariableOption } from "cel-ts";
+import { Env, EnvVariable, IntType, Types } from "cel-ts";
 
-const env = new Env(
-  new VariableOption("numbers", Types.list(IntType))
-);
+const env = new Env({
+  variables: [new EnvVariable("numbers", Types.list(IntType))],
+});
 
 // Filter positive numbers and double them
 const ast = env.compile('numbers.filter(x, x > 0).map(x, x * 2)');

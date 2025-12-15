@@ -1,28 +1,29 @@
 import {
   Env,
-  FunctionOption,
-  FunctionOverload,
+  EnvFunction,
+  EnvVariable,
+  MemberFunctionOverload,
   StringType,
   StringValue,
-  VariableOption,
 } from "../src/cel";
 
-const env = new Env(
-  new VariableOption("i", StringType),
-  new VariableOption("you", StringType),
-  new FunctionOption(
-    "greet",
-    FunctionOverload.member(
-      "string_greet_string",
-      [StringType, StringType],
-      StringType,
-      (lhs, rhs) =>
-        new StringValue(
-          `Hello ${String(rhs.value())}! Nice to meet you, I'm ${String(lhs.value())}.`
-        )
-    )
-  )
-);
+const env = new Env({
+  variables: [new EnvVariable("i", StringType), new EnvVariable("you", StringType)],
+  functions: [
+    new EnvFunction(
+      "greet",
+      new MemberFunctionOverload(
+        "string_greet_string",
+        [StringType, StringType],
+        StringType,
+        (lhs, rhs) =>
+          new StringValue(
+            `Hello ${String(rhs.value())}! Nice to meet you, I'm ${String(lhs.value())}.`
+          )
+      )
+    ),
+  ],
+});
 
 const ast = env.compile("i.greet(you)");
 const program = env.program(ast);

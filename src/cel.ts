@@ -320,6 +320,65 @@ export interface EnvOption {
 }
 
 /**
+ * Object-style options for creating an Env instance.
+ */
+export interface EnvOptions {
+  /** Variables to declare in the environment */
+  variables?: readonly EnvVariableOption[];
+  /** Constants to declare in the environment */
+  constants?: readonly EnvConstantOption[];
+  /** Functions (with overloads) to register */
+  functions?: readonly EnvFunctionOption[];
+  /** Container name for identifier resolution */
+  container?: string;
+  /** Custom type adapter */
+  adapter?: TypeAdapter;
+  /** Disable standard library registration */
+  disableStandardLibrary?: boolean;
+  /** Disable type checking */
+  disableTypeChecking?: boolean;
+  /** Escape hatch for providing custom EnvOption instances */
+  extraOptions?: readonly EnvOption[];
+}
+
+export interface EnvVariableOption {
+  name: string;
+  type: Type;
+}
+
+/**
+ * Helper class for declaring variables within EnvOptions.
+ */
+export class EnvVariable implements EnvVariableOption {
+  constructor(
+    public readonly name: string,
+    public readonly type: Type
+  ) {}
+}
+
+export interface EnvConstantOption {
+  name: string;
+  type: Type;
+  value: Value;
+}
+
+export interface EnvFunctionOption {
+  name: string;
+  overloads: readonly FunctionOverload[];
+}
+
+/**
+ * Helper class for declaring functions within EnvOptions.
+ */
+export class EnvFunction implements EnvFunctionOption {
+  readonly overloads: readonly FunctionOverload[];
+
+  constructor(public readonly name: string, ...overloads: FunctionOverload[]) {
+    this.overloads = overloads;
+  }
+}
+
+/**
  * Declare a variable with a name and type.
  */
 export class VariableOption implements EnvOption {
@@ -415,46 +474,6 @@ export class FunctionOverload {
   }
 
   /**
-   * Create a global overload instance.
-   */
-  static global(
-    id: string,
-    argTypes: Type[],
-    resultType: Type,
-    binding?: UnaryBinding | BinaryBinding | FunctionBinding,
-    options: { typeParams?: readonly string[] } = {}
-  ): FunctionOverload {
-    const overloadOptions: FunctionOverloadOptions = {
-      ...options,
-      isMember: false,
-    };
-    if (binding !== undefined) {
-      overloadOptions.binding = binding;
-    }
-    return new FunctionOverload(id, argTypes, resultType, overloadOptions);
-  }
-
-  /**
-   * Create a member overload instance.
-   */
-  static member(
-    id: string,
-    argTypes: Type[],
-    resultType: Type,
-    binding?: UnaryBinding | BinaryBinding | FunctionBinding,
-    options: { typeParams?: readonly string[] } = {}
-  ): FunctionOverload {
-    const overloadOptions: FunctionOverloadOptions = {
-      ...options,
-      isMember: true,
-    };
-    if (binding !== undefined) {
-      overloadOptions.binding = binding;
-    }
-    return new FunctionOverload(id, argTypes, resultType, overloadOptions);
-  }
-
-  /**
    * Convert to a dispatcher overload instance if runtime binding is provided.
    */
   toDispatcherOverload(): DispatcherOverload | undefined {
@@ -479,6 +498,44 @@ export class FunctionOverload {
         break;
     }
     return dispatcherOverload;
+  }
+}
+
+/**
+ * Global function overload helper class.
+ */
+export class GlobalFunctionOverload extends FunctionOverload {
+  constructor(
+    id: string,
+    argTypes: Type[],
+    resultType: Type,
+    binding?: UnaryBinding | BinaryBinding | FunctionBinding,
+    options: { typeParams?: readonly string[] } = {}
+  ) {
+    super(id, argTypes, resultType, {
+      ...options,
+      isMember: false,
+      binding,
+    });
+  }
+}
+
+/**
+ * Member function overload helper class.
+ */
+export class MemberFunctionOverload extends FunctionOverload {
+  constructor(
+    id: string,
+    argTypes: Type[],
+    resultType: Type,
+    binding?: UnaryBinding | BinaryBinding | FunctionBinding,
+    options: { typeParams?: readonly string[] } = {}
+  ) {
+    super(id, argTypes, resultType, {
+      ...options,
+      isMember: true,
+      binding,
+    });
   }
 }
 
@@ -540,20 +597,9 @@ export class Env {
   private dispatcher!: Dispatcher;
   private parser!: Parser;
 
-  constructor(...options: EnvOption[]) {
-    const config: EnvConfig = {
-      container: "",
-      variables: [],
-      functions: [],
-      functionOverloads: new Map(),
-      adapter: new DefaultTypeAdapter(),
-      disableStandardLibrary: false,
-      disableTypeChecking: false,
-    };
-
-    for (const opt of options) {
-      opt.apply(config);
-    }
+  constructor(options: EnvOptions = {}) {
+    const config = Env.createDefaultConfig();
+    Env.applyOptions(config, Env.normalizeOptions(options));
     this.initialize(config);
   }
 
@@ -637,18 +683,9 @@ export class Env {
   /**
    * Extend this environment with additional options.
    */
-  extend(...options: EnvOption[]): Env {
-    const newConfig: EnvConfig = {
-      ...this.config,
-      variables: [...this.config.variables],
-      functions: [...this.config.functions],
-      functionOverloads: new Map(this.config.functionOverloads),
-    };
-
-    for (const opt of options) {
-      opt.apply(newConfig);
-    }
-
+  extend(options: EnvOptions = {}): Env {
+    const newConfig = Env.cloneConfig(this.config);
+    Env.applyOptions(newConfig, Env.normalizeOptions(options));
     return Env.fromConfig(newConfig);
   }
 
@@ -684,6 +721,76 @@ export class Env {
     env.initialize(config);
     return env;
   }
+
+  private static createDefaultConfig(): EnvConfig {
+    return {
+      container: "",
+      variables: [],
+      functions: [],
+      functionOverloads: new Map(),
+      adapter: new DefaultTypeAdapter(),
+      disableStandardLibrary: false,
+      disableTypeChecking: false,
+    };
+  }
+
+  private static cloneConfig(config: EnvConfig): EnvConfig {
+    return {
+      container: config.container,
+      variables: [...config.variables],
+      functions: [...config.functions],
+      functionOverloads: new Map(
+        [...config.functionOverloads.entries()].map(([name, overloads]) => [name, [...overloads]])
+      ),
+      adapter: config.adapter,
+      disableStandardLibrary: config.disableStandardLibrary,
+      disableTypeChecking: config.disableTypeChecking,
+    };
+  }
+
+  private static applyOptions(config: EnvConfig, options: readonly EnvOption[]): void {
+    for (const opt of options) {
+      opt.apply(config);
+    }
+  }
+
+  private static normalizeOptions(options: EnvOptions): EnvOption[] {
+    const normalized: EnvOption[] = [];
+
+    for (const variable of options.variables ?? []) {
+      normalized.push(new VariableOption(variable.name, variable.type));
+    }
+
+    for (const constant of options.constants ?? []) {
+      normalized.push(new ConstantOption(constant.name, constant.type, constant.value));
+    }
+
+    for (const fn of options.functions ?? []) {
+      normalized.push(new FunctionOption(fn.name, ...fn.overloads));
+    }
+
+    if (options.container) {
+      normalized.push(new ContainerOption(options.container));
+    }
+
+    if (options.adapter) {
+      normalized.push(new AdapterOption(options.adapter));
+    }
+
+    if (options.disableStandardLibrary) {
+      normalized.push(new DisableStandardLibraryOption());
+    }
+
+    if (options.disableTypeChecking) {
+      normalized.push(new DisableTypeCheckingOption());
+    }
+
+    if (options.extraOptions) {
+      normalized.push(...options.extraOptions);
+    }
+
+    return normalized;
+  }
 }
 
 // ============================================================================
@@ -718,4 +825,3 @@ export {
   isError
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";
-
