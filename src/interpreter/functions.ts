@@ -4,7 +4,7 @@
 
 import {
   BinaryDispatcherOverload,
-  type Dispatcher,
+  type Overload,
   UnaryDispatcherOverload,
   VariadicDispatcherOverload,
 } from "./dispatcher";
@@ -25,556 +25,455 @@ import {
   toTypeValue,
 } from "./values";
 
-/**
- * Register all standard CEL functions.
- */
-export function registerStandardFunctions(dispatcher: Dispatcher): void {
-  registerSizeFunctions(dispatcher);
-  registerStringFunctions(dispatcher);
-  registerTypeConversions(dispatcher);
-  registerComparisonFunctions(dispatcher);
-  registerArithmeticFunctions(dispatcher);
-  registerLogicalFunctions(dispatcher);
-  registerListFunctions(dispatcher);
-  registerMapFunctions(dispatcher);
-  registerTimeFunctions(dispatcher);
-  registerMiscFunctions(dispatcher);
-}
-
-/**
- * Register size functions.
- */
-function registerSizeFunctions(dispatcher: Dispatcher): void {
+export const sizeFunctions: Overload[] = [
   // size(string) -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("size_string", (val: Value): Value => {
-      if (val instanceof StringValue) {
-        return val.size();
-      }
-      return ErrorValue.typeMismatch("string", val);
-    })
-  );
+  new UnaryDispatcherOverload("size_string", (val: Value): Value => {
+    if (val instanceof StringValue) {
+      return val.size();
+    }
+    return ErrorValue.typeMismatch("string", val);
+  }),
 
   // size(bytes) -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("size_bytes", (val: Value): Value => {
-      if (val instanceof BytesValue) {
-        return val.size();
-      }
-      return ErrorValue.typeMismatch("bytes", val);
-    })
-  );
+  new UnaryDispatcherOverload("size_bytes", (val: Value): Value => {
+    if (val instanceof BytesValue) {
+      return val.size();
+    }
+    return ErrorValue.typeMismatch("bytes", val);
+  }),
 
   // size(list) -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("size_list", (val: Value): Value => {
-      if (val instanceof ListValue) {
-        return val.size();
-      }
-      return ErrorValue.typeMismatch("list", val);
-    })
-  );
+  new UnaryDispatcherOverload("size_list", (val: Value): Value => {
+    if (val instanceof ListValue) {
+      return val.size();
+    }
+    return ErrorValue.typeMismatch("list", val);
+  }),
 
   // size(map) -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("size_map", (val: Value): Value => {
-      if (val instanceof MapValue) {
-        return val.size();
-      }
-      return ErrorValue.typeMismatch("map", val);
-    })
-  );
-}
+  new UnaryDispatcherOverload("size_map", (val: Value): Value => {
+    if (val instanceof MapValue) {
+      return val.size();
+    }
+    return ErrorValue.typeMismatch("map", val);
+  }),
+];
 
-/**
- * Register string functions.
- */
-function registerStringFunctions(dispatcher: Dispatcher): void {
+export const stringFunctions: Overload[] = [
   // string.contains(string) -> bool
-  dispatcher.add(
-    new BinaryDispatcherOverload("contains_string", (lhs: Value, rhs: Value): Value => {
-      if (lhs instanceof StringValue && rhs instanceof StringValue) {
-        return lhs.contains(rhs);
-      }
-      return ErrorValue.typeMismatch("string", lhs);
-    })
-  );
+  new BinaryDispatcherOverload("contains_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+      return lhs.contains(rhs);
+    }
+    return ErrorValue.typeMismatch("string", lhs);
+  }),
 
   // string.startsWith(string) -> bool
-  dispatcher.add(
-    new BinaryDispatcherOverload("startsWith_string", (lhs: Value, rhs: Value): Value => {
-      if (lhs instanceof StringValue && rhs instanceof StringValue) {
-        return lhs.startsWith(rhs);
-      }
-      return ErrorValue.typeMismatch("string", lhs);
-    })
-  );
+  new BinaryDispatcherOverload("startsWith_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+      return lhs.startsWith(rhs);
+    }
+    return ErrorValue.typeMismatch("string", lhs);
+  }),
 
   // string.endsWith(string) -> bool
-  dispatcher.add(
-    new BinaryDispatcherOverload("endsWith_string", (lhs: Value, rhs: Value): Value => {
-      if (lhs instanceof StringValue && rhs instanceof StringValue) {
-        return lhs.endsWith(rhs);
-      }
-      return ErrorValue.typeMismatch("string", lhs);
-    })
-  );
+  new BinaryDispatcherOverload("endsWith_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+      return lhs.endsWith(rhs);
+    }
+    return ErrorValue.typeMismatch("string", lhs);
+  }),
 
   // string.matches(string) -> bool
-  dispatcher.add(
-    new BinaryDispatcherOverload("matches_string", (lhs: Value, rhs: Value): Value => {
-      if (lhs instanceof StringValue && rhs instanceof StringValue) {
-        return lhs.matches(rhs);
-      }
-      return ErrorValue.typeMismatch("string", lhs);
-    })
-  );
+  new BinaryDispatcherOverload("matches_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+      return lhs.matches(rhs);
+    }
+    return ErrorValue.typeMismatch("string", lhs);
+  }),
 
   // matches(string, string) -> bool (global function)
-  dispatcher.add(
-    new BinaryDispatcherOverload("matches", (lhs: Value, rhs: Value): Value => {
-      if (lhs instanceof StringValue && rhs instanceof StringValue) {
-        return lhs.matches(rhs);
-      }
-      return ErrorValue.typeMismatch("string", lhs);
-    })
-  );
+  new BinaryDispatcherOverload("matches", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+      return lhs.matches(rhs);
+    }
+    return ErrorValue.typeMismatch("string", lhs);
+  }),
 
   // string.toLowerCase() -> string
-  dispatcher.add(
-    new UnaryDispatcherOverload("lowerAscii_string", (val: Value): Value => {
-      if (val instanceof StringValue) {
-        return StringValue.of(val.value().toLowerCase());
-      }
-      return ErrorValue.typeMismatch("string", val);
-    })
-  );
+  new UnaryDispatcherOverload("lowerAscii_string", (val: Value): Value => {
+    if (val instanceof StringValue) {
+      return StringValue.of(val.value().toLowerCase());
+    }
+    return ErrorValue.typeMismatch("string", val);
+  }),
 
   // string.toUpperCase() -> string
-  dispatcher.add(
-    new UnaryDispatcherOverload("upperAscii_string", (val: Value): Value => {
-      if (val instanceof StringValue) {
-        return StringValue.of(val.value().toUpperCase());
-      }
-      return ErrorValue.typeMismatch("string", val);
-    })
-  );
+  new UnaryDispatcherOverload("upperAscii_string", (val: Value): Value => {
+    if (val instanceof StringValue) {
+      return StringValue.of(val.value().toUpperCase());
+    }
+    return ErrorValue.typeMismatch("string", val);
+  }),
 
   // string.trim() -> string
-  dispatcher.add(
-    new UnaryDispatcherOverload("trim_string", (val: Value): Value => {
-      if (val instanceof StringValue) {
-        return StringValue.of(val.value().trim());
-      }
-      return ErrorValue.typeMismatch("string", val);
-    })
-  );
+  new UnaryDispatcherOverload("trim_string", (val: Value): Value => {
+    if (val instanceof StringValue) {
+      return StringValue.of(val.value().trim());
+    }
+    return ErrorValue.typeMismatch("string", val);
+  }),
 
   // string.split(string) -> list(string)
-  dispatcher.add(
-    new BinaryDispatcherOverload("split_string", (lhs: Value, rhs: Value): Value => {
-      if (lhs instanceof StringValue && rhs instanceof StringValue) {
-        const parts = lhs.value().split(rhs.value());
-        return ListValue.of(parts.map((p) => StringValue.of(p)));
-      }
-      return ErrorValue.typeMismatch("string", lhs);
-    })
-  );
+  new BinaryDispatcherOverload("split_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+      const parts = lhs.value().split(rhs.value());
+      return ListValue.of(parts.map((p) => StringValue.of(p)));
+    }
+    return ErrorValue.typeMismatch("string", lhs);
+  }),
 
   // string.join(list) -> string
-  dispatcher.add(
-    new BinaryDispatcherOverload("join_string", (lhs: Value, rhs: Value): Value => {
-      if (lhs instanceof ListValue && rhs instanceof StringValue) {
-        const parts: string[] = [];
-        for (const elem of lhs) {
-          if (elem instanceof StringValue) {
-            parts.push(elem.value());
-          } else {
-            return ErrorValue.typeMismatch("string", elem);
-          }
+  new BinaryDispatcherOverload("join_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof ListValue && rhs instanceof StringValue) {
+      const parts: string[] = [];
+      for (const elem of lhs) {
+        if (elem instanceof StringValue) {
+          parts.push(elem.value());
+        } else {
+          return ErrorValue.typeMismatch("string", elem);
         }
-        return StringValue.of(parts.join(rhs.value()));
       }
-      return ErrorValue.typeMismatch("list", lhs);
-    })
-  );
+      return StringValue.of(parts.join(rhs.value()));
+    }
+    return ErrorValue.typeMismatch("list", lhs);
+  }),
 
   // string.replace(string, string) -> string
-  dispatcher.add(
-    new VariadicDispatcherOverload("replace_string", (args: Value[]): Value => {
-      if (args.length !== 3) {
-        return ErrorValue.create("replace requires 3 arguments");
-      }
-      const [str, from, to] = args;
-      if (str instanceof StringValue && from instanceof StringValue && to instanceof StringValue) {
-        return StringValue.of(str.value().replaceAll(from.value(), to.value()));
-      }
-      return ErrorValue.typeMismatch("string", str!);
-    })
-  );
-}
+  new VariadicDispatcherOverload("replace_string", (args: Value[]): Value => {
+    if (args.length !== 3) {
+      return ErrorValue.create("replace requires 3 arguments");
+    }
+    const [str, from, to] = args;
+    if (str instanceof StringValue && from instanceof StringValue && to instanceof StringValue) {
+      return StringValue.of(str.value().replaceAll(from.value(), to.value()));
+    }
+    return ErrorValue.typeMismatch("string", str!);
+  }),
+];
 
-/**
- * Register type conversion functions.
- */
-function registerTypeConversions(dispatcher: Dispatcher): void {
+export const typeConversionFunctions: Overload[] = [
   // int(value) -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("int", (val: Value): Value => {
-      if (val instanceof IntValue) {
-        return val;
+  new UnaryDispatcherOverload("int", (val: Value): Value => {
+    if (val instanceof IntValue) {
+      return val;
+    }
+    if (val instanceof UintValue) {
+      return IntValue.of(val.value());
+    }
+    if (val instanceof DoubleValue) {
+      const d = val.value();
+      if (!Number.isFinite(d)) {
+        return ErrorValue.create("cannot convert infinity or NaN to int");
       }
-      if (val instanceof UintValue) {
-        return IntValue.of(val.value());
+      return IntValue.of(Math.trunc(d));
+    }
+    if (val instanceof StringValue) {
+      try {
+        const n = BigInt(val.value());
+        return IntValue.of(n);
+      } catch {
+        return ErrorValue.create(`cannot parse '${val.value()}' as int`);
       }
-      if (val instanceof DoubleValue) {
-        const d = val.value();
-        if (!Number.isFinite(d)) {
-          return ErrorValue.create("cannot convert infinity or NaN to int");
-        }
-        return IntValue.of(Math.trunc(d));
-      }
-      if (val instanceof StringValue) {
-        try {
-          const n = BigInt(val.value());
-          return IntValue.of(n);
-        } catch {
-          return ErrorValue.create(`cannot parse '${val.value()}' as int`);
-        }
-      }
-      if (val instanceof TimestampValue) {
-        return IntValue.of(val.value() / 1_000_000_000n);
-      }
-      return ErrorValue.create(`cannot convert ${val.type()} to int`);
-    })
-  );
+    }
+    if (val instanceof TimestampValue) {
+      return IntValue.of(val.value() / 1_000_000_000n);
+    }
+    return ErrorValue.create(`cannot convert ${val.type()} to int`);
+  }),
 
   // uint(value) -> uint
-  dispatcher.add(
-    new UnaryDispatcherOverload("uint", (val: Value): Value => {
-      if (val instanceof UintValue) {
-        return val;
+  new UnaryDispatcherOverload("uint", (val: Value): Value => {
+    if (val instanceof UintValue) {
+      return val;
+    }
+    if (val instanceof IntValue) {
+      const n = val.value();
+      if (n < 0n) {
+        return ErrorValue.create("cannot convert negative int to uint");
       }
-      if (val instanceof IntValue) {
-        const n = val.value();
+      return UintValue.of(n);
+    }
+    if (val instanceof DoubleValue) {
+      const d = val.value();
+      if (!Number.isFinite(d) || d < 0) {
+        return ErrorValue.create("cannot convert to uint");
+      }
+      return UintValue.of(Math.trunc(d));
+    }
+    if (val instanceof StringValue) {
+      try {
+        const n = BigInt(val.value());
         if (n < 0n) {
-          return ErrorValue.create("cannot convert negative int to uint");
+          return ErrorValue.create("cannot convert negative string to uint");
         }
         return UintValue.of(n);
+      } catch {
+        return ErrorValue.create(`cannot parse '${val.value()}' as uint`);
       }
-      if (val instanceof DoubleValue) {
-        const d = val.value();
-        if (!Number.isFinite(d) || d < 0) {
-          return ErrorValue.create("cannot convert to uint");
-        }
-        return UintValue.of(Math.trunc(d));
-      }
-      if (val instanceof StringValue) {
-        try {
-          const n = BigInt(val.value());
-          if (n < 0n) {
-            return ErrorValue.create("cannot convert negative string to uint");
-          }
-          return UintValue.of(n);
-        } catch {
-          return ErrorValue.create(`cannot parse '${val.value()}' as uint`);
-        }
-      }
-      return ErrorValue.create(`cannot convert ${val.type()} to uint`);
-    })
-  );
+    }
+    return ErrorValue.create(`cannot convert ${val.type()} to uint`);
+  }),
 
   // double(value) -> double
-  dispatcher.add(
-    new UnaryDispatcherOverload("double", (val: Value): Value => {
-      if (val instanceof DoubleValue) {
-        return val;
+  new UnaryDispatcherOverload("double", (val: Value): Value => {
+    if (val instanceof DoubleValue) {
+      return val;
+    }
+    if (val instanceof IntValue) {
+      return DoubleValue.of(Number(val.value()));
+    }
+    if (val instanceof UintValue) {
+      return DoubleValue.of(Number(val.value()));
+    }
+    if (val instanceof StringValue) {
+      const d = Number.parseFloat(val.value());
+      if (Number.isNaN(d) && val.value() !== "NaN") {
+        return ErrorValue.create(`cannot parse '${val.value()}' as double`);
       }
-      if (val instanceof IntValue) {
-        return DoubleValue.of(Number(val.value()));
-      }
-      if (val instanceof UintValue) {
-        return DoubleValue.of(Number(val.value()));
-      }
-      if (val instanceof StringValue) {
-        const d = Number.parseFloat(val.value());
-        if (Number.isNaN(d) && val.value() !== "NaN") {
-          return ErrorValue.create(`cannot parse '${val.value()}' as double`);
-        }
-        return DoubleValue.of(d);
-      }
-      return ErrorValue.create(`cannot convert ${val.type()} to double`);
-    })
-  );
+      return DoubleValue.of(d);
+    }
+    return ErrorValue.create(`cannot convert ${val.type()} to double`);
+  }),
 
   // string(value) -> string
-  dispatcher.add(
-    new UnaryDispatcherOverload("string", (val: Value): Value => {
-      if (val instanceof StringValue) {
-        return val;
+  new UnaryDispatcherOverload("string", (val: Value): Value => {
+    if (val instanceof StringValue) {
+      return val;
+    }
+    if (val instanceof IntValue || val instanceof UintValue) {
+      return StringValue.of(val.value().toString());
+    }
+    if (val instanceof DoubleValue) {
+      return StringValue.of(val.value().toString());
+    }
+    if (val instanceof BoolValue) {
+      return StringValue.of(val.value() ? "true" : "false");
+    }
+    if (val instanceof BytesValue) {
+      const decoder = new TextDecoder();
+      try {
+        return StringValue.of(decoder.decode(val.value()));
+      } catch {
+        return ErrorValue.create("invalid UTF-8 in bytes");
       }
-      if (val instanceof IntValue || val instanceof UintValue) {
-        return StringValue.of(val.value().toString());
-      }
-      if (val instanceof DoubleValue) {
-        return StringValue.of(val.value().toString());
-      }
-      if (val instanceof BoolValue) {
-        return StringValue.of(val.value() ? "true" : "false");
-      }
-      if (val instanceof BytesValue) {
-        const decoder = new TextDecoder();
-        try {
-          return StringValue.of(decoder.decode(val.value()));
-        } catch {
-          return ErrorValue.create("invalid UTF-8 in bytes");
-        }
-      }
-      if (val instanceof TimestampValue) {
-        return StringValue.of(val.toString());
-      }
-      if (val instanceof DurationValue) {
-        return StringValue.of(val.toString());
-      }
-      return ErrorValue.create(`cannot convert ${val.type()} to string`);
-    })
-  );
+    }
+    if (val instanceof TimestampValue) {
+      return StringValue.of(val.toString());
+    }
+    if (val instanceof DurationValue) {
+      return StringValue.of(val.toString());
+    }
+    return ErrorValue.create(`cannot convert ${val.type()} to string`);
+  }),
 
   // bytes(value) -> bytes
-  dispatcher.add(
-    new UnaryDispatcherOverload("bytes", (val: Value): Value => {
-      if (val instanceof BytesValue) {
-        return val;
-      }
-      if (val instanceof StringValue) {
-        return BytesValue.fromString(val.value());
-      }
-      return ErrorValue.create(`cannot convert ${val.type()} to bytes`);
-    })
-  );
+  new UnaryDispatcherOverload("bytes", (val: Value): Value => {
+    if (val instanceof BytesValue) {
+      return val;
+    }
+    if (val instanceof StringValue) {
+      return BytesValue.fromString(val.value());
+    }
+    return ErrorValue.create(`cannot convert ${val.type()} to bytes`);
+  }),
 
   // bool(value) -> bool
-  dispatcher.add(
-    new UnaryDispatcherOverload("bool", (val: Value): Value => {
-      if (val instanceof BoolValue) {
-        return val;
+  new UnaryDispatcherOverload("bool", (val: Value): Value => {
+    if (val instanceof BoolValue) {
+      return val;
+    }
+    if (val instanceof StringValue) {
+      const s = val.value().toLowerCase();
+      if (s === "true") {
+        return BoolValue.True;
       }
-      if (val instanceof StringValue) {
-        const s = val.value().toLowerCase();
-        if (s === "true") {
-          return BoolValue.True;
-        }
-        if (s === "false") {
-          return BoolValue.False;
-        }
-        return ErrorValue.create(`cannot parse '${val.value()}' as bool`);
+      if (s === "false") {
+        return BoolValue.False;
       }
-      return ErrorValue.create(`cannot convert ${val.type()} to bool`);
-    })
-  );
+      return ErrorValue.create(`cannot parse '${val.value()}' as bool`);
+    }
+    return ErrorValue.create(`cannot convert ${val.type()} to bool`);
+  }),
 
   // type(value) -> type
-  dispatcher.add(
-    new UnaryDispatcherOverload("type", (val: Value): Value => {
-      return toTypeValue(val.type());
-    })
-  );
+  new UnaryDispatcherOverload("type", (val: Value): Value => {
+    return toTypeValue(val.type());
+  }),
 
   // dyn(value) -> dyn
-  dispatcher.add(
-    new UnaryDispatcherOverload("dyn", (val: Value): Value => {
-      return val;
-    })
-  );
-}
+  new UnaryDispatcherOverload("dyn", (val: Value): Value => {
+    return val;
+  }),
+];
 
-/**
- * Register comparison functions.
- */
-function registerComparisonFunctions(_dispatcher: Dispatcher): void {
+export const comparisonFunctions: Overload[] = [
   // No additional comparison functions needed - handled by BinaryValue
-}
+];
 
-/**
- * Register arithmetic functions.
- */
-function registerArithmeticFunctions(_dispatcher: Dispatcher): void {
+export const arithmeticFunctions: Overload[] = [
   // No additional arithmetic functions needed - handled by BinaryValue
-}
+];
 
-/**
- * Register logical functions.
- */
-function registerLogicalFunctions(_dispatcher: Dispatcher): void {
+export const logicalFunctions: Overload[] = [
   // No additional logical functions needed - handled by AndValue/OrValue/NotValue
-}
+];
 
-/**
- * Register list functions.
- */
-function registerListFunctions(_dispatcher: Dispatcher): void {
+export const listFunctions: Overload[] = [
   // list.all(predicate) is handled by comprehensions
   // list.exists(predicate) is handled by comprehensions
   // list.exists_one(predicate) is handled by comprehensions
   // list.filter(predicate) is handled by comprehensions
   // list.map(expr) is handled by comprehensions
   // list + list is handled by BinaryValue
-}
+];
 
-/**
- * Register map functions.
- */
-function registerMapFunctions(_dispatcher: Dispatcher): void {
+export const mapFunctions: Overload[] = [
   // has(map.key) - existence test - handled specially during planning
   // map.all(predicate) is handled by comprehensions
   // map.exists(predicate) is handled by comprehensions
   // map.filter(predicate) is handled by comprehensions
   // map.map(expr) is handled by comprehensions
-}
+];
 
-/**
- * Register time-related functions.
- */
-function registerTimeFunctions(dispatcher: Dispatcher): void {
+export const timeFunctions: Overload[] = [
   // timestamp(string) -> timestamp
-  dispatcher.add(
-    new UnaryDispatcherOverload("timestamp_string", (val: Value): Value => {
-      if (val instanceof StringValue) {
-        const date = new Date(val.value());
-        if (isNaN(date.getTime())) {
-          return ErrorValue.create(`cannot parse '${val.value()}' as timestamp`);
-        }
-        return TimestampValue.fromDate(date);
+  new UnaryDispatcherOverload("timestamp_string", (val: Value): Value => {
+    if (val instanceof StringValue) {
+      const date = new Date(val.value());
+      if (isNaN(date.getTime())) {
+        return ErrorValue.create(`cannot parse '${val.value()}' as timestamp`);
       }
-      return ErrorValue.typeMismatch("string", val);
-    })
-  );
+      return TimestampValue.fromDate(date);
+    }
+    return ErrorValue.typeMismatch("string", val);
+  }),
 
   // timestamp(int) -> timestamp (seconds since epoch)
-  dispatcher.add(
-    new UnaryDispatcherOverload("timestamp_int", (val: Value): Value => {
-      if (val instanceof IntValue) {
-        return TimestampValue.fromSeconds(Number(val.value()));
-      }
-      return ErrorValue.typeMismatch("int", val);
-    })
-  );
+  new UnaryDispatcherOverload("timestamp_int", (val: Value): Value => {
+    if (val instanceof IntValue) {
+      return TimestampValue.fromSeconds(Number(val.value()));
+    }
+    return ErrorValue.typeMismatch("int", val);
+  }),
 
   // duration(string) -> duration
-  dispatcher.add(
-    new UnaryDispatcherOverload("duration_string", (val: Value): Value => {
-      if (val instanceof StringValue) {
-        const parsed = parseDuration(val.value());
-        if (isError(parsed)) {
-          return parsed;
-        }
+  new UnaryDispatcherOverload("duration_string", (val: Value): Value => {
+    if (val instanceof StringValue) {
+      const parsed = parseDuration(val.value());
+      if (isError(parsed)) {
         return parsed;
       }
-      return ErrorValue.typeMismatch("string", val);
-    })
-  );
+      return parsed;
+    }
+    return ErrorValue.typeMismatch("string", val);
+  }),
 
   // timestamp.getFullYear() -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("getFullYear", (val: Value): Value => {
-      if (val instanceof TimestampValue) {
-        return val.getFullYear();
-      }
-      return ErrorValue.typeMismatch("timestamp", val);
-    })
-  );
+  new UnaryDispatcherOverload("getFullYear", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val.getFullYear();
+    }
+    return ErrorValue.typeMismatch("timestamp", val);
+  }),
 
   // timestamp.getMonth() -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("getMonth", (val: Value): Value => {
-      if (val instanceof TimestampValue) {
-        return val.getMonth();
-      }
-      return ErrorValue.typeMismatch("timestamp", val);
-    })
-  );
+  new UnaryDispatcherOverload("getMonth", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val.getMonth();
+    }
+    return ErrorValue.typeMismatch("timestamp", val);
+  }),
 
   // timestamp.getDayOfMonth() -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("getDayOfMonth", (val: Value): Value => {
-      if (val instanceof TimestampValue) {
-        return val.getDayOfMonth();
-      }
-      return ErrorValue.typeMismatch("timestamp", val);
-    })
-  );
+  new UnaryDispatcherOverload("getDayOfMonth", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val.getDayOfMonth();
+    }
+    return ErrorValue.typeMismatch("timestamp", val);
+  }),
 
   // timestamp.getDayOfWeek() -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("getDayOfWeek", (val: Value): Value => {
-      if (val instanceof TimestampValue) {
-        return val.getDayOfWeek();
-      }
-      return ErrorValue.typeMismatch("timestamp", val);
-    })
-  );
+  new UnaryDispatcherOverload("getDayOfWeek", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val.getDayOfWeek();
+    }
+    return ErrorValue.typeMismatch("timestamp", val);
+  }),
 
   // timestamp.getHours() -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("getHours", (val: Value): Value => {
-      if (val instanceof TimestampValue) {
-        return val.getHours();
-      }
-      if (val instanceof DurationValue) {
-        return val.getHours();
-      }
-      return ErrorValue.typeMismatch("timestamp or duration", val);
-    })
-  );
+  new UnaryDispatcherOverload("getHours", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val.getHours();
+    }
+    if (val instanceof DurationValue) {
+      return val.getHours();
+    }
+    return ErrorValue.typeMismatch("timestamp or duration", val);
+  }),
 
   // timestamp.getMinutes() -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("getMinutes", (val: Value): Value => {
-      if (val instanceof TimestampValue) {
-        return val.getMinutes();
-      }
-      if (val instanceof DurationValue) {
-        return val.getMinutes();
-      }
-      return ErrorValue.typeMismatch("timestamp or duration", val);
-    })
-  );
+  new UnaryDispatcherOverload("getMinutes", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val.getMinutes();
+    }
+    if (val instanceof DurationValue) {
+      return val.getMinutes();
+    }
+    return ErrorValue.typeMismatch("timestamp or duration", val);
+  }),
 
   // timestamp.getSeconds() -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("getSeconds", (val: Value): Value => {
-      if (val instanceof TimestampValue) {
-        return val.getSeconds();
-      }
-      if (val instanceof DurationValue) {
-        return val.getSeconds();
-      }
-      return ErrorValue.typeMismatch("timestamp or duration", val);
-    })
-  );
+  new UnaryDispatcherOverload("getSeconds", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val.getSeconds();
+    }
+    if (val instanceof DurationValue) {
+      return val.getSeconds();
+    }
+    return ErrorValue.typeMismatch("timestamp or duration", val);
+  }),
 
   // timestamp.getMilliseconds() -> int
-  dispatcher.add(
-    new UnaryDispatcherOverload("getMilliseconds", (val: Value): Value => {
-      if (val instanceof TimestampValue) {
-        return val.getMilliseconds();
-      }
-      if (val instanceof DurationValue) {
-        return val.getMilliseconds();
-      }
-      return ErrorValue.typeMismatch("timestamp or duration", val);
-    })
-  );
-}
+  new UnaryDispatcherOverload("getMilliseconds", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val.getMilliseconds();
+    }
+    if (val instanceof DurationValue) {
+      return val.getMilliseconds();
+    }
+    return ErrorValue.typeMismatch("timestamp or duration", val);
+  }),
+];
 
-/**
- * Register miscellaneous functions.
- */
-function registerMiscFunctions(_dispatcher: Dispatcher): void {
+export const miscFunctions: Overload[] = [
   // has(field) - field presence test
   // Note: This is typically handled during planning, not as a runtime function
   // Conditional ternary is handled by ConditionalValue
-}
+];
+
+export const standardFunctions: Overload[] = [
+  ...sizeFunctions,
+  ...stringFunctions,
+  ...typeConversionFunctions,
+  ...comparisonFunctions,
+  ...arithmeticFunctions,
+  ...logicalFunctions,
+  ...listFunctions,
+  ...mapFunctions,
+  ...timeFunctions,
+  ...miscFunctions,
+];
 
 /**
  * Parse a duration string.

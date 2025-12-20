@@ -47,18 +47,18 @@ function inferType(value: unknown): Type {
   }
 }
 
-function inferDeclarations(vars: Record<string, unknown>): VariableDecl[] {
+function inferDecls(vars: Record<string, unknown>): VariableDecl[] {
   return Object.entries(vars).map(([name, value]) => new VariableDecl(name, inferType(value)));
 }
 
 export function evaluate(
-  expression: string,
+  exp: string,
   vars?: Record<string, unknown>,
 ): EvalResult {
-  const declarations = vars ? inferDeclarations(vars) : [];
+  const declarations = vars ? inferDecls(vars) : [];
   const env = new Env({ declarations });
-  
-  const result = env.compile(expression);
+
+  const result = env.compile(exp);
   if (result.error || !result.program) {
     return {
       value: ErrorValue.create(result.error ?? "compilation failed"),

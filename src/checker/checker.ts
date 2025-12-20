@@ -2,7 +2,7 @@
 // Type checks CEL expressions using the AST representation
 // Ported from cel-go/checker/checker.go
 
-import type { ExprId, SourceInfo } from "../common/ast";
+import type { ExprId } from "../common/ast";
 import {
   type AST,
   type CallExpr,
@@ -19,6 +19,7 @@ import {
   type SelectExpr,
   type StructExpr,
 } from "../common/ast";
+import type { SourceInfo } from "../common/source";
 import { type OverloadDecl, VariableDecl } from "./decls";
 import type { CheckerEnv } from "./env";
 import { CheckerErrors, type Location } from "./errors";
@@ -65,7 +66,7 @@ export class Checker {
     private readonly env: CheckerEnv,
     private readonly typeMap: Map<ExprId, Type>,
     private readonly refMap: Map<ExprId, ReferenceInfo>,
-  ) {}
+  ) { }
 
   /**
    * Check an AST expression

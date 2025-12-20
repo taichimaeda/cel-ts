@@ -25,8 +25,9 @@ import {
   Type,
   TypeTypeWithParam,
 } from "./checker/types";
-import type { AST as CommonAST, SourceInfo } from "./common/ast";
-import { registerStandardFunctions } from "./interpreter";
+import type { AST as CommonAST } from "./common/ast";
+import type { SourceInfo } from "./common/source";
+import { standardFunctions } from "./interpreter";
 import {
   type Activation,
   EmptyActivation,
@@ -345,7 +346,7 @@ export class EnvVariableOption {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) {}
+  ) { }
 
   register(config: EnvConfig): void {
     config.variables.push(new VariableDecl(this.name, this.type));
@@ -360,7 +361,7 @@ export class EnvConstantOption {
     readonly name: string,
     readonly type: Type,
     readonly value: Value
-  ) {}
+  ) { }
 
   register(config: EnvConfig): void {
     // TODO: Proper constant support. For now, treat as variable declaration.
@@ -531,7 +532,9 @@ export class Env {
       for (const fn of getStandardFunctions()) {
         this.checkerEnv.addFunctions(fn);
       }
-      registerStandardFunctions(this.dispatcher);
+    for (const overload of standardFunctions) {
+      this.dispatcher.add(overload);
+    }
     }
 
     for (const v of config.variables) {
@@ -739,4 +742,3 @@ export {
   isError
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";
-

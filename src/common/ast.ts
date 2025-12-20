@@ -4,6 +4,8 @@
 // Includes visitor pattern for AST traversal.
 
 import type { Type } from "../checker/types";
+import type { SourceInfo } from "./source";
+import { VisitOrder, type Visitor } from "./visitor";
 
 /**
  * Expression kinds in the CEL AST.
@@ -18,12 +20,6 @@ export enum ExprKind {
   Map,
   Struct,
   Comprehension,
-}
-
-/** Order to visit nodes during traversal. */
-export enum VisitOrder {
-  Pre = "pre",
-  Post = "post",
 }
 
 /**
@@ -44,7 +40,7 @@ export interface Expr {
  * Base class providing shared behavior for expressions.
  */
 export abstract class BaseExpr implements Expr {
-  constructor(readonly id: ExprId, readonly kind: ExprKind) {}
+  constructor(readonly id: ExprId, readonly kind: ExprKind) { }
 
   abstract accept(
     visitor: Visitor,
@@ -305,7 +301,7 @@ export interface EntryExpr {
  * Base class providing shared behavior for entries.
  */
 export abstract class BaseEntry implements EntryExpr {
-  constructor(readonly id: ExprId, readonly entryKind: EntryExprKind) {}
+  constructor(readonly id: ExprId, readonly entryKind: EntryExprKind) { }
 
   abstract accept(
     visitor: Visitor,
@@ -522,81 +518,6 @@ export type AnyExpr =
 export type AnyEntryExpr = MapEntry | StructField;
 
 // ============================================================================
-// ============================================================================
-// Visitor Pattern
-// ============================================================================
-
-/**
- * Visitor interface for traversing AST nodes.
- */
-export interface Visitor {
-  /** Visit an expression node. */
-  visitExpr(expr: Expr): void;
-  /** Visit an entry expression (map entry or struct field). */
-  visitEntryExpr(entry: EntryExpr): void;
-}
-
-/**
- * Base visitor implementation that can be extended.
- */
-export class BaseVisitor implements Visitor {
-  visitExpr(_expr: Expr): void {
-    // Override in subclass
-  }
-  visitEntryExpr(_entry: EntryExpr): void {
-    // Override in subclass
-  }
-}
-
-/**
- * Visitor implementation that only handles expressions.
- */
-export class ExprVisitor implements Visitor {
-  constructor(private readonly exprFn: (expr: Expr) => void) {}
-
-  visitExpr(expr: Expr): void {
-    this.exprFn(expr);
-  }
-
-  visitEntryExpr(_entry: EntryExpr): void {
-    // Ignore entries
-  }
-}
-
-/**
- * Visitor implementation that only handles entry nodes.
- */
-export class EntryVisitor implements Visitor {
-  constructor(private readonly entryFn: (entry: EntryExpr) => void) {}
-
-  visitExpr(_expr: Expr): void {
-    // Ignore expressions
-  }
-
-  visitEntryExpr(entry: EntryExpr): void {
-    this.entryFn(entry);
-  }
-}
-
-/**
- * Visitor implementation that handles both expressions and entries.
- */
-export class CompositeVisitor implements Visitor {
-  constructor(
-    private readonly exprFn: (expr: Expr) => void,
-    private readonly entryFn: (entry: EntryExpr) => void
-  ) {}
-
-  visitExpr(expr: Expr): void {
-    this.exprFn(expr);
-  }
-
-  visitEntryExpr(entry: EntryExpr): void {
-    this.entryFn(entry);
-  }
-}
-
-// ============================================================================
 // Expression Factory
 // ============================================================================
 
@@ -604,144 +525,6 @@ export class CompositeVisitor implements Visitor {
  * Standard accumulator variable name used in comprehensions.
  */
 export const AccumulatorName = "__result__";
-
-// ============================================================================
-// Source Information
-// ============================================================================
-
-/**
- * Offset range in source.
- */
-export interface SourceRange {
-  start: number;
-  end: number;
-}
-
-/**
- * Source information for error reporting and unparsing.
- */
-export class SourceInfo {
-  /** Original source expression */
-  readonly source: string;
-  /** Description (filename, etc.) */
-  readonly description: string;
-  /** Line offsets for computing location */
-  private readonly lineOffsets: number[];
-  /** Map from expression ID to offset range */
-  private readonly positions: Map<ExprId, SourceRange> = new Map();
-  /** Map from expression ID to macro call (original call before expansion) */
-  private readonly macroCalls: Map<ExprId, Expr> = new Map();
-
-  constructor(source: string, description = "<input>") {
-    this.source = source;
-    this.description = description;
-
-    // Compute line offsets.
-    const offsets: number[] = [];
-    for (let i = 0; i < source.length; i++) {
-      if (source[i] === "\n") {
-        offsets.push(i + 1);
-      }
-    }
-    this.lineOffsets = offsets
-  }
-
-  /**
-   * Set position for an expression ID.
-   */
-  setPosition(id: ExprId, range: SourceRange): void {
-    this.positions.set(id, range);
-  }
-
-  /**
-   * Get position for an expression ID.
-   */
-  getPosition(id: ExprId): SourceRange | undefined {
-    return this.positions.get(id);
-  }
-
-  /**
-   * Get all positions.
-   */
-  getPositions(): Map<ExprId, SourceRange> {
-    return this.positions;
-  }
-
-  /**
-   * Record a macro call (original call expression before expansion).
-   */
-  setMacroCall(id: ExprId, call: Expr): void {
-    this.macroCalls.set(id, call);
-  }
-
-  /**
-   * Get the original macro call for an expression ID.
-   */
-  getMacroCall(id: ExprId): Expr | undefined {
-    return this.macroCalls.get(id);
-  }
-
-  /**
-   * Check if an expression ID was a macro call.
-   */
-  isMacroCall(id: ExprId): boolean {
-    return this.macroCalls.has(id);
-  }
-
-  /**
-   * Get all macro calls.
-   */
-  getMacroCalls(): Map<ExprId, Expr> {
-    return this.macroCalls;
-  }
-
-  /**
-   * Clear a macro call.
-   */
-  clearMacroCall(id: ExprId): void {
-    this.macroCalls.delete(id);
-  }
-
-  /**
-   * Compute offset from line and column (1-based line, 0-based column).
-   */
-  getOffset(line: number, column: number): number {
-    if (line === 1) {
-      return column;
-    }
-    if (line < 1 || line > this.lineOffsets.length + 1) {
-      return -1;
-    }
-    return this.lineOffsets[line - 2]! + column;
-  }
-
-  /**
-   * Get location (line, column) from offset.
-   */
-  getLocation(offset: number): { line: number; column: number } {
-    let line = 1;
-    let col = offset;
-    for (const lineOffset of this.lineOffsets) {
-      if (lineOffset > offset) {
-        break;
-      }
-      line++;
-      col = offset - lineOffset;
-    }
-    return { line, column: col };
-  }
-
-  /**
-   * Get the start location for an expression ID.
-   */
-  getStartLocation(id: ExprId): { line: number; column: number } | undefined {
-    const range = this.positions.get(id);
-    if (!range) {
-      return undefined;
-    }
-    return this.getLocation(range.start);
-  }
-}
 
 // ============================================================================
 // Reference Information
@@ -801,7 +584,7 @@ export class AST {
     readonly sourceInfo: SourceInfo,
     readonly typeMap: Map<ExprId, Type> = new Map(),
     readonly refMap: Map<ExprId, ReferenceInfo> = new Map()
-  ) {}
+  ) { }
 
   /**
    * Get the type for an expression ID.

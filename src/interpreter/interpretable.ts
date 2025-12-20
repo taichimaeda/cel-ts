@@ -36,16 +36,14 @@ export interface Interpretable {
   id(): ExprId;
 
   /**
+   * Estimated evaluation cost.
+   */
+  cost(): number;
+
+  /**
    * Evaluate the expression with the given activation.
    */
   eval(activation: Activation): Value;
-}
-
-/**
- * Coster interface for estimating evaluation cost.
- */
-export interface Coster {
-  cost(): number;
 }
 
 /**
@@ -66,6 +64,10 @@ export class ConstValue implements Interpretable {
 
   eval(_activation: Activation): Value {
     return this.val;
+  }
+
+  cost(): number {
+    return 1;
   }
 }
 
@@ -92,6 +94,10 @@ export class IdentValue implements Interpretable {
     }
     return value;
   }
+
+  cost(): number {
+    return 1;
+  }
 }
 
 /**
@@ -110,6 +116,10 @@ export class AttrValue implements Interpretable {
 
   eval(activation: Activation): Value {
     return this.attr.resolve(activation);
+  }
+
+  cost(): number {
+    return 1;
   }
 
   /**
@@ -147,6 +157,10 @@ export class NotValue implements Interpretable {
     }
     return ErrorValue.typeMismatch("bool", val, this.exprId);
   }
+
+  cost(): number {
+    return 1 + this.operand.cost();
+  }
 }
 
 /**
@@ -180,6 +194,10 @@ export class NotStrictlyFalseValue implements Interpretable {
     // Treat every other value as true
     return BoolValue.True;
   }
+
+  cost(): number {
+    return 1 + this.operand.cost();
+  }
 }
 
 /**
@@ -210,6 +228,10 @@ export class NegValue implements Interpretable {
       return val.negate();
     }
     return ErrorValue.typeMismatch("int or double", val, this.exprId);
+  }
+
+  cost(): number {
+    return 1 + this.operand.cost();
   }
 }
 
@@ -270,6 +292,10 @@ export class AndValue implements Interpretable {
 
     return ErrorValue.typeMismatch("bool", lhsVal, this.lhs.id());
   }
+
+  cost(): number {
+    return 1 + this.lhs.cost() + this.rhs.cost();
+  }
 }
 
 /**
@@ -329,6 +355,10 @@ export class OrValue implements Interpretable {
 
     return ErrorValue.typeMismatch("bool", lhsVal, this.lhs.id());
   }
+
+  cost(): number {
+    return 1 + this.lhs.cost() + this.rhs.cost();
+  }
 }
 
 /**
@@ -382,6 +412,10 @@ export class ConditionalValue implements Interpretable {
 
     return ErrorValue.typeMismatch("bool", condVal, this.exprId);
   }
+
+  cost(): number {
+    return 1 + this.condition.cost() + this.truthy.cost() + this.falsy.cost();
+  }
 }
 
 /**
@@ -416,6 +450,10 @@ export class BinaryValue implements Interpretable {
     }
 
     return this.applyOperator(lhsVal, rhsVal);
+  }
+
+  cost(): number {
+    return 1 + this.lhs.cost() + this.rhs.cost();
   }
 
   private applyOperator(lhs: Value, rhs: Value): Value {
@@ -660,6 +698,10 @@ export class CallValue implements Interpretable {
 
     return call.invoke(argValues);
   }
+
+  cost(): number {
+    return 1 + this.args.reduce((sum, arg) => sum + arg.cost(), 0);
+  }
 }
 
 /**
@@ -709,6 +751,10 @@ export class CreateListValue implements Interpretable {
     }
 
     return ListValue.of(values);
+  }
+
+  cost(): number {
+    return 1 + this.elements.reduce((sum, elem) => sum + elem.cost(), 0);
   }
 }
 
@@ -771,6 +817,14 @@ export class CreateMapValue implements Interpretable {
 
     return MapValue.of(entries);
   }
+
+  cost(): number {
+    return (
+      1 +
+      this.keys.reduce((sum, key) => sum + key.cost(), 0) +
+      this.values.reduce((sum, val) => sum + val.cost(), 0)
+    );
+  }
 }
 
 /**
@@ -807,6 +861,10 @@ export class CreateStructValue implements Interpretable {
     }
 
     return MapValue.of(entries);
+  }
+
+  cost(): number {
+    return 1 + this.values.reduce((sum, val) => sum + val.cost(), 0);
   }
 }
 
@@ -874,6 +932,10 @@ export class IndexValue implements Interpretable {
 
     return ErrorValue.create(`type '${obj.type()}' does not support indexing`, this.exprId);
   }
+
+  cost(): number {
+    return 1 + this.operand.cost() + this.index.cost();
+  }
 }
 
 /**
@@ -917,6 +979,10 @@ export class FieldValue implements Interpretable {
 
     return ErrorValue.noSuchField(this.field, this.exprId);
   }
+
+  cost(): number {
+    return 1 + this.operand.cost();
+  }
 }
 
 /**
@@ -952,6 +1018,10 @@ export class HasFieldValue implements Interpretable {
 
     // For other types, field doesn't exist
     return BoolValue.False;
+  }
+
+  cost(): number {
+    return 1 + this.operand.cost();
   }
 }
 
@@ -1043,6 +1113,17 @@ export class ComprehensionValue implements Interpretable {
     loopActivation.set(this.accuVar, accu);
     return this.result.eval(loopActivation);
   }
+
+  cost(): number {
+    return (
+      1 +
+      this.iterRange.cost() +
+      this.accuInit.cost() +
+      this.loopCondition.cost() +
+      this.loopStep.cost() +
+      this.result.cost()
+    );
+  }
 }
 
 /**
@@ -1089,6 +1170,10 @@ export class TypeConversionValue implements Interpretable {
       default:
         return ErrorValue.create(`unknown type conversion: ${this.targetType}`, this.exprId);
     }
+  }
+
+  cost(): number {
+    return 1 + this.operand.cost();
   }
 
   private toInt(val: Value): Value {

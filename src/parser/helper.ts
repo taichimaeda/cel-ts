@@ -16,11 +16,11 @@ import {
   MapEntry,
   MapExpr,
   SelectExpr,
-  SourceInfo,
   StructExpr,
   StructField,
   UnspecifiedExpr,
 } from "../common/ast";
+import { SourceInfo } from "../common/source";
 import {
   BoolFalseContext,
   BoolTrueContext,

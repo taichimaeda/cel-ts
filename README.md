@@ -61,6 +61,8 @@ preferred TS runner, e.g.:
 bun run examples/cel-eval.ts
 ```
 
+Formatting examples live in `examples/format.md`.
+
 ## API Reference
 
 ### Environment
@@ -171,6 +173,25 @@ const program = env.program(checkedAst);
 // Evaluate
 const result = program.eval({ x: 10n });
 console.log(result.value());
+```
+
+### Formatting
+
+```typescript
+import { Parser, ParserHelper, Formatter } from "cel-ts";
+
+const expression = "users.filter(u, u.active).map(u, u.name)";
+const parser = new Parser();
+const result = parser.parse(expression);
+if (!result.tree) {
+  throw new Error(result.error ?? "parse failed");
+}
+
+const helper = new ParserHelper(expression);
+const ast = helper.parse(result.tree);
+
+const formatter = new Formatter({ maxLineLength: 40 });
+console.log(formatter.format(ast));
 ```
 
 ### Error Handling

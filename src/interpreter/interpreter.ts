@@ -13,33 +13,21 @@ import { type CheckResult, Checker } from "../checker/checker";
 import { type FunctionDecl, VariableDecl } from "../checker/decls";
 import { CheckerEnv, Container } from "../checker/env";
 import { getStandardFunctions } from "../checker/stdlib";
-import type { SourceInfo } from "../common/ast";
+import type { SourceInfo } from "../common/source";
 import CELLexer from "../parser/gen/CELLexer.js";
 import CELParser, { type StartContext } from "../parser/gen/CELParser.js";
 import { ParserHelper } from "../parser/helper";
 import { type Activation, EmptyActivation, LazyActivation, MapActivation } from "./activation";
 import { DefaultDispatcher, type Dispatcher } from "./dispatcher";
-import { registerStandardFunctions } from "./functions";
+import { standardFunctions } from "./functions";
 import type { Interpretable } from "./interpretable";
 import { Planner } from "./planner";
 import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, isError } from "./values";
 
 /**
- * Program represents a compiled CEL expression.
+ * Program input types for evaluation.
  */
 type ProgramInput = Activation | Map<string, Value> | Record<string, unknown>;
-
-export interface Program {
-  /**
-   * Evaluate the expression with the given variables.
-   */
-  eval(vars?: ProgramInput): EvalResult;
-
-  /**
-   * Get the type check result (if checked).
-   */
-  checkResult(): CheckResult | undefined;
-}
 
 /**
  * Result of evaluating a CEL expression.
@@ -109,7 +97,9 @@ export class Env {
 
     // Initialize dispatcher
     this.dispatcher = options.functions ?? new DefaultDispatcher();
-    registerStandardFunctions(this.dispatcher);
+    for (const overload of standardFunctions) {
+      this.dispatcher.add(overload);
+    }
   }
 
   /**
@@ -153,7 +143,7 @@ export class Env {
     const interpretable = planner.plan(ast);
 
     // Create Program
-    const program = new InterpretableProgram(
+    const program = new Program(
       interpretable,
       checkResult,
       this.adapter,
@@ -257,7 +247,7 @@ interface ParseResult {
 /**
  * Program implementation using Interpretable.
  */
-class InterpretableProgram implements Program {
+export class Program {
   private readonly interpretable: Interpretable;
   private readonly checkResultValue: CheckResult | undefined;
   private readonly adapter: TypeAdapter;

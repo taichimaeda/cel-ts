@@ -18,8 +18,10 @@ import {
   type StructExpr,
 } from "../common/ast";
 import { DefaultDispatcher, type Dispatcher, FunctionResolver } from "./dispatcher";
+import { DefaultAttributeFactory } from "./attributes";
 import {
   AndValue,
+  AttrValue,
   BinaryValue,
   CallValue,
   ComprehensionValue,
@@ -28,10 +30,7 @@ import {
   CreateListValue,
   CreateMapValue,
   CreateStructValue,
-  FieldValue,
   HasFieldValue,
-  IdentValue,
-  IndexValue,
   type Interpretable,
   NegValue,
   NotStrictlyFalseValue,
@@ -66,11 +65,13 @@ export interface PlannerOptions {
 export class Planner {
   private readonly refMap: Map<ExprId, ReferenceInfo>;
   private readonly resolver: FunctionResolver;
+  private readonly attributeFactory: DefaultAttributeFactory;
 
   constructor(options: PlannerOptions = {}) {
     const dispatcher = options.dispatcher ?? new DefaultDispatcher();
     this.resolver = new FunctionResolver(dispatcher);
     this.refMap = options.refMap ?? new Map();
+    this.attributeFactory = new DefaultAttributeFactory();
   }
 
   /**
@@ -135,7 +136,8 @@ export class Planner {
    * Plan an identifier expression.
    */
   private planIdent(e: IdentExpr): Interpretable {
-    return new IdentValue(e.id, e.name);
+    const attr = this.attributeFactory.absoluteAttribute(e.id, [e.name]);
+    return new AttrValue(attr);
   }
 
   /**
@@ -150,7 +152,9 @@ export class Planner {
       return new HasFieldValue(e.id, operand, e.field);
     }
 
-    return new FieldValue(e.id, operand, e.field, false);
+    const attr = this.ensureAttribute(operand);
+    const qualifier = this.attributeFactory.newQualifier(e.id, StringValue.of(e.field), false);
+    return attr.addQualifier(qualifier);
   }
 
   /**
@@ -282,8 +286,18 @@ export class Planner {
    */
   private planIndex(e: CallExpr): Interpretable {
     const operand = this.planExpr(e.args[0]!);
-    const index = this.planExpr(e.args[1]!);
-    return new IndexValue(e.id, operand, index, false);
+    const indexExpr = e.args[1]!;
+    const attr = this.ensureAttribute(operand);
+
+    if (indexExpr.kind === ExprKind.Literal) {
+      const value = this.literalValue(indexExpr as LiteralExpr);
+      const qualifier = this.attributeFactory.newQualifier(e.id, value, false);
+      return attr.addQualifier(qualifier);
+    }
+
+    const index = this.planExpr(indexExpr);
+    const qualifier = this.attributeFactory.newQualifier(e.id, index, false);
+    return attr.addQualifier(qualifier);
   }
 
   /**
@@ -403,6 +417,36 @@ export class Planner {
    */
   private isTypeConversion(name: string): boolean {
     return ["int", "uint", "double", "string", "bytes", "bool", "type", "dyn"].includes(name);
+  }
+
+  private ensureAttribute(interpretable: Interpretable): AttrValue {
+    if (interpretable instanceof AttrValue) {
+      return interpretable;
+    }
+    const attr = this.attributeFactory.relativeAttribute(interpretable.id(), interpretable);
+    return new AttrValue(attr);
+  }
+
+  private literalValue(e: LiteralExpr) {
+    const value = e.value;
+    switch (value.kind) {
+      case "bool":
+        return value.value ? BoolValue.True : BoolValue.False;
+      case "bytes":
+        return BytesValue.of(value.value);
+      case "double":
+        return DoubleValue.of(value.value);
+      case "int":
+        return IntValue.of(value.value);
+      case "null":
+        return NullValue.Instance;
+      case "string":
+        return StringValue.of(value.value);
+      case "uint":
+        return UintValue.of(value.value);
+      default:
+        return ErrorValue.create("unknown literal kind", e.id);
+    }
   }
 
   /**

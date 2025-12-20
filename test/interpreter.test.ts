@@ -1,20 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
   BoolType,
-  BytesType,
-  DoubleType,
-  DynType,
   FunctionDecl,
   IntType,
   ListType,
   MapType,
-  NullType,
   OverloadDecl,
   StringType,
-  TimestampType,
-  Type,
-  UintType,
-  VariableDecl,
+  VariableDecl
 } from "../src/checker";
 import {
   BinaryDispatcherOverload,

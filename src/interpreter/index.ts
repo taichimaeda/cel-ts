@@ -74,7 +74,6 @@ export {
 // Interpretable - Evaluatable expressions
 export {
   type Interpretable,
-  type Coster,
   ConstValue,
   IdentValue,
   AttrValue,
@@ -102,7 +101,7 @@ export {
 
 // Interpreter - Main API
 export {
-  type Program,
+  Program,
   type EvalResult,
   type EnvOptions,
   type CompileResult,
@@ -111,4 +110,16 @@ export {
 } from "./interpreter";
 
 // Functions - Standard functions
-export { registerStandardFunctions } from "./functions";
+export {
+  arithmeticFunctions,
+  comparisonFunctions,
+  listFunctions,
+  logicalFunctions,
+  mapFunctions,
+  miscFunctions,
+  sizeFunctions,
+  standardFunctions,
+  stringFunctions,
+  timeFunctions,
+  typeConversionFunctions,
+} from "./functions";

@@ -41,3 +41,6 @@ export * from "./cel";
 
 // Parser re-export (no conflicts)
 export * from "./parser";
+
+// Formatter (experimental utility)
+export * from "./formatter";
