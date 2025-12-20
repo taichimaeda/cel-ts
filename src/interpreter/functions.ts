@@ -21,8 +21,7 @@ import {
   TimestampValue,
   UintValue,
   type Value,
-  isError,
-  toTypeValue,
+  ValueUtil,
 } from "./values";
 
 export const sizeFunctions: Overload[] = [
@@ -308,7 +307,7 @@ export const typeConversionFunctions: Overload[] = [
 
   // type(value) -> type
   new UnaryDispatcherOverload("type", (val: Value): Value => {
-    return toTypeValue(val.type());
+    return ValueUtil.toTypeValue(val.type());
   }),
 
   // dyn(value) -> dyn
@@ -371,7 +370,7 @@ export const timeFunctions: Overload[] = [
   new UnaryDispatcherOverload("duration_string", (val: Value): Value => {
     if (val instanceof StringValue) {
       const parsed = parseDuration(val.value());
-      if (isError(parsed)) {
+      if (ValueUtil.isError(parsed)) {
         return parsed;
       }
       return parsed;

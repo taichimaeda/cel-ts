@@ -7,7 +7,7 @@ export { RuntimeType, UnknownType, OptionalType } from "./types";
 // Values - Runtime values
 export type { Value, TypeAdapter, MapEntry, ValueType } from "./values";
 export {
-    BoolValue,
+  BoolValue,
   IntValue,
   UintValue,
   DoubleValue,
@@ -23,9 +23,7 @@ export {
   UnknownValue,
   OptionalValue,
   DefaultTypeAdapter,
-  isError,
-  isUnknown,
-  isErrorOrUnknown,
+  ValueUtil,
 } from "./values";
 
 // Activation - Variable resolution

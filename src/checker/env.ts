@@ -49,13 +49,9 @@ class Scope {
  * Hierarchical scope stack for nested scopes
  */
 class Scopes {
-  private readonly parent: Scopes | null;
-  private readonly scope: Scope;
+  private readonly scope: Scope = new Scope();
 
-  constructor(parent: Scopes | null = null) {
-    this.parent = parent;
-    this.scope = new Scope();
-  }
+  constructor(private readonly parent: Scopes | null = null) {}
 
   /**
    * Add a variable declaration to the current scope
@@ -135,12 +131,9 @@ export interface TypeProvider {
  * Container for namespace resolution
  */
 export class Container {
-  readonly name: string;
   private readonly aliases: Map<string, string> = new Map();
 
-  constructor(name = "") {
-    this.name = name;
-  }
+  constructor(readonly name = "") {}
 
   /**
    * Add a type alias

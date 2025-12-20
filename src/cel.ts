@@ -2,7 +2,7 @@
 // TypeScript-native top-level API
 // Based on cel-go's cel/cel.go, cel/env.go, cel/program.go
 
-import { getStandardFunctions } from "./checker";
+import { StandardLibrary } from "./checker";
 import { Checker } from "./checker/checker";
 import { FunctionDecl, OverloadDecl, VariableDecl } from "./checker/decls";
 import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
@@ -45,7 +45,7 @@ import {
   type ErrorValue,
   type TypeAdapter,
   type Value,
-  isError,
+  ValueUtil,
 } from "./interpreter/values";
 import { Parser, ParserHelper } from "./parser";
 
@@ -57,12 +57,10 @@ import { Parser, ParserHelper } from "./parser";
  * CELError is thrown when CEL operations fail.
  */
 export class CELError extends Error {
-  readonly issues: Issues;
+  override name = "CELError";
 
-  constructor(message: string, issues?: Issues) {
+  constructor(message: string, readonly issues: Issues = new Issues([])) {
     super(message);
-    this.name = "CELError";
-    this.issues = issues ?? new Issues([]);
   }
 }
 
@@ -70,9 +68,10 @@ export class CELError extends Error {
  * CompileError is thrown when expression compilation fails.
  */
 export class CompileError extends CELError {
+  override name = "CompileError";
+
   constructor(message: string, issues: Issues) {
     super(message, issues);
-    this.name = "CompileError";
   }
 }
 
@@ -80,9 +79,10 @@ export class CompileError extends CELError {
  * ParseError is thrown when expression parsing fails.
  */
 export class ParseError extends CELError {
+  override name = "ParseError";
+
   constructor(message: string) {
     super(message);
-    this.name = "ParseError";
   }
 }
 
@@ -170,11 +170,7 @@ export const Types = new TypeBuilder();
  * Issues represents a collection of errors and warnings from parsing or type-checking.
  */
 export class Issues {
-  readonly errors: readonly CheckerError[];
-
-  constructor(errors: CheckerError[] = [], _source = "") {
-    this.errors = errors;
-  }
+  constructor(readonly errors: readonly CheckerError[] = [], _source = "") {}
 
   /**
    * Returns true if there are any errors.
@@ -213,15 +209,11 @@ export class Issues {
  * Ast represents a parsed and optionally type-checked CEL expression.
  */
 export class Ast {
-  private checked: boolean;
-
   constructor(
     readonly ast: CommonAST,
     readonly source: string,
-    isChecked: boolean = false
-  ) {
-    this.checked = isChecked;
-  }
+    private checked: boolean = false
+  ) {}
 
   /**
    * Returns true if the AST has been type-checked.
@@ -256,19 +248,11 @@ export class Ast {
 type ProgramInput = Activation | Map<string, Value> | Record<string, unknown>;
 
 export class Program {
-  private readonly interpretable: ReturnType<Planner["plan"]>;
-  private readonly adapter: TypeAdapter;
-  private readonly sourceInfo: SourceInfo;
-
   constructor(
-    interpretable: ReturnType<Planner["plan"]>,
-    adapter: TypeAdapter,
-    sourceInfo: SourceInfo
-  ) {
-    this.interpretable = interpretable;
-    this.adapter = adapter;
-    this.sourceInfo = sourceInfo;
-  }
+    private readonly interpretable: ReturnType<Planner["plan"]>,
+    private readonly adapter: TypeAdapter,
+    private readonly sourceInfo: SourceInfo
+  ) {}
 
   eval(vars?: ProgramInput): Value {
     let activation: Activation;
@@ -284,7 +268,7 @@ export class Program {
 
     const value = this.interpretable.eval(activation);
 
-    if (isError(value)) {
+    if (ValueUtil.isError(value)) {
       const message = formatRuntimeError(value as ErrorValue, this.sourceInfo);
       throw new CELError(message);
     }
@@ -529,9 +513,9 @@ export class Env {
     this.parser = new Parser();
 
     if (!config.disableStandardLibrary) {
-      for (const fn of getStandardFunctions()) {
-        this.checkerEnv.addFunctions(fn);
-      }
+    for (const fn of StandardLibrary.functions()) {
+      this.checkerEnv.addFunctions(fn);
+    }
     for (const overload of standardFunctions) {
       this.dispatcher.add(overload);
     }
@@ -647,23 +631,13 @@ export class Env {
  * Internal configuration for environment construction.
  */
 class EnvConfig {
-  container: string;
-  variables: VariableDecl[];
-  functions: FunctionDecl[];
-  functionOverloads: Map<string, DispatcherOverload[]>;
-  adapter: TypeAdapter;
-  disableStandardLibrary: boolean;
-  disableTypeChecking: boolean;
-
-  constructor() {
-    this.container = "";
-    this.variables = [];
-    this.functions = [];
-    this.functionOverloads = new Map();
-    this.adapter = new DefaultTypeAdapter();
-    this.disableStandardLibrary = false;
-    this.disableTypeChecking = false;
-  }
+  container = "";
+  variables: VariableDecl[] = [];
+  functions: FunctionDecl[] = [];
+  functionOverloads = new Map<string, DispatcherOverload[]>();
+  adapter: TypeAdapter = new DefaultTypeAdapter();
+  disableStandardLibrary = false;
+  disableTypeChecking = false;
 
   clone(): EnvConfig {
     const clone = new EnvConfig();
@@ -739,6 +713,6 @@ export {
   TimestampValue,
   TypeValue,
   UintValue,
-  isError
+  ValueUtil
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";

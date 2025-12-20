@@ -48,11 +48,7 @@ export class BoolValue implements Value {
   static readonly True = new BoolValue(true);
   static readonly False = new BoolValue(false);
 
-  private readonly val: boolean;
-
-  private constructor(val: boolean) {
-    this.val = val;
-  }
+  private constructor(private readonly val: boolean) {}
 
   static of(val: boolean): BoolValue {
     return val ? BoolValue.True : BoolValue.False;
@@ -348,11 +344,7 @@ export class DoubleValue implements Value {
 export class StringValue implements Value {
   static readonly Empty = new StringValue("");
 
-  private readonly val: string;
-
-  constructor(val: string) {
-    this.val = val;
-  }
+  constructor(private readonly val: string) {}
 
   static of(val: string): StringValue {
     if (val === "") return StringValue.Empty;
@@ -430,11 +422,7 @@ export class StringValue implements Value {
 export class BytesValue implements Value {
   static readonly Empty = new BytesValue(new Uint8Array(0));
 
-  private readonly val: Uint8Array;
-
-  constructor(val: Uint8Array) {
-    this.val = val;
-  }
+  constructor(private readonly val: Uint8Array) {}
 
   static of(val: Uint8Array | number[]): BytesValue {
     const arr = val instanceof Uint8Array ? val : new Uint8Array(val);
@@ -721,11 +709,7 @@ export class TypeValue implements Value {
   static readonly DurationType = new TypeValue(CheckerDurationType);
   static readonly TimestampType = new TypeValue(CheckerTimestampType);
 
-  private readonly typeName: ValueType;
-
-  constructor(typeName: ValueType) {
-    this.typeName = typeName;
-  }
+  constructor(private readonly typeName: ValueType) {}
 
   type(): ValueType {
     return CheckerTypeType;
@@ -747,23 +731,37 @@ export class TypeValue implements Value {
   }
 }
 
-export function toTypeValue(type: ValueType): TypeValue {
-  if (type === CheckerBoolType) return TypeValue.BoolType;
-  if (type === CheckerIntType) return TypeValue.IntType;
-  if (type === CheckerUintType) return TypeValue.UintType;
-  if (type === CheckerDoubleType) return TypeValue.DoubleType;
-  if (type === CheckerStringType) return TypeValue.StringType;
-  if (type === CheckerBytesType) return TypeValue.BytesType;
-  if (type === CheckerNullType) return TypeValue.NullType;
-  if (type === GenericListType) return TypeValue.ListType;
-  if (type === GenericMapType) return TypeValue.MapType;
-  if (type === CheckerTypeType) return TypeValue.TypeType;
-  if (type === CheckerDurationType) return TypeValue.DurationType;
-  if (type === CheckerTimestampType) return TypeValue.TimestampType;
-  return new TypeValue(type);
-}
-
 export type { ValueType } from "./types";
+
+export class ValueUtil {
+  static toTypeValue(type: ValueType): TypeValue {
+    if (type === CheckerBoolType) return TypeValue.BoolType;
+    if (type === CheckerIntType) return TypeValue.IntType;
+    if (type === CheckerUintType) return TypeValue.UintType;
+    if (type === CheckerDoubleType) return TypeValue.DoubleType;
+    if (type === CheckerStringType) return TypeValue.StringType;
+    if (type === CheckerBytesType) return TypeValue.BytesType;
+    if (type === CheckerNullType) return TypeValue.NullType;
+    if (type === GenericListType) return TypeValue.ListType;
+    if (type === GenericMapType) return TypeValue.MapType;
+    if (type === CheckerTypeType) return TypeValue.TypeType;
+    if (type === CheckerDurationType) return TypeValue.DurationType;
+    if (type === CheckerTimestampType) return TypeValue.TimestampType;
+    return new TypeValue(type);
+  }
+
+  static isError(val: Value): val is ErrorValue {
+    return val instanceof ErrorValue;
+  }
+
+  static isUnknown(val: Value): val is UnknownValue {
+    return val instanceof UnknownValue;
+  }
+
+  static isErrorOrUnknown(val: Value): boolean {
+    return ValueUtil.isError(val) || ValueUtil.isUnknown(val);
+  }
+}
 
 /**
  * Duration value (nanoseconds)
@@ -771,11 +769,7 @@ export type { ValueType } from "./types";
 export class DurationValue implements Value {
   static readonly Zero = new DurationValue(0n);
 
-  private readonly nanos: bigint;
-
-  constructor(nanos: bigint) {
-    this.nanos = nanos;
-  }
+  constructor(private readonly nanos: bigint) {}
 
   static of(nanos: bigint): DurationValue {
     if (nanos === 0n) return DurationValue.Zero;
@@ -849,11 +843,7 @@ export class DurationValue implements Value {
  * Timestamp value (Unix timestamp in nanoseconds)
  */
 export class TimestampValue implements Value {
-  private readonly nanos: bigint;
-
-  constructor(nanos: bigint) {
-    this.nanos = nanos;
-  }
+  constructor(private readonly nanos: bigint) {}
 
   static of(nanos: bigint): TimestampValue {
     return new TimestampValue(nanos);
@@ -971,13 +961,7 @@ export class TimestampValue implements Value {
  * Error value for runtime errors
  */
 export class ErrorValue implements Value {
-  private readonly message: string;
-  private readonly exprId: ExprId | undefined;
-
-  constructor(message: string, exprId?: ExprId) {
-    this.message = message;
-    this.exprId = exprId;
-  }
+  constructor(private readonly message: string, private readonly exprId?: ExprId) {}
 
   static create(message: string, exprId?: ExprId): ErrorValue {
     return new ErrorValue(message, exprId);
@@ -1084,11 +1068,7 @@ export class UnknownValue implements Value {
 export class OptionalValue implements Value {
   static readonly None = new OptionalValue(null);
 
-  private readonly inner: Value | null;
-
-  private constructor(inner: Value | null) {
-    this.inner = inner;
-  }
+  private constructor(private readonly inner: Value | null) {}
 
   static of(val: Value): OptionalValue {
     return new OptionalValue(val);
@@ -1133,27 +1113,6 @@ export class OptionalValue implements Value {
   getOrElse(defaultValue: Value): Value {
     return this.inner ?? defaultValue;
   }
-}
-
-/**
- * Check if a value is an error
- */
-export function isError(val: Value): val is ErrorValue {
-  return val instanceof ErrorValue;
-}
-
-/**
- * Check if a value is unknown
- */
-export function isUnknown(val: Value): val is UnknownValue {
-  return val instanceof UnknownValue;
-}
-
-/**
- * Check if a value is an error or unknown
- */
-export function isErrorOrUnknown(val: Value): boolean {
-  return isError(val) || isUnknown(val);
 }
 
 /**

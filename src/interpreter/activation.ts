@@ -45,13 +45,10 @@ export class EmptyActivation implements Activation {
  * Map-based activation that resolves variables from a Map
  */
 export class MapActivation implements Activation {
-  private readonly bindings: Map<string, Value>;
-  private readonly parentActivation: Activation | undefined;
-
-  constructor(bindings: Map<string, Value>, parent?: Activation) {
-    this.bindings = bindings;
-    this.parentActivation = parent;
-  }
+  constructor(
+    private readonly bindings: Map<string, Value>,
+    private readonly parentActivation?: Activation
+  ) {}
 
   resolve(name: string): Value | undefined {
     const value = this.bindings.get(name);
@@ -71,23 +68,19 @@ export class MapActivation implements Activation {
  */
 export class LazyActivation implements Activation {
   private readonly bindings: Map<string, unknown>;
-  private readonly adapter: TypeAdapter;
   private readonly cache: Map<string, Value>;
-  private readonly parentActivation: Activation | undefined;
 
   constructor(
     bindings: Map<string, unknown> | Record<string, unknown>,
-    adapter?: TypeAdapter,
-    parent?: Activation
+    private readonly adapter: TypeAdapter = new DefaultTypeAdapter(),
+    private readonly parentActivation?: Activation
   ) {
     if (bindings instanceof Map) {
       this.bindings = bindings;
     } else {
       this.bindings = new Map(Object.entries(bindings));
     }
-    this.adapter = adapter ?? new DefaultTypeAdapter();
     this.cache = new Map();
-    this.parentActivation = parent;
   }
 
   resolve(name: string): Value | undefined {
@@ -118,13 +111,10 @@ export class LazyActivation implements Activation {
  * Hierarchical activation that chains multiple activations
  */
 export class HierarchicalActivation implements Activation {
-  private readonly child: Activation;
-  private readonly parentActivation: Activation;
-
-  constructor(parent: Activation, child: Activation) {
-    this.parentActivation = parent;
-    this.child = child;
-  }
+  constructor(
+    private readonly parentActivation: Activation,
+    private readonly child: Activation
+  ) {}
 
   resolve(name: string): Value | undefined {
     const value = this.child.resolve(name);
@@ -143,11 +133,12 @@ export class HierarchicalActivation implements Activation {
  * Activation with variable scope tracking for comprehensions
  */
 export class PartialActivation implements Activation {
-  private readonly delegate: Activation;
   private readonly unknowns: Set<string>;
 
-  constructor(delegate: Activation, unknownVariables: string[]) {
-    this.delegate = delegate;
+  constructor(
+    private readonly delegate: Activation,
+    unknownVariables: string[]
+  ) {
     this.unknowns = new Set(unknownVariables);
   }
 
@@ -184,11 +175,9 @@ export class PartialActivation implements Activation {
  */
 export class MutableActivation implements Activation {
   private readonly bindings: Map<string, Value>;
-  private readonly parentActivation: Activation | undefined;
 
-  constructor(parent?: Activation) {
+  constructor(private readonly parentActivation?: Activation) {
     this.bindings = new Map();
-    this.parentActivation = parent;
   }
 
   resolve(name: string): Value | undefined {
@@ -229,11 +218,7 @@ export class MutableActivation implements Activation {
  * Activation that provides error values for undefined variables
  */
 export class StrictActivation implements Activation {
-  private readonly delegate: Activation;
-
-  constructor(delegate: Activation) {
-    this.delegate = delegate;
-  }
+  constructor(private readonly delegate: Activation) {}
 
   resolve(name: string): Value | undefined {
     const value = this.delegate.resolve(name);

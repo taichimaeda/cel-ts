@@ -41,4 +41,4 @@ export {
   UintType
 } from "./types";
 
-export { getStandardFunctions } from "./stdlib";
+export { StandardLibrary } from "./stdlib";

@@ -16,8 +16,7 @@ import {
   UintValue,
   type UnknownValue,
   type Value,
-  isError,
-  isUnknown,
+  ValueUtil,
 } from "./values";
 
 /**
@@ -112,17 +111,12 @@ export interface Interpretable {
  * String qualifier for field access like obj.field.
  */
 export class StringQualifier implements Qualifier {
-  private readonly exprId: ExprId;
-  private readonly field: string;
-  private readonly optional: boolean;
-  private readonly adapter: TypeAdapter;
-
-  constructor(exprId: ExprId, field: string, optional = false, adapter?: TypeAdapter) {
-    this.exprId = exprId;
-    this.field = field;
-    this.optional = optional;
-    this.adapter = adapter ?? new DefaultTypeAdapter();
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly field: string,
+    private readonly optional = false,
+    private readonly adapter: TypeAdapter = new DefaultTypeAdapter()
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -130,7 +124,7 @@ export class StringQualifier implements Qualifier {
 
   qualify(_activation: Activation, obj: Value): Value {
     // Propagate errors or unknown values
-    if (isError(obj) || isUnknown(obj)) {
+    if (ValueUtil.isError(obj) || ValueUtil.isUnknown(obj)) {
       return obj;
     }
 
@@ -168,15 +162,11 @@ export class StringQualifier implements Qualifier {
  * Index qualifier for index access like obj[index].
  */
 export class IndexQualifier implements Qualifier {
-  private readonly exprId: ExprId;
-  private readonly index: Value;
-  private readonly optional: boolean;
-
-  constructor(exprId: ExprId, index: Value, optional = false) {
-    this.exprId = exprId;
-    this.index = index;
-    this.optional = optional;
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly index: Value,
+    private readonly optional = false
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -184,10 +174,10 @@ export class IndexQualifier implements Qualifier {
 
   qualify(_activation: Activation, obj: Value): Value {
     // Propagate errors or unknown values
-    if (isError(obj) || isUnknown(obj)) {
+    if (ValueUtil.isError(obj) || ValueUtil.isUnknown(obj)) {
       return obj;
     }
-    if (isError(this.index) || isUnknown(this.index)) {
+    if (ValueUtil.isError(this.index) || ValueUtil.isUnknown(this.index)) {
       return this.index;
     }
 
@@ -233,15 +223,11 @@ export class IndexQualifier implements Qualifier {
  * Computed qualifier for dynamic index access like obj[expr].
  */
 export class ComputedQualifier implements Qualifier {
-  private readonly exprId: ExprId;
-  private readonly operand: Interpretable;
-  private readonly optional: boolean;
-
-  constructor(exprId: ExprId, operand: Interpretable, optional = false) {
-    this.exprId = exprId;
-    this.operand = operand;
-    this.optional = optional;
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly operand: Interpretable,
+    private readonly optional = false
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -249,13 +235,13 @@ export class ComputedQualifier implements Qualifier {
 
   qualify(activation: Activation, obj: Value): Value {
     // Propagate errors or unknown values
-    if (isError(obj) || isUnknown(obj)) {
+    if (ValueUtil.isError(obj) || ValueUtil.isUnknown(obj)) {
       return obj;
     }
 
     // Evaluate the index
     const index = this.operand.eval(activation);
-    if (isError(index) || isUnknown(index)) {
+    if (ValueUtil.isError(index) || ValueUtil.isUnknown(index)) {
       return index;
     }
 
@@ -273,21 +259,17 @@ export class ComputedQualifier implements Qualifier {
  * Absolute attribute rooted at a variable.
  */
 export class AbsoluteAttribute implements Attribute {
-  private readonly exprId: ExprId;
   private readonly namePath: readonly string[];
   private readonly quals: Qualifier[];
-  private readonly adapter: TypeAdapter;
 
   constructor(
-    exprId: ExprId,
+    private readonly exprId: ExprId,
     namePath: string[],
     qualifiers: Qualifier[] = [],
-    adapter?: TypeAdapter
+    private readonly adapter: TypeAdapter = new DefaultTypeAdapter()
   ) {
-    this.exprId = exprId;
     this.namePath = Object.freeze([...namePath]);
     this.quals = [...qualifiers];
-    this.adapter = adapter ?? new DefaultTypeAdapter();
   }
 
   id(): ExprId {
@@ -320,7 +302,7 @@ export class AbsoluteAttribute implements Attribute {
       for (let i = 1; i < this.namePath.length; i++) {
         const qual = new StringQualifier(this.exprId, this.namePath[i]!, false, this.adapter);
         value = qual.qualify(activation, value);
-        if (isError(value) || isUnknown(value)) {
+        if (ValueUtil.isError(value) || ValueUtil.isUnknown(value)) {
           return value;
         }
       }
@@ -329,7 +311,7 @@ export class AbsoluteAttribute implements Attribute {
     // Apply additional qualifiers
     for (const qual of this.quals) {
       value = qual.qualify(activation, value);
-      if (isError(value) || isUnknown(value)) {
+      if (ValueUtil.isError(value) || ValueUtil.isUnknown(value)) {
         return value;
       }
     }
@@ -342,13 +324,13 @@ export class AbsoluteAttribute implements Attribute {
  * Relative attribute from a computed operand.
  */
 export class RelativeAttribute implements Attribute {
-  private readonly exprId: ExprId;
-  private readonly operand: Interpretable;
   private readonly quals: Qualifier[];
 
-  constructor(exprId: ExprId, operand: Interpretable, qualifiers: Qualifier[] = []) {
-    this.exprId = exprId;
-    this.operand = operand;
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly operand: Interpretable,
+    qualifiers: Qualifier[] = []
+  ) {
     this.quals = [...qualifiers];
   }
 
@@ -368,14 +350,14 @@ export class RelativeAttribute implements Attribute {
   resolve(activation: Activation): Value {
     // Evaluate the operand
     let value = this.operand.eval(activation);
-    if (isError(value) || isUnknown(value)) {
+    if (ValueUtil.isError(value) || ValueUtil.isUnknown(value)) {
       return value;
     }
 
     // Apply qualifiers
     for (const qual of this.quals) {
       value = qual.qualify(activation, value);
-      if (isError(value) || isUnknown(value)) {
+      if (ValueUtil.isError(value) || ValueUtil.isUnknown(value)) {
         return value;
       }
     }
@@ -388,19 +370,14 @@ export class RelativeAttribute implements Attribute {
  * Conditional attribute for ternary expressions.
  */
 export class ConditionalAttribute implements Attribute {
-  private readonly exprId: ExprId;
-  private readonly condition: Interpretable;
-  private readonly truthy: Attribute;
-  private readonly falsy: Attribute;
-  private readonly quals: Qualifier[];
+  private readonly quals: Qualifier[] = [];
 
-  constructor(exprId: ExprId, condition: Interpretable, truthy: Attribute, falsy: Attribute) {
-    this.exprId = exprId;
-    this.condition = condition;
-    this.truthy = truthy;
-    this.falsy = falsy;
-    this.quals = [];
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly condition: Interpretable,
+    private readonly truthy: Attribute,
+    private readonly falsy: Attribute
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -422,14 +399,14 @@ export class ConditionalAttribute implements Attribute {
     // Evaluate the condition
     const condValue = this.condition.eval(activation);
 
-    if (isError(condValue)) {
+    if (ValueUtil.isError(condValue)) {
       return condValue;
     }
-    if (isUnknown(condValue)) {
+    if (ValueUtil.isUnknown(condValue)) {
       // Evaluate both branches and merge
       const truthyVal = this.truthy.resolve(activation);
       const falsyVal = this.falsy.resolve(activation);
-      if (isUnknown(truthyVal) && isUnknown(falsyVal)) {
+      if (ValueUtil.isUnknown(truthyVal) && ValueUtil.isUnknown(falsyVal)) {
         return truthyVal.merge(falsyVal as UnknownValue);
       }
       return condValue;
@@ -447,12 +424,10 @@ export class ConditionalAttribute implements Attribute {
  * Maybe attribute for optional field access.
  */
 export class MaybeAttribute implements Attribute {
-  private readonly exprId: ExprId;
   private readonly candidates: Attribute[];
   private readonly quals: Qualifier[];
 
-  constructor(exprId: ExprId, candidates: Attribute[] = []) {
-    this.exprId = exprId;
+  constructor(private readonly exprId: ExprId, candidates: Attribute[] = []) {
     this.candidates = candidates;
     this.quals = [];
   }
@@ -481,7 +456,7 @@ export class MaybeAttribute implements Attribute {
     // Try each candidate and return the first one that succeeds
     for (const candidate of this.candidates) {
       const value = candidate.resolve(activation);
-      if (!isError(value)) {
+      if (!ValueUtil.isError(value)) {
         return value;
       }
     }
@@ -499,11 +474,7 @@ export class MaybeAttribute implements Attribute {
  * Default AttributeFactory implementation.
  */
 export class DefaultAttributeFactory implements AttributeFactory {
-  private readonly adapter: TypeAdapter;
-
-  constructor(adapter?: TypeAdapter) {
-    this.adapter = adapter ?? new DefaultTypeAdapter();
-  }
+  constructor(private readonly adapter: TypeAdapter = new DefaultTypeAdapter()) {}
 
   absoluteAttribute(exprId: ExprId, names: string[]): Attribute {
     return new AbsoluteAttribute(exprId, names, [], this.adapter);

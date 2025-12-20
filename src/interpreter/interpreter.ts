@@ -12,7 +12,7 @@ import {
 import { type CheckResult, Checker } from "../checker/checker";
 import { type FunctionDecl, VariableDecl } from "../checker/decls";
 import { CheckerEnv, Container } from "../checker/env";
-import { getStandardFunctions } from "../checker/stdlib";
+import { StandardLibrary } from "../checker/stdlib";
 import type { SourceInfo } from "../common/source";
 import CELLexer from "../parser/gen/CELLexer.js";
 import CELParser, { type StartContext } from "../parser/gen/CELParser.js";
@@ -22,7 +22,7 @@ import { DefaultDispatcher, type Dispatcher } from "./dispatcher";
 import { standardFunctions } from "./functions";
 import type { Interpretable } from "./interpretable";
 import { Planner } from "./planner";
-import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, isError } from "./values";
+import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, ValueUtil } from "./values";
 
 /**
  * Program input types for evaluation.
@@ -79,7 +79,7 @@ export class Env {
     this.checkerEnv = new CheckerEnv(new Container(this.containerName));
 
     // Add standard library functions
-    for (const fn of getStandardFunctions()) {
+    for (const fn of StandardLibrary.functions()) {
       this.checkerEnv.addFunctions(fn);
     }
 
@@ -248,22 +248,12 @@ interface ParseResult {
  * Program implementation using Interpretable.
  */
 export class Program {
-  private readonly interpretable: Interpretable;
-  private readonly checkResultValue: CheckResult | undefined;
-  private readonly adapter: TypeAdapter;
-  private readonly sourceInfo: SourceInfo;
-
   constructor(
-    interpretable: Interpretable,
-    checkResult: CheckResult | undefined,
-    adapter: TypeAdapter,
-    sourceInfo: SourceInfo
-  ) {
-    this.interpretable = interpretable;
-    this.checkResultValue = checkResult;
-    this.adapter = adapter;
-    this.sourceInfo = sourceInfo;
-  }
+    private readonly interpretable: Interpretable,
+    private readonly checkResultValue: CheckResult | undefined,
+    private readonly adapter: TypeAdapter,
+    private readonly sourceInfo: SourceInfo
+  ) {}
 
   eval(vars?: ProgramInput): EvalResult {
     // Prepare activation
@@ -282,7 +272,7 @@ export class Program {
     try {
       const value = this.interpretable.eval(activation);
 
-      if (isError(value)) {
+      if (ValueUtil.isError(value)) {
         const formatted = formatRuntimeError(value as ErrorValue, this.sourceInfo);
         return {
           value,

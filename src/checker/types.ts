@@ -38,13 +38,13 @@ export enum TypeKind {
  * Represents a CEL type with optional type parameters
  */
 export class Type {
-  readonly kind: TypeKind;
   readonly parameters: readonly Type[];
-  readonly runtimeTypeName: string;
 
-  protected constructor(kind: TypeKind, runtimeTypeName: string, parameters: Type[] = []) {
-    this.kind = kind;
-    this.runtimeTypeName = runtimeTypeName;
+  protected constructor(
+    readonly kind: TypeKind,
+    readonly runtimeTypeName: string,
+    parameters: Type[] = []
+  ) {
     this.parameters = Object.freeze(parameters);
   }
 

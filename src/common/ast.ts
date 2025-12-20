@@ -547,14 +547,8 @@ export interface ReferenceInfo {
  * Identifier reference information.
  */
 export class IdentReference implements ReferenceInfo {
-  readonly name: string;
   readonly overloadIds: string[] = [];
-  readonly value?: unknown;
-
-  constructor(name: string, value?: unknown) {
-    this.name = name;
-    this.value = value;
-  }
+  constructor(readonly name: string, readonly value?: unknown) {}
 }
 
 /**

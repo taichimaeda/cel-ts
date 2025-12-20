@@ -15,9 +15,7 @@ export interface SourceRange {
  */
 export class SourceInfo {
   /** Original source expression */
-  readonly source: string;
   /** Description (filename, etc.) */
-  readonly description: string;
   /** Line offsets for computing location */
   private readonly lineOffsets: number[];
   /** Map from expression ID to offset range */
@@ -25,10 +23,7 @@ export class SourceInfo {
   /** Map from expression ID to macro call (original call before expansion) */
   private readonly macroCalls: Map<ExprId, Expr> = new Map();
 
-  constructor(source: string, description = "<input>") {
-    this.source = source;
-    this.description = description;
-
+  constructor(readonly source: string, readonly description = "<input>") {
     // Compute line offsets.
     const offsets: number[] = [];
     for (let i = 0; i < source.length; i++) {

@@ -19,9 +19,10 @@ export { AccumulatorName } from "../common/ast";
  * Error during macro expansion.
  */
 export class MacroError extends Error {
+  override name = "MacroError";
+
   constructor(message: string) {
     super(message);
-    this.name = "MacroError";
   }
 }
 
@@ -71,24 +72,23 @@ class BaseMacro implements Macro {
 
   macroKey(): string {
     if (this.varArgStyle) {
-      return makeVarArgMacroKey(this.name, this.receiverStyle);
+      return MacroKey.forVarArg(this.name, this.receiverStyle);
     }
-    return makeMacroKey(this.name, this.argCount, this.receiverStyle);
+    return MacroKey.forArity(this.name, this.argCount, this.receiverStyle);
   }
 }
 
 /**
- * Create a macro key from function name, arg count, and receiver style.
+ * Macro key builder for lookup.
  */
-export function makeMacroKey(name: string, args: number, receiverStyle: boolean): string {
-  return `${name}:${args}:${receiverStyle}`;
-}
+class MacroKey {
+  static forArity(name: string, args: number, receiverStyle: boolean): string {
+    return `${name}:${args}:${receiverStyle}`;
+  }
 
-/**
- * Create a vararg macro key.
- */
-export function makeVarArgMacroKey(name: string, receiverStyle: boolean): string {
-  return `${name}:*:${receiverStyle}`;
+  static forVarArg(name: string, receiverStyle: boolean): string {
+    return `${name}:*:${receiverStyle}`;
+  }
 }
 
 /**
@@ -375,14 +375,14 @@ export class MacroRegistry {
    */
   findMacro(name: string, argCount: number, receiverStyle: boolean): Macro | undefined {
     // Try exact match first
-    const key = makeMacroKey(name, argCount, receiverStyle);
+    const key = MacroKey.forArity(name, argCount, receiverStyle);
     let macro = this.macros.get(key);
     if (macro) {
       return macro;
     }
 
     // Try vararg match
-    const varArgKey = makeVarArgMacroKey(name, receiverStyle);
+    const varArgKey = MacroKey.forVarArg(name, receiverStyle);
     macro = this.macros.get(varArgKey);
     return macro;
   }

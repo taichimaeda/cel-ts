@@ -7,37 +7,25 @@ import type { Type } from "./types";
  * Represents a variable declaration with a name and type
  */
 export class VariableDecl {
-  readonly name: string;
-  readonly type: Type;
-
-  constructor(name: string, type: Type) {
-    this.name = name;
-    this.type = type;
-  }
+  constructor(readonly name: string, readonly type: Type) {}
 }
 
 /**
  * Represents a function overload (one specific signature)
  */
 export class OverloadDecl {
-  readonly id: string;
   readonly argTypes: readonly Type[];
-  readonly resultType: Type;
   readonly typeParams: readonly string[];
-  readonly isMemberFunction: boolean;
 
   constructor(
-    id: string,
+    readonly id: string,
     argTypes: Type[],
-    resultType: Type,
+    readonly resultType: Type,
     typeParams: string[] = [],
-    isMemberFunction = false
+    readonly isMemberFunction = false
   ) {
-    this.id = id;
     this.argTypes = Object.freeze(argTypes);
-    this.resultType = resultType;
     this.typeParams = Object.freeze(typeParams);
-    this.isMemberFunction = isMemberFunction;
   }
 
   /**
@@ -59,14 +47,11 @@ export class OverloadDecl {
  * Represents a function declaration with multiple overloads
  */
 export class FunctionDecl {
-  readonly name: string;
   private readonly overloadMap: Map<string, OverloadDecl> = new Map();
   private readonly overloadOrder: string[] = [];
   private disabledOverloads: Set<string> = new Set();
 
-  constructor(name: string) {
-    this.name = name;
-  }
+  constructor(readonly name: string) {}
 
   /**
    * Add an overload to this function

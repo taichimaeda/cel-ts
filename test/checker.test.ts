@@ -22,7 +22,7 @@ import {
   TimestampType,
   UintType,
   VariableDecl,
-  getStandardFunctions,
+  StandardLibrary,
   isAssignable,
 } from "../src/checker";
 import { CELLexer, CELParser, ParserHelper } from "../src/parser";
@@ -49,7 +49,7 @@ const parseAndCheck = (expression: string, env: CheckerEnv = createDefaultEnv())
 const createDefaultEnv = () => {
   const env = new CheckerEnv();
   // Add standard library functions
-  for (const fn of getStandardFunctions()) {
+  for (const fn of StandardLibrary.functions()) {
     env.addFunctions(fn);
   }
   return env;

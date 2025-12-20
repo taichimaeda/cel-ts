@@ -20,10 +20,7 @@ import {
   UintValue,
   type UnknownValue,
   type Value,
-  isError,
-  isErrorOrUnknown,
-  isUnknown,
-  toTypeValue,
+  ValueUtil,
 } from "./values";
 
 /**
@@ -50,13 +47,8 @@ export interface Interpretable {
  * Constant literal interpretable.
  */
 export class ConstValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly val: Value;
 
-  constructor(exprId: ExprId, val: Value) {
-    this.exprId = exprId;
-    this.val = val;
-  }
+  constructor(private readonly exprId: ExprId, private readonly val: Value) {}
 
   id(): ExprId {
     return this.exprId;
@@ -75,13 +67,8 @@ export class ConstValue implements Interpretable {
  * Variable/identifier interpretable.
  */
 export class IdentValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly name: string;
 
-  constructor(exprId: ExprId, name: string) {
-    this.exprId = exprId;
-    this.name = name;
-  }
+  constructor(private readonly exprId: ExprId, private readonly name: string) {}
 
   id(): ExprId {
     return this.exprId;
@@ -104,11 +91,8 @@ export class IdentValue implements Interpretable {
  * Attribute access interpretable.
  */
 export class AttrValue implements Interpretable {
-  private readonly attr: Attribute;
 
-  constructor(attr: Attribute) {
-    this.attr = attr;
-  }
+  constructor(private readonly attr: Attribute) {}
 
   id(): ExprId {
     return this.attr.id();
@@ -135,13 +119,8 @@ export class AttrValue implements Interpretable {
  * Logical NOT interpretable.
  */
 export class NotValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly operand: Interpretable;
 
-  constructor(exprId: ExprId, operand: Interpretable) {
-    this.exprId = exprId;
-    this.operand = operand;
-  }
+  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) {}
 
   id(): ExprId {
     return this.exprId;
@@ -149,7 +128,7 @@ export class NotValue implements Interpretable {
 
   eval(activation: Activation): Value {
     const val = this.operand.eval(activation);
-    if (isErrorOrUnknown(val)) {
+    if (ValueUtil.isErrorOrUnknown(val)) {
       return val;
     }
     if (val instanceof BoolValue) {
@@ -169,13 +148,8 @@ export class NotValue implements Interpretable {
  * Used by comprehension loop conditions.
  */
 export class NotStrictlyFalseValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly operand: Interpretable;
 
-  constructor(exprId: ExprId, operand: Interpretable) {
-    this.exprId = exprId;
-    this.operand = operand;
-  }
+  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) {}
 
   id(): ExprId {
     return this.exprId;
@@ -204,13 +178,8 @@ export class NotStrictlyFalseValue implements Interpretable {
  * Numeric negation interpretable.
  */
 export class NegValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly operand: Interpretable;
 
-  constructor(exprId: ExprId, operand: Interpretable) {
-    this.exprId = exprId;
-    this.operand = operand;
-  }
+  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) {}
 
   id(): ExprId {
     return this.exprId;
@@ -218,7 +187,7 @@ export class NegValue implements Interpretable {
 
   eval(activation: Activation): Value {
     const val = this.operand.eval(activation);
-    if (isErrorOrUnknown(val)) {
+    if (ValueUtil.isErrorOrUnknown(val)) {
       return val;
     }
     if (val instanceof IntValue) {
@@ -239,15 +208,12 @@ export class NegValue implements Interpretable {
  * Logical AND interpretable with short-circuit evaluation.
  */
 export class AndValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly lhs: Interpretable;
-  private readonly rhs: Interpretable;
 
-  constructor(exprId: ExprId, lhs: Interpretable, rhs: Interpretable) {
-    this.exprId = exprId;
-    this.lhs = lhs;
-    this.rhs = rhs;
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly lhs: Interpretable,
+    private readonly rhs: Interpretable
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -273,18 +239,18 @@ export class AndValue implements Interpretable {
       if (rhsVal instanceof BoolValue && rhsVal.value()) {
         return BoolValue.True;
       }
-      if (isErrorOrUnknown(rhsVal)) {
+      if (ValueUtil.isErrorOrUnknown(rhsVal)) {
         return rhsVal;
       }
       return ErrorValue.typeMismatch("bool", rhsVal, this.rhs.id());
     }
 
     // lhs is error or unknown
-    if (isErrorOrUnknown(lhsVal)) {
+    if (ValueUtil.isErrorOrUnknown(lhsVal)) {
       if (rhsVal instanceof BoolValue && rhsVal.value()) {
         return lhsVal;
       }
-      if (isUnknown(lhsVal) && isUnknown(rhsVal)) {
+      if (ValueUtil.isUnknown(lhsVal) && ValueUtil.isUnknown(rhsVal)) {
         return lhsVal.merge(rhsVal as UnknownValue);
       }
       return lhsVal;
@@ -302,15 +268,12 @@ export class AndValue implements Interpretable {
  * Logical OR interpretable with short-circuit evaluation.
  */
 export class OrValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly lhs: Interpretable;
-  private readonly rhs: Interpretable;
 
-  constructor(exprId: ExprId, lhs: Interpretable, rhs: Interpretable) {
-    this.exprId = exprId;
-    this.lhs = lhs;
-    this.rhs = rhs;
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly lhs: Interpretable,
+    private readonly rhs: Interpretable
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -336,18 +299,18 @@ export class OrValue implements Interpretable {
       if (rhsVal instanceof BoolValue && !rhsVal.value()) {
         return BoolValue.False;
       }
-      if (isErrorOrUnknown(rhsVal)) {
+      if (ValueUtil.isErrorOrUnknown(rhsVal)) {
         return rhsVal;
       }
       return ErrorValue.typeMismatch("bool", rhsVal, this.rhs.id());
     }
 
     // lhs is error or unknown
-    if (isErrorOrUnknown(lhsVal)) {
+    if (ValueUtil.isErrorOrUnknown(lhsVal)) {
       if (rhsVal instanceof BoolValue && !rhsVal.value()) {
         return lhsVal;
       }
-      if (isUnknown(lhsVal) && isUnknown(rhsVal)) {
+      if (ValueUtil.isUnknown(lhsVal) && ValueUtil.isUnknown(rhsVal)) {
         return lhsVal.merge(rhsVal as UnknownValue);
       }
       return lhsVal;
@@ -365,22 +328,13 @@ export class OrValue implements Interpretable {
  * Ternary conditional interpretable.
  */
 export class ConditionalValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly condition: Interpretable;
-  private readonly truthy: Interpretable;
-  private readonly falsy: Interpretable;
 
   constructor(
-    exprId: ExprId,
-    condition: Interpretable,
-    truthy: Interpretable,
-    falsy: Interpretable
-  ) {
-    this.exprId = exprId;
-    this.condition = condition;
-    this.truthy = truthy;
-    this.falsy = falsy;
-  }
+    private readonly exprId: ExprId,
+    private readonly condition: Interpretable,
+    private readonly truthy: Interpretable,
+    private readonly falsy: Interpretable
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -389,11 +343,11 @@ export class ConditionalValue implements Interpretable {
   eval(activation: Activation): Value {
     const condVal = this.condition.eval(activation);
 
-    if (isError(condVal)) {
+    if (ValueUtil.isError(condVal)) {
       return condVal;
     }
 
-    if (isUnknown(condVal)) {
+    if (ValueUtil.isUnknown(condVal)) {
       // Evaluate both branches
       const truthyVal = this.truthy.eval(activation);
       const falsyVal = this.falsy.eval(activation);
@@ -422,17 +376,13 @@ export class ConditionalValue implements Interpretable {
  * Binary operation interpretable.
  */
 export class BinaryValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly operator: string;
-  private readonly lhs: Interpretable;
-  private readonly rhs: Interpretable;
 
-  constructor(exprId: ExprId, operator: string, lhs: Interpretable, rhs: Interpretable) {
-    this.exprId = exprId;
-    this.operator = operator;
-    this.lhs = lhs;
-    this.rhs = rhs;
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly operator: string,
+    private readonly lhs: Interpretable,
+    private readonly rhs: Interpretable
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -440,12 +390,12 @@ export class BinaryValue implements Interpretable {
 
   eval(activation: Activation): Value {
     const lhsVal = this.lhs.eval(activation);
-    if (isErrorOrUnknown(lhsVal)) {
+    if (ValueUtil.isErrorOrUnknown(lhsVal)) {
       return lhsVal;
     }
 
     const rhsVal = this.rhs.eval(activation);
-    if (isErrorOrUnknown(rhsVal)) {
+    if (ValueUtil.isErrorOrUnknown(rhsVal)) {
       return rhsVal;
     }
 
@@ -646,25 +596,14 @@ export class BinaryValue implements Interpretable {
  * Function call interpretable.
  */
 export class CallValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly functionName: string;
-  private readonly overloadId: string;
-  private readonly args: Interpretable[];
-  private readonly resolver: FunctionResolver;
 
   constructor(
-    exprId: ExprId,
-    functionName: string,
-    overloadId: string,
-    args: Interpretable[],
-    resolver: FunctionResolver
-  ) {
-    this.exprId = exprId;
-    this.functionName = functionName;
-    this.overloadId = overloadId;
-    this.args = args;
-    this.resolver = resolver;
-  }
+    private readonly exprId: ExprId,
+    private readonly functionName: string,
+    private readonly overloadId: string,
+    private readonly args: Interpretable[],
+    private readonly resolver: FunctionResolver
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -676,7 +615,7 @@ export class CallValue implements Interpretable {
     for (const arg of this.args) {
       const val = arg.eval(activation);
       // Return error/unknown immediately unless it's a non-strict function
-      if (isErrorOrUnknown(val)) {
+      if (ValueUtil.isErrorOrUnknown(val)) {
         return val;
       }
       argValues.push(val);
@@ -708,13 +647,13 @@ export class CallValue implements Interpretable {
  * List literal interpretable.
  */
 export class CreateListValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly elements: Interpretable[];
   private readonly optionalIndices: Set<number>;
 
-  constructor(exprId: ExprId, elements: Interpretable[], optionalIndices: number[] = []) {
-    this.exprId = exprId;
-    this.elements = elements;
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly elements: Interpretable[],
+    optionalIndices: number[] = []
+  ) {
     this.optionalIndices = new Set(optionalIndices);
   }
 
@@ -728,7 +667,7 @@ export class CreateListValue implements Interpretable {
     for (let i = 0; i < this.elements.length; i++) {
       const val = this.elements[i]!.eval(activation);
 
-      if (isError(val)) {
+      if (ValueUtil.isError(val)) {
         return val;
       }
 
@@ -743,7 +682,7 @@ export class CreateListValue implements Interpretable {
         }
       }
 
-      if (isUnknown(val)) {
+      if (ValueUtil.isUnknown(val)) {
         return val;
       }
 
@@ -762,20 +701,14 @@ export class CreateListValue implements Interpretable {
  * Map literal interpretable.
  */
 export class CreateMapValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly keys: Interpretable[];
-  private readonly values: Interpretable[];
   private readonly optionalIndices: Set<number>;
 
   constructor(
-    exprId: ExprId,
-    keys: Interpretable[],
-    values: Interpretable[],
+    private readonly exprId: ExprId,
+    private readonly keys: Interpretable[],
+    private readonly values: Interpretable[],
     optionalIndices: number[] = []
   ) {
-    this.exprId = exprId;
-    this.keys = keys;
-    this.values = values;
     this.optionalIndices = new Set(optionalIndices);
   }
 
@@ -788,12 +721,12 @@ export class CreateMapValue implements Interpretable {
 
     for (let i = 0; i < this.keys.length; i++) {
       const key = this.keys[i]!.eval(activation);
-      if (isErrorOrUnknown(key)) {
+      if (ValueUtil.isErrorOrUnknown(key)) {
         return key;
       }
 
       const val = this.values[i]!.eval(activation);
-      if (isError(val)) {
+      if (ValueUtil.isError(val)) {
         return val;
       }
 
@@ -808,7 +741,7 @@ export class CreateMapValue implements Interpretable {
         }
       }
 
-      if (isUnknown(val)) {
+      if (ValueUtil.isUnknown(val)) {
         return val;
       }
 
@@ -831,17 +764,13 @@ export class CreateMapValue implements Interpretable {
  * Struct creation interpretable (for proto messages, etc.).
  */
 export class CreateStructValue implements Interpretable {
-  private readonly exprId: ExprId;
-  readonly typeName: string;
-  private readonly fields: string[];
-  private readonly values: Interpretable[];
 
-  constructor(exprId: ExprId, typeName: string, fields: string[], values: Interpretable[]) {
-    this.exprId = exprId;
-    this.typeName = typeName;
-    this.fields = fields;
-    this.values = values;
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    readonly typeName: string,
+    private readonly fields: string[],
+    private readonly values: Interpretable[]
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -854,7 +783,7 @@ export class CreateStructValue implements Interpretable {
     for (let i = 0; i < this.fields.length; i++) {
       const key = StringValue.of(this.fields[i]!);
       const val = this.values[i]!.eval(activation);
-      if (isErrorOrUnknown(val)) {
+      if (ValueUtil.isErrorOrUnknown(val)) {
         return val;
       }
       entries.push({ key, value: val });
@@ -872,17 +801,13 @@ export class CreateStructValue implements Interpretable {
  * Index access interpretable.
  */
 export class IndexValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly operand: Interpretable;
-  private readonly index: Interpretable;
-  private readonly optional: boolean;
 
-  constructor(exprId: ExprId, operand: Interpretable, index: Interpretable, optional = false) {
-    this.exprId = exprId;
-    this.operand = operand;
-    this.index = index;
-    this.optional = optional;
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly operand: Interpretable,
+    private readonly index: Interpretable,
+    private readonly optional = false
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -890,12 +815,12 @@ export class IndexValue implements Interpretable {
 
   eval(activation: Activation): Value {
     const obj = this.operand.eval(activation);
-    if (isErrorOrUnknown(obj)) {
+    if (ValueUtil.isErrorOrUnknown(obj)) {
       return obj;
     }
 
     const idx = this.index.eval(activation);
-    if (isErrorOrUnknown(idx)) {
+    if (ValueUtil.isErrorOrUnknown(idx)) {
       return idx;
     }
 
@@ -942,17 +867,13 @@ export class IndexValue implements Interpretable {
  * Field access interpretable.
  */
 export class FieldValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly operand: Interpretable;
-  private readonly field: string;
-  private readonly optional: boolean;
 
-  constructor(exprId: ExprId, operand: Interpretable, field: string, optional = false) {
-    this.exprId = exprId;
-    this.operand = operand;
-    this.field = field;
-    this.optional = optional;
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly operand: Interpretable,
+    private readonly field: string,
+    private readonly optional = false
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -960,7 +881,7 @@ export class FieldValue implements Interpretable {
 
   eval(activation: Activation): Value {
     const obj = this.operand.eval(activation);
-    if (isErrorOrUnknown(obj)) {
+    if (ValueUtil.isErrorOrUnknown(obj)) {
       return obj;
     }
 
@@ -990,15 +911,12 @@ export class FieldValue implements Interpretable {
  * Returns true if the field exists on the operand.
  */
 export class HasFieldValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly operand: Interpretable;
-  private readonly field: string;
 
-  constructor(exprId: ExprId, operand: Interpretable, field: string) {
-    this.exprId = exprId;
-    this.operand = operand;
-    this.field = field;
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly operand: Interpretable,
+    private readonly field: string
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -1006,7 +924,7 @@ export class HasFieldValue implements Interpretable {
 
   eval(activation: Activation): Value {
     const obj = this.operand.eval(activation);
-    if (isErrorOrUnknown(obj)) {
+    if (ValueUtil.isErrorOrUnknown(obj)) {
       return obj;
     }
 
@@ -1029,34 +947,17 @@ export class HasFieldValue implements Interpretable {
  * Comprehension (list/map comprehension) interpretable.
  */
 export class ComprehensionValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly iterVar: string;
-  private readonly iterRange: Interpretable;
-  private readonly accuVar: string;
-  private readonly accuInit: Interpretable;
-  private readonly loopCondition: Interpretable;
-  private readonly loopStep: Interpretable;
-  private readonly result: Interpretable;
 
   constructor(
-    exprId: ExprId,
-    iterVar: string,
-    iterRange: Interpretable,
-    accuVar: string,
-    accuInit: Interpretable,
-    loopCondition: Interpretable,
-    loopStep: Interpretable,
-    result: Interpretable
-  ) {
-    this.exprId = exprId;
-    this.iterVar = iterVar;
-    this.iterRange = iterRange;
-    this.accuVar = accuVar;
-    this.accuInit = accuInit;
-    this.loopCondition = loopCondition;
-    this.loopStep = loopStep;
-    this.result = result;
-  }
+    private readonly exprId: ExprId,
+    private readonly iterVar: string,
+    private readonly iterRange: Interpretable,
+    private readonly accuVar: string,
+    private readonly accuInit: Interpretable,
+    private readonly loopCondition: Interpretable,
+    private readonly loopStep: Interpretable,
+    private readonly result: Interpretable
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -1065,13 +966,13 @@ export class ComprehensionValue implements Interpretable {
   eval(activation: Activation): Value {
     // Evaluate iteration range
     const range = this.iterRange.eval(activation);
-    if (isErrorOrUnknown(range)) {
+    if (ValueUtil.isErrorOrUnknown(range)) {
       return range;
     }
 
     // Initialize accumulator
     let accu = this.accuInit.eval(activation);
-    if (isErrorOrUnknown(accu)) {
+    if (ValueUtil.isErrorOrUnknown(accu)) {
       return accu;
     }
 
@@ -1095,7 +996,7 @@ export class ComprehensionValue implements Interpretable {
 
       // Check loop condition
       const cond = this.loopCondition.eval(loopActivation);
-      if (isErrorOrUnknown(cond)) {
+      if (ValueUtil.isErrorOrUnknown(cond)) {
         return cond;
       }
       if (cond instanceof BoolValue && !cond.value()) {
@@ -1104,7 +1005,7 @@ export class ComprehensionValue implements Interpretable {
 
       // Evaluate loop step
       accu = this.loopStep.eval(loopActivation);
-      if (isErrorOrUnknown(accu)) {
+      if (ValueUtil.isErrorOrUnknown(accu)) {
         return accu;
       }
     }
@@ -1130,15 +1031,12 @@ export class ComprehensionValue implements Interpretable {
  * Type conversion/assertion interpretable.
  */
 export class TypeConversionValue implements Interpretable {
-  private readonly exprId: ExprId;
-  private readonly operand: Interpretable;
-  private readonly targetType: string;
 
-  constructor(exprId: ExprId, operand: Interpretable, targetType: string) {
-    this.exprId = exprId;
-    this.operand = operand;
-    this.targetType = targetType;
-  }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly operand: Interpretable,
+    private readonly targetType: string
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -1146,7 +1044,7 @@ export class TypeConversionValue implements Interpretable {
 
   eval(activation: Activation): Value {
     const val = this.operand.eval(activation);
-    if (isErrorOrUnknown(val)) {
+    if (ValueUtil.isErrorOrUnknown(val)) {
       return val;
     }
 
@@ -1308,6 +1206,6 @@ export class TypeConversionValue implements Interpretable {
   }
 
   private getType(val: Value): Value {
-    return toTypeValue(val.type());
+    return ValueUtil.toTypeValue(val.type());
   }
 }
