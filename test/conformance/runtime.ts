@@ -17,6 +17,10 @@ export type SimpleTest = {
   bindings?: Record<string, unknown>;
   typedResult?: ProtoObject;
   value?: ProtoObject;
+  evalError?: ProtoObject;
+  anyEvalErrors?: ProtoObject;
+  unknown?: ProtoObject;
+  anyUnknowns?: ProtoObject;
   resultMatcher?: string;
 };
 
@@ -61,7 +65,6 @@ export type ConformanceRuntime = {
   options: protobuf.IConversionOptions;
   protoMessageAliases: Map<string, string>;
   skipFiles: Set<string>;
-  skipResultKinds: Set<string>;
 };
 
 export function createRuntime(): ConformanceRuntime {
@@ -141,8 +144,6 @@ export function createRuntime(): ConformanceRuntime {
 
   const skipFiles = new Set(["block_ext.textproto", "proto2.textproto", "proto2_ext.textproto"]);
 
-  const skipResultKinds = new Set(["eval_error", "any_eval_errors", "unknown", "any_unknowns"]);
-
   const options: protobuf.IConversionOptions = {
     defaults: false,
     longs: String,
@@ -159,7 +160,6 @@ export function createRuntime(): ConformanceRuntime {
     options,
     protoMessageAliases,
     skipFiles,
-    skipResultKinds,
   };
 }
 

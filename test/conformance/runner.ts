@@ -13,7 +13,7 @@ import {
   TwoVarComprehensionsExtension,
   applyExtensions,
 } from "../../src/extensions";
-import { BoolValue, type Value, setAnyResolver } from "../../src/interpreter/values";
+import { BoolValue, type Value, ValueUtil, setAnyResolver } from "../../src/interpreter/values";
 import { decodeTextProto, ensureDescriptorSet, protoToSimpleTestFile, stripTypeUrl } from "./proto";
 import {
   type ProtoObject,
@@ -130,12 +130,32 @@ function runSimpleTest(test: SimpleTest, fileName: string, sectionName: string):
 
   const program = env.program(ast);
   const bindings = bindingsToValueMap(test.bindings);
-  let actual: Value;
-  try {
-    actual = program.eval(bindings);
-  } catch {
+  const evalResult = evalProgram(program, bindings);
+  const resultKind = test.resultMatcher;
+
+  if (resultKind === "eval_error" || test.evalError) {
+    if (!evalResult.error) {
+      return false;
+    }
+    return matchesEvalError(test.evalError, evalResult.error);
+  }
+  if (resultKind === "any_eval_errors" || test.anyEvalErrors) {
+    if (!evalResult.error) {
+      return false;
+    }
+    return matchesAnyEvalErrors(test.anyEvalErrors, evalResult.error);
+  }
+  if (resultKind === "unknown" || test.unknown) {
+    return matchesUnknown(test.unknown, evalResult.value);
+  }
+  if (resultKind === "any_unknowns" || test.anyUnknowns) {
+    return matchesAnyUnknowns(test.anyUnknowns, evalResult.value);
+  }
+
+  if (evalResult.error || !evalResult.value) {
     return false;
   }
+  const actual = evalResult.value;
 
   if (test.typedResult) {
     const typedResult = test.typedResult;
@@ -264,10 +284,6 @@ function isTestSkippable(test: SimpleTest): boolean {
   if (test.disableMacros) {
     return true;
   }
-  const resultKind = test.resultMatcher;
-  if (typeof resultKind === "string" && runtime.skipResultKinds.has(resultKind)) {
-    return true;
-  }
 
   if (isProto2Test(test)) {
     return true;
@@ -291,6 +307,86 @@ function isTestSkippable(test: SimpleTest): boolean {
     }
   }
   return false;
+}
+
+function evalProgram(
+  program: ReturnType<Env["program"]>,
+  bindings: Map<string, Value>
+): { value?: Value; error?: string } {
+  try {
+    return { value: program.eval(bindings) };
+  } catch (error) {
+    if (error instanceof Error) {
+      return { error: error.message };
+    }
+    return { error: String(error) };
+  }
+}
+
+function matchesEvalError(expected: ProtoObject | undefined, actualError: string): boolean {
+  const messages = errorSetToMessages(expected);
+  if (messages.length === 0) {
+    return actualError.length > 0;
+  }
+  return messages.every((message) => actualError.includes(message));
+}
+
+function matchesAnyEvalErrors(expected: ProtoObject | undefined, actualError: string): boolean {
+  const errorSets = errorSetMatcherToList(expected);
+  if (errorSets.length === 0) {
+    return actualError.length > 0;
+  }
+  return errorSets.some((errorSet) => matchesEvalError(errorSet, actualError));
+}
+
+function matchesUnknown(expected: ProtoObject | undefined, actual: Value | undefined): boolean {
+  if (!actual || !ValueUtil.isUnknown(actual)) {
+    return false;
+  }
+  const expectedIds = unknownSetToIds(expected);
+  if (expectedIds.length === 0) {
+    return true;
+  }
+  const actualIds = actual.value() as readonly number[];
+  return expectedIds.every((id) => actualIds.includes(id));
+}
+
+function matchesAnyUnknowns(expected: ProtoObject | undefined, actual: Value | undefined): boolean {
+  const unknownSets = unknownSetMatcherToList(expected);
+  if (unknownSets.length === 0) {
+    return matchesUnknown(undefined, actual);
+  }
+  return unknownSets.some((unknownSet) => matchesUnknown(unknownSet, actual));
+}
+
+function errorSetToMessages(errorSet: ProtoObject | undefined): string[] {
+  if (!errorSet) return [];
+  const errors = errorSet["errors"];
+  if (!Array.isArray(errors)) return [];
+  return errors
+    .map((entry) => entry?.message)
+    .filter((message): message is string => typeof message === "string");
+}
+
+function errorSetMatcherToList(matcher: ProtoObject | undefined): ProtoObject[] {
+  if (!matcher) return [];
+  const errors = matcher["errors"];
+  return Array.isArray(errors) ? (errors as ProtoObject[]) : [];
+}
+
+function unknownSetToIds(unknownSet: ProtoObject | undefined): number[] {
+  if (!unknownSet) return [];
+  const exprs = unknownSet["exprs"];
+  if (!Array.isArray(exprs)) return [];
+  return exprs
+    .map((id) => (typeof id === "string" || typeof id === "number" ? Number(id) : NaN))
+    .filter((id) => Number.isFinite(id));
+}
+
+function unknownSetMatcherToList(matcher: ProtoObject | undefined): ProtoObject[] {
+  if (!matcher) return [];
+  const unknowns = matcher["unknowns"];
+  return Array.isArray(unknowns) ? (unknowns as ProtoObject[]) : [];
 }
 
 function isProto2Test(test: SimpleTest): boolean {

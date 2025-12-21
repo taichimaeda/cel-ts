@@ -36,38 +36,67 @@ type RawSimpleTest = SimpleTest & {
   type_env?: ProtoObject[];
   typed_result?: ProtoObject;
   result_matcher?: string;
+  eval_error?: ProtoObject;
+  any_eval_errors?: ProtoObject;
+  unknown?: ProtoObject;
+  any_unknowns?: ProtoObject;
 };
 
 type RawSimpleTestSection = SimpleTestSection & { test?: RawSimpleTest[] };
 type RawSimpleTestFile = SimpleTestFile & { section?: RawSimpleTestSection[] };
 
 export function protoToSimpleTestFile(file: RawSimpleTestFile): SimpleTestFile {
-  return {
-    section: (file.section ?? []).map((section) => protoToSimpleTestSection(section)),
-  };
+  const sections = (file.section ?? []).map((section) => protoToSimpleTestSection(section));
+  return sections.length ? { section: sections } : {};
 }
 
 function protoToSimpleTestSection(section: RawSimpleTestSection): SimpleTestSection {
+  const tests = (section.test ?? []).map((test) => protoToSimpleTest(test));
   return {
-    name: section.name,
-    test: (section.test ?? []).map((test) => protoToSimpleTest(test)),
+    ...(section.name !== undefined ? { name: section.name } : {}),
+    ...(tests.length ? { test: tests } : {}),
   };
 }
 
 function protoToSimpleTest(test: RawSimpleTest): SimpleTest {
-  return {
-    name: test.name,
-    expr: test.expr,
-    disableMacros: test.disableMacros ?? test.disable_macros,
-    disableCheck: test.disableCheck ?? test.disable_check,
-    checkOnly: test.checkOnly ?? test.check_only,
-    typeEnv: test.typeEnv ?? test.type_env,
-    container: test.container,
-    bindings: test.bindings,
-    typedResult: test.typedResult ?? test.typed_result,
-    value: test.value,
-    resultMatcher: test.resultMatcher ?? test.result_matcher,
+  const name = test.name;
+  const expr = test.expr;
+  const disableMacros = test.disableMacros ?? test.disable_macros;
+  const disableCheck = test.disableCheck ?? test.disable_check;
+  const checkOnly = test.checkOnly ?? test.check_only;
+  const typeEnv = test.typeEnv ?? test.type_env;
+  const container = test.container;
+  const bindings = test.bindings;
+  const typedResult = test.typedResult ?? test.typed_result;
+  const value = test.value;
+  const evalError = test.evalError ?? test.eval_error;
+  const anyEvalErrors = test.anyEvalErrors ?? test.any_eval_errors;
+  const unknown = test.unknown;
+  const anyUnknowns = test.anyUnknowns ?? test.any_unknowns;
+  const resultMatcher = test.resultMatcher ?? test.result_matcher;
+
+  const simple: SimpleTest = {};
+  const assign = (target: SimpleTest, key: keyof SimpleTest, value: unknown) => {
+    if (value) {
+      target[key] = value as never;
+    }
   };
+  assign(simple, "name", name);
+  assign(simple, "expr", expr);
+  assign(simple, "disableMacros", disableMacros);
+  assign(simple, "disableCheck", disableCheck);
+  assign(simple, "checkOnly", checkOnly);
+  assign(simple, "typeEnv", typeEnv);
+  assign(simple, "container", container);
+  assign(simple, "bindings", bindings);
+  assign(simple, "typedResult", typedResult);
+  assign(simple, "value", value);
+  assign(simple, "evalError", evalError);
+  assign(simple, "anyEvalErrors", anyEvalErrors);
+  assign(simple, "unknown", unknown);
+  assign(simple, "anyUnknowns", anyUnknowns);
+  assign(simple, "resultMatcher", resultMatcher);
+  return simple;
 }
 
 export function encodeTextProto(protoFile: string, protoMessage: string, text: string): Uint8Array {

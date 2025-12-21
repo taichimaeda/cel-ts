@@ -17,7 +17,7 @@ with `protobufjs`, then executes supported tests against `cel-ts`.
 - The `test/conformance/cel-go` submodule supplies proto2/proto3 fixtures.
 - The `test/conformance/protobuf` submodule provides Google well-known types.
 - Some suites are skipped until protobuf-backed struct and enum support lands.
-- Tests requiring error/unknown result matching are currently skipped.
+- Error/unknown result matchers are now evaluated instead of skipped.
 
 ## Sources
 
