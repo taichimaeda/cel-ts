@@ -44,3 +44,6 @@ export * from "./parser";
 
 // Formatter (experimental utility)
 export * from "./formatter";
+
+// Linter (experimental utility)
+export * from "./linter";

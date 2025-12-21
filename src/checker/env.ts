@@ -1,7 +1,8 @@
 // CEL Checker Environment
 // Manages scopes, declarations, and lookups for type checking
 
-import type { FunctionDecl, StructDecl, VariableDecl } from "./decl";
+import type { FunctionDecl, VariableDecl } from "./decl";
+import type { TypeProvider } from "./provider";
 import { Type, TypeTypeWithParam } from "./type";
 
 /**
@@ -104,59 +105,6 @@ class Scopes {
    */
   pop(): Scopes | null {
     return this.parent;
-  }
-}
-
-/**
- * Type provider interface for resolving struct field types
- */
-export interface TypeProvider {
-  /**
-   * Find a struct type by name
-   */
-  findStructType(typeName: string): Type | undefined;
-
-  /**
-   * Find a field type within a struct
-   */
-  findStructFieldType(typeName: string, fieldName: string): Type | undefined;
-
-  /**
-   * Get all field names for a struct type
-   */
-  structFieldNames(typeName: string): string[];
-}
-
-/**
- * Struct type provider backed by declared struct definitions.
- */
-export class StructTypeProvider implements TypeProvider {
-  private readonly structs: Map<string, StructDecl>;
-
-  constructor(structs: readonly StructDecl[] = []) {
-    this.structs = new Map(structs.map((decl) => [decl.name, decl]));
-  }
-
-  addStructs(...structs: StructDecl[]): void {
-    for (const decl of structs) {
-      this.structs.set(decl.name, decl);
-    }
-  }
-
-  structDecls(): StructDecl[] {
-    return [...this.structs.values()];
-  }
-
-  findStructType(typeName: string): Type | undefined {
-    return this.structs.get(typeName)?.type;
-  }
-
-  findStructFieldType(typeName: string, fieldName: string): Type | undefined {
-    return this.structs.get(typeName)?.fieldType(fieldName);
-  }
-
-  structFieldNames(typeName: string): string[] {
-    return this.structs.get(typeName)?.fieldNames() ?? [];
   }
 }
 

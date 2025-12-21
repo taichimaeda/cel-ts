@@ -26,7 +26,7 @@ import {
   UnaryDispatcherOverload,
   VariadicDispatcherOverload,
 } from "../src/interpreter";
-import { evaluate } from "./utils";
+import { evaluate } from "./util";
 
 describe("CEL Interpreter", () => {
   describe("Literals", () => {

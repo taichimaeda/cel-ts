@@ -20,16 +20,19 @@ cel-ts/
 │   │   ├── parser.ts         # ANTLR parser wrapper
 │   │   ├── helper.ts         # Parse tree to AST conversion
 │   │   ├── macro.ts          # Macro definitions and expansion
+│   │   ├── operator.ts       # Operator constants
 │   │   └── index.ts
 │   ├── checker/              # Type checking and validation
 │   │   ├── checker.ts        # Main type checker
-│   │   ├── types.ts          # CEL type system
-│   │   ├── decls.ts          # Variable and function declarations
+│   │   ├── type.ts           # CEL type system
+│   │   ├── decl.ts           # Variable and function declarations
 │   │   ├── env.ts            # Type checker environment
-│   │   ├── errors.ts         # Type checking errors
+│   │   ├── error.ts          # Type checking errors
 │   │   ├── mapping.ts        # Type parameter mapping
+│   │   ├── provider.ts       # Struct/protobuf type providers
 │   │   ├── stdlib.ts         # Standard library declarations
 │   │   └── index.ts
+│   ├── linter/               # Lint rules and diagnostics
 │   └── interpreter/          # Expression evaluation engine
 │       ├── interpreter.ts    # Main interpreter
 │       ├── planner.ts        # AST to Interpretable conversion
@@ -163,7 +166,7 @@ interface ComprehensionExpr {
 }
 ```
 
-### 4. Type System (`/src/checker/types.ts`)
+### 4. Type System (`/src/checker/type.ts`)
 
 ```
 Type Kinds:

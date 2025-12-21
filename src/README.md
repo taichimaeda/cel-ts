@@ -7,4 +7,5 @@ High-level overview of the `src/` directory.
 - `common/`: shared AST, source info, and utilities.
 - `formatter/`: formatter and emitter utilities.
 - `interpreter/`: evaluation, dispatcher, values, and planner.
+- `linter/`: lint rules for redundant or simplifiable expressions.
 - `parser/`: ANTLR parser, macros, and helpers.

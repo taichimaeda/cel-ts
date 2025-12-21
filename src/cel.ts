@@ -11,11 +11,12 @@ import {
   StructFieldDecl,
   VariableDecl
 } from "./checker/decl";
+import { CheckerEnv, Container as CheckerContainer } from "./checker/env";
 import {
-  Container as CheckerContainer,
-  CheckerEnv,
+  CompositeTypeProvider,
   StructTypeProvider,
-} from "./checker/env";
+  type TypeProvider,
+} from "./checker/provider";
 import type { CheckerError } from "./checker/error";
 import {
   AnyType as CheckerAnyType,
@@ -325,6 +326,8 @@ export interface EnvOptions {
   functions?: readonly EnvFunctionOption[];
   /** Struct types to declare in the environment */
   structs?: readonly EnvStructOption[];
+  /** Additional type provider (e.g., protobuf-backed types) */
+  typeProvider?: TypeProvider;
   /** Container name for identifier resolution */
   container?: string;
   /** Custom type adapter */
@@ -556,10 +559,10 @@ export class Env {
 
   private initialize(config: EnvConfig): void {
     this.config = config;
-    this.checkerEnv = new CheckerEnv(
-      new CheckerContainer(config.container),
-      config.structProvider
-    );
+    const provider = config.typeProvider
+      ? new CompositeTypeProvider([config.structProvider, config.typeProvider])
+      : config.structProvider;
+    this.checkerEnv = new CheckerEnv(new CheckerContainer(config.container), provider);
     this.dispatcher = new DefaultDispatcher();
     this.parser = new Parser();
 
@@ -687,6 +690,7 @@ class EnvConfig {
   functions: FunctionDecl[] = [];
   functionOverloads = new Map<string, DispatcherOverload[]>();
   structProvider: StructTypeProvider = new StructTypeProvider();
+  typeProvider: TypeProvider | undefined = undefined;
   adapter: TypeAdapter = new DefaultTypeAdapter();
   disableStandardLibrary = false;
   disableTypeChecking = false;
@@ -700,6 +704,7 @@ class EnvConfig {
       [...this.functionOverloads.entries()].map(([name, overloads]) => [name, [...overloads]])
     );
     clone.structProvider = new StructTypeProvider(this.structProvider.structDecls());
+    clone.typeProvider = this.typeProvider;
     clone.adapter = this.adapter;
     clone.disableStandardLibrary = this.disableStandardLibrary;
     clone.disableTypeChecking = this.disableTypeChecking;
@@ -721,6 +726,10 @@ class EnvConfig {
 
     for (const structOption of options.structs ?? []) {
       structOption.register(this);
+    }
+
+    if (options.typeProvider) {
+      this.typeProvider = options.typeProvider;
     }
 
     if (options.container !== undefined) {
@@ -746,6 +755,7 @@ class EnvConfig {
 // ============================================================================
 
 export { StructType, Type } from "./checker/type";
+export { ProtobufTypeProvider } from "./checker/provider";
 export {
   EmptyActivation,
   HierarchicalActivation,
@@ -773,4 +783,3 @@ export {
   ValueUtil
 } from "./interpreter/value";
 export type { Value } from "./interpreter/value";
-

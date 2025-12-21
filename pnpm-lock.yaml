@@ -15,15 +15,15 @@ importers:
       '@biomejs/biome':
         specifier: 1.9.4
         version: 1.9.4
-      asciichart:
-        specifier: ^1.5.25
-        version: 1.5.25
       bun-types:
         specifier: 1.1.34
         version: 1.1.34
       fast-check:
         specifier: 4.4.0
         version: 4.4.0
+      mitata:
+        specifier: ^1.0.34
+        version: 1.0.34
       protobufjs:
         specifier: ^8.0.0
         version: 8.0.0
@@ -447,9 +447,6 @@ packages:
   argparse@2.0.1:
     resolution: {integrity: sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==}
 
-  asciichart@1.5.25:
-    resolution: {integrity: sha512-PNxzXIPPOtWq8T7bgzBtk9cI2lgS4SJZthUHEiQ1aoIc3lNzGfUvIvo9LiAnq26TACo9t1/4qP6KTGAUbzX9Xg==}
-
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
 
@@ -603,6 +600,9 @@ packages:
   minimatch@9.0.5:
     resolution: {integrity: sha512-G6T0ZX48xgozx7587koeX9Ys2NYy6Gmv//P89sEte9V9whIapMNF4idKxnW2QtCcLiTWlb/wfCabAtAFWhhBow==}
     engines: {node: '>=16 || 14 >=14.17'}
+
+  mitata@1.0.34:
+    resolution: {integrity: sha512-Mc3zrtNBKIMeHSCQ0XqRLo1vbdIx1wvFV9c8NJAiyho6AjNfMY8bVhbS12bwciUdd1t4rj8099CH3N3NFahaUA==}
 
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
@@ -1082,8 +1082,6 @@ snapshots:
 
   argparse@2.0.1: {}
 
-  asciichart@1.5.25: {}
-
   balanced-match@1.0.2: {}
 
   brace-expansion@2.0.2:
@@ -1252,6 +1250,8 @@ snapshots:
   minimatch@9.0.5:
     dependencies:
       brace-expansion: 2.0.2
+
+  mitata@1.0.34: {}
 
   ms@2.1.3: {}
 

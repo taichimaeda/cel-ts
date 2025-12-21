@@ -126,6 +126,24 @@ const env = new Env({
 const ast = env.compile('acme.Person{ name: "Ada", age: 37 }');
 ```
 
+### Protobuf Types
+
+You can also resolve message types from protobuf descriptors by supplying a
+protobuf-backed type provider:
+
+```typescript
+import * as protobuf from "protobufjs";
+import { Env, ProtobufTypeProvider, Types, Variable } from "cel-ts";
+
+const root = protobuf.loadSync(["./protos/acme/person.proto"]);
+const env = new Env({
+  typeProvider: new ProtobufTypeProvider(root),
+  variables: [new Variable("person", Types.object("acme.Person"))],
+});
+
+const ast = env.compile("person.name");
+```
+
 ### Environment Options
 
 `Env` accepts a single options object:
@@ -148,6 +166,20 @@ const env = new Env({
     ),
   ],
 });
+```
+
+### Linting
+
+`Linter` flags redundant constructs like constant boolean short-circuits.
+
+```typescript
+import { Env, Linter } from "cel-ts";
+
+const env = new Env({ disableTypeChecking: true });
+const ast = env.parse("true || x");
+const diagnostics = new Linter().lint(ast.ast);
+
+console.log(diagnostics);
 ```
 
 For advanced scenarios, you can still provide legacy `EnvOption` instances via the `extraOptions` field.

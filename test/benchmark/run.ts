@@ -1,8 +1,5 @@
-/// <reference path="./asciichart.d.ts" />
-
 import { writeFileSync } from "node:fs";
-import { performance } from "node:perf_hooks";
-import * as asciichart from "asciichart";
+import { bench, do_not_optimize, run, summary } from "mitata";
 import {
   BoolType,
   IntType,
@@ -65,45 +62,44 @@ const cases: BenchCase[] = [
   },
 ];
 
-const iterations = 20000;
-const results: { name: string; opsPerSec: number }[] = [];
-
-for (const bench of cases) {
-  const env = new Env(bench.env);
-  const ast = env.compile(bench.expr);
+const prepared = cases.map((benchCase) => {
+  const env = new Env(benchCase.env);
+  const ast = env.compile(benchCase.expr);
   const program = env.program(ast);
+  return { ...benchCase, program };
+});
 
-  for (let i = 0; i < 100; i++) {
-    program.eval(bench.activation);
+summary(() => {
+  for (const benchCase of prepared) {
+    bench(benchCase.name, () => {
+      const value = benchCase.program.eval(benchCase.activation);
+      do_not_optimize(value);
+    });
   }
+});
 
-  const start = performance.now();
-  for (let i = 0; i < iterations; i++) {
-    program.eval(bench.activation);
-  }
-  const elapsedMs = performance.now() - start;
-  const opsPerSec = iterations / (elapsedMs / 1000);
+const runResult = await run({ format: "mitata" });
 
-  results.push({ name: bench.name, opsPerSec });
-}
-
-results.sort((a, b) => b.opsPerSec - a.opsPerSec);
-
-const chart = asciichart.plot(
-  results.map((r) => r.opsPerSec),
-  { height: 8 }
-);
+const results = runResult.benchmarks
+  .flatMap((trial) =>
+    trial.runs.map((run) => {
+      if (!run.stats) return null;
+      const opsPerSec = 1e9 / run.stats.avg;
+      return {
+        name: run.name,
+        opsPerSec,
+        avgNs: run.stats.avg,
+        p50Ns: run.stats.p50,
+        samples: run.stats.samples.length,
+      };
+    })
+  )
+  .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+  .sort((a, b) => b.opsPerSec - a.opsPerSec);
 
 const output = {
-  iterations,
   timestamp: new Date().toISOString(),
   results,
 };
 
 writeFileSync("test/benchmark/results.json", `${JSON.stringify(output, null, 2)}\n`);
-
-console.log("Benchmark ops/sec (higher is better)");
-console.log(chart);
-for (const result of results) {
-  console.log(`${result.name}: ${result.opsPerSec.toFixed(0)} ops/sec`);
-}

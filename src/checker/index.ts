@@ -16,8 +16,10 @@ export {
   VariableDecl
 } from "./decl";
 
-export { CheckerEnv, Container, StructTypeProvider } from "./env";
-export type { LookupResult, TypeProvider } from "./env";
+export { CheckerEnv, Container } from "./env";
+export type { LookupResult } from "./env";
+export { CompositeTypeProvider, ProtobufTypeProvider, StructTypeProvider } from "./provider";
+export type { TypeProvider } from "./provider";
 
 export { CheckerErrors } from "./error";
 export type { CheckerError, Location } from "./error";

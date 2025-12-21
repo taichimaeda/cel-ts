@@ -6,4 +6,4 @@ Run the benchmark suite:
 pnpm benchmark
 ```
 
-Results are written to `test/benchmark/results.json` and a quick ASCII chart is printed to stdout.
+Results are written to `test/benchmark/results.json` and a mitata summary is printed to stdout.

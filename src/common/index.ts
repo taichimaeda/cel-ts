@@ -4,5 +4,5 @@
 export * from "./ast";
 export * from "./emitter";
 export * from "./source";
+export * from "./util";
 export * from "./visitor";
-
