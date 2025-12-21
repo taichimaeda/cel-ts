@@ -47,3 +47,6 @@ export * from "./formatter";
 
 // Linter (experimental utility)
 export * from "./linter";
+
+// Extensions (experimental utility)
+export * from "./extension";

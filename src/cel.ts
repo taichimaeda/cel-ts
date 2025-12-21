@@ -59,7 +59,7 @@ import {
   type Value,
   ValueUtil,
 } from "./interpreter/value";
-import { Parser, ParserHelper } from "./parser";
+import { AllMacros, type Macro, Parser, ParserHelper } from "./parser";
 
 // ============================================================================
 // Errors - CEL Error Types
@@ -336,6 +336,8 @@ export interface EnvOptions {
   disableStandardLibrary?: boolean;
   /** Disable type checking */
   disableTypeChecking?: boolean;
+  /** Additional macros to register for parsing */
+  macros?: readonly Macro[];
 }
 
 /**
@@ -600,7 +602,7 @@ export class Env {
     }
 
     // Convert ANTLR parse tree to our AST with macro expansion
-    const helper = new ParserHelper(expression);
+    const helper = new ParserHelper(expression, { macros: this.config.macros });
     const ast = helper.parse(parseResult.tree);
     return new Ast(ast, expression);
   }
@@ -616,7 +618,7 @@ export class Env {
     }
 
     // Convert ANTLR parse tree to our AST with macro expansion
-    const helper = new ParserHelper(expression);
+    const helper = new ParserHelper(expression, { macros: this.config.macros });
     const ast = helper.parse(parseResult.tree);
 
     if (this.config.disableTypeChecking) {
@@ -694,6 +696,7 @@ class EnvConfig {
   adapter: TypeAdapter = new DefaultTypeAdapter();
   disableStandardLibrary = false;
   disableTypeChecking = false;
+  macros: Macro[] = [...AllMacros];
 
   clone(): EnvConfig {
     const clone = new EnvConfig();
@@ -708,6 +711,7 @@ class EnvConfig {
     clone.adapter = this.adapter;
     clone.disableStandardLibrary = this.disableStandardLibrary;
     clone.disableTypeChecking = this.disableTypeChecking;
+    clone.macros = [...this.macros];
     return clone;
   }
 
@@ -746,6 +750,10 @@ class EnvConfig {
 
     if (options.disableTypeChecking) {
       this.disableTypeChecking = true;
+    }
+
+    if (options.macros) {
+      this.macros = [...this.macros, ...options.macros];
     }
   }
 }

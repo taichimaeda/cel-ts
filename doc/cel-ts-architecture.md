@@ -33,15 +33,16 @@ cel-ts/
 │   │   ├── stdlib.ts         # Standard library declarations
 │   │   └── index.ts
 │   ├── linter/               # Lint rules and diagnostics
+│   ├── extension/            # cel-go style extension libraries
 │   └── interpreter/          # Expression evaluation engine
 │       ├── interpreter.ts    # Main interpreter
 │       ├── planner.ts        # AST to Interpretable conversion
 │       ├── interpretable.ts  # Evaluable expression nodes
 │       ├── dispatcher.ts     # Function call dispatcher
 │       ├── activation.ts     # Runtime variable bindings
-│       ├── attributes.ts     # Attribute resolver
-│       ├── functions.ts      # Standard function implementations
-│       ├── values.ts         # Runtime value types
+│       ├── attribute.ts      # Attribute resolver
+│       ├── function.ts       # Standard function implementations
+│       ├── value.ts          # Runtime value types
 │       └── index.ts
 ├── test/                     # Test files
 ├── doc/                      # Documentation
@@ -165,6 +166,12 @@ interface ComprehensionExpr {
   result: Expr;        // Final result
 }
 ```
+
+#### Extensions (`/src/extension/`)
+
+Extension modules mirror `cel-go/ext` and register additional macros and function overloads
+for strings, lists, math, regex, sets, bindings, protos, and two-variable comprehensions.
+Each extension returns an `EnvOptions` fragment which can be merged into a single config.
 
 ### 4. Type System (`/src/checker/type.ts`)
 

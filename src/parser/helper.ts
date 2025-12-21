@@ -142,6 +142,14 @@ export class ParserHelper {
     return new ListExpr(this.nextId(), elements, []);
   }
 
+  createMap(entries: MapEntry[] = []): MapExpr {
+    return new MapExpr(this.nextId(), entries);
+  }
+
+  createMapEntry(key: Expr, value: Expr, optional = false): MapEntry {
+    return new MapEntry(this.nextId(), key, value, optional);
+  }
+
   createComprehension(
     iterRange: Expr,
     iterVar: string,
@@ -149,7 +157,8 @@ export class ParserHelper {
     accuInit: Expr,
     loopCondition: Expr,
     loopStep: Expr,
-    result: Expr
+    result: Expr,
+    iterVar2?: string
   ): ComprehensionExpr {
     return new ComprehensionExpr(
       this.nextId(),
@@ -159,12 +168,17 @@ export class ParserHelper {
       accuInit,
       loopCondition,
       loopStep,
-      result
+      result,
+      iterVar2
     );
   }
 
   createAccuIdent(): IdentExpr {
     return this.createIdent(AccumulatorName);
+  }
+
+  createSelect(operand: Expr, field: string): SelectExpr {
+    return new SelectExpr(this.nextId(), operand, field, false);
   }
 
   createPresenceTest(operand: Expr, field: string): SelectExpr {

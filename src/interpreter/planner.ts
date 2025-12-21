@@ -413,7 +413,8 @@ export class Planner {
       accuInit,
       loopCondition,
       loopStep,
-      result
+      result,
+      e.iterVar2
     );
   }
 

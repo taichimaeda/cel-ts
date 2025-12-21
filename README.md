@@ -168,6 +168,19 @@ const env = new Env({
 });
 ```
 
+### Extensions
+
+cel-ts ships optional extension packs mirroring `cel-go/ext` (strings, lists, math, regex, etc.).
+Use `mergeEnvOptions` to combine multiple extension option sets:
+
+```typescript
+import { Env } from "cel-ts";
+import { Lists, Strings, mergeEnvOptions } from "cel-ts";
+
+const env = new Env(mergeEnvOptions(Strings(), Lists()));
+const ast = env.compile(`["a", "b", "a"].distinct().join("-")`);
+```
+
 ### Linting
 
 `Linter` flags redundant constructs like constant boolean short-circuits.

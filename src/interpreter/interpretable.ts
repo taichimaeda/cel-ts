@@ -956,7 +956,8 @@ export class ComprehensionValue implements Interpretable {
     private readonly accuInit: Interpretable,
     private readonly loopCondition: Interpretable,
     private readonly loopStep: Interpretable,
-    private readonly result: Interpretable
+    private readonly result: Interpretable,
+    private readonly iterVar2?: string
   ) { }
 
   id(): ExprId {
@@ -981,33 +982,87 @@ export class ComprehensionValue implements Interpretable {
     loopActivation.set(this.accuVar, accu);
 
     // Iteration
-    let iterator: Iterable<Value>;
     if (range instanceof ListValue) {
-      iterator = range;
+      if (this.iterVar2) {
+        const elements = range.value();
+        for (let i = 0; i < elements.length; i++) {
+          loopActivation.set(this.iterVar, IntValue.of(i));
+          loopActivation.set(this.iterVar2, elements[i]!);
+          loopActivation.set(this.accuVar, accu);
+
+          const cond = this.loopCondition.eval(loopActivation);
+          if (ValueUtil.isErrorOrUnknown(cond)) {
+            return cond;
+          }
+          if (cond instanceof BoolValue && !cond.value()) {
+            break;
+          }
+
+          accu = this.loopStep.eval(loopActivation);
+          if (ValueUtil.isErrorOrUnknown(accu)) {
+            return accu;
+          }
+        }
+      } else {
+        for (const elem of range) {
+          loopActivation.set(this.iterVar, elem);
+          loopActivation.set(this.accuVar, accu);
+
+          const cond = this.loopCondition.eval(loopActivation);
+          if (ValueUtil.isErrorOrUnknown(cond)) {
+            return cond;
+          }
+          if (cond instanceof BoolValue && !cond.value()) {
+            break;
+          }
+
+          accu = this.loopStep.eval(loopActivation);
+          if (ValueUtil.isErrorOrUnknown(accu)) {
+            return accu;
+          }
+        }
+      }
     } else if (range instanceof MapValue) {
-      iterator = range.keys();
+      if (this.iterVar2) {
+        for (const entry of range) {
+          loopActivation.set(this.iterVar, entry.key);
+          loopActivation.set(this.iterVar2, entry.value);
+          loopActivation.set(this.accuVar, accu);
+
+          const cond = this.loopCondition.eval(loopActivation);
+          if (ValueUtil.isErrorOrUnknown(cond)) {
+            return cond;
+          }
+          if (cond instanceof BoolValue && !cond.value()) {
+            break;
+          }
+
+          accu = this.loopStep.eval(loopActivation);
+          if (ValueUtil.isErrorOrUnknown(accu)) {
+            return accu;
+          }
+        }
+      } else {
+        for (const elem of range.keys()) {
+          loopActivation.set(this.iterVar, elem);
+          loopActivation.set(this.accuVar, accu);
+
+          const cond = this.loopCondition.eval(loopActivation);
+          if (ValueUtil.isErrorOrUnknown(cond)) {
+            return cond;
+          }
+          if (cond instanceof BoolValue && !cond.value()) {
+            break;
+          }
+
+          accu = this.loopStep.eval(loopActivation);
+          if (ValueUtil.isErrorOrUnknown(accu)) {
+            return accu;
+          }
+        }
+      }
     } else {
       return ErrorValue.create(`cannot iterate over ${range.type()}`, this.exprId);
-    }
-
-    for (const elem of iterator) {
-      loopActivation.set(this.iterVar, elem);
-      loopActivation.set(this.accuVar, accu);
-
-      // Check loop condition
-      const cond = this.loopCondition.eval(loopActivation);
-      if (ValueUtil.isErrorOrUnknown(cond)) {
-        return cond;
-      }
-      if (cond instanceof BoolValue && !cond.value()) {
-        break;
-      }
-
-      // Evaluate loop step
-      accu = this.loopStep.eval(loopActivation);
-      if (ValueUtil.isErrorOrUnknown(accu)) {
-        return accu;
-      }
     }
 
     // Evaluate result

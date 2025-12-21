@@ -9,3 +9,4 @@ High-level overview of the `src/` directory.
 - `interpreter/`: evaluation, dispatcher, values, and planner.
 - `linter/`: lint rules for redundant or simplifiable expressions.
 - `parser/`: ANTLR parser, macros, and helpers.
+- `extension/`: cel-go-style extension libraries (strings, lists, math, regex, etc.).

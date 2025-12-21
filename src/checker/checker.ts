@@ -479,15 +479,27 @@ export class Checker {
 
     // Determine the iteration variable type from the range
     let iterVarType = DynType;
+    let iterVar2Type: Type | undefined;
     if (rangeType.kind === TypeKind.List) {
-      iterVarType = rangeType.listElementType() ?? DynType;
+      if (expr.iterVar2) {
+        iterVarType = IntType;
+        iterVar2Type = rangeType.listElementType() ?? DynType;
+      } else {
+        iterVarType = rangeType.listElementType() ?? DynType;
+      }
     } else if (rangeType.kind === TypeKind.Map) {
       iterVarType = rangeType.mapKeyType() ?? DynType;
+      if (expr.iterVar2) {
+        iterVar2Type = rangeType.mapValueType() ?? DynType;
+      }
     }
 
     // Push iteration variable into scope
     this.env.enterScope();
     this.env.addVariables(new VariableDecl(expr.iterVar, iterVarType));
+    if (expr.iterVar2) {
+      this.env.addVariables(new VariableDecl(expr.iterVar2, iterVar2Type ?? DynType));
+    }
 
     // Check accumulator initializer
     this.checkExpr(expr.accuInit);
