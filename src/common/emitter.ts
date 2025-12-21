@@ -1,8 +1,8 @@
 import {
-  AST,
+  type AST,
   CallExpr,
   ComprehensionExpr,
-  Expr,
+  type Expr,
   IdentExpr,
   ListExpr,
   LiteralExpr,
@@ -183,10 +183,7 @@ export class Emitter {
     return expr.typeName ? `${expr.typeName}${body}` : body;
   }
 
-  private emitComprehension(
-    expr: ComprehensionExpr,
-    sourceInfo?: AST["sourceInfo"]
-  ): string {
+  private emitComprehension(expr: ComprehensionExpr, sourceInfo?: AST["sourceInfo"]): string {
     const iterRange = this.emitExprInner(expr.iterRange, sourceInfo);
     const accuInit = this.emitExprInner(expr.accuInit, sourceInfo);
     const loopCondition = this.emitExprInner(expr.loopCondition, sourceInfo);
@@ -211,25 +208,23 @@ export class Emitter {
       return { kind: "ternary", symbol: "?:", precedence: 1, associative: false };
     }
 
-    const binaryMap: Record<
-      string,
-      { symbol: string; precedence: number; associative: boolean }
-    > = {
-      [Operators.Multiply]: { symbol: "*", precedence: 6, associative: true },
-      [Operators.Divide]: { symbol: "/", precedence: 6, associative: false },
-      [Operators.Modulo]: { symbol: "%", precedence: 6, associative: false },
-      [Operators.Add]: { symbol: "+", precedence: 5, associative: true },
-      [Operators.Subtract]: { symbol: "-", precedence: 5, associative: false },
-      [Operators.Less]: { symbol: "<", precedence: 4, associative: false },
-      [Operators.LessEquals]: { symbol: "<=", precedence: 4, associative: false },
-      [Operators.Greater]: { symbol: ">", precedence: 4, associative: false },
-      [Operators.GreaterEquals]: { symbol: ">=", precedence: 4, associative: false },
-      [Operators.Equals]: { symbol: "==", precedence: 3, associative: false },
-      [Operators.NotEquals]: { symbol: "!=", precedence: 3, associative: false },
-      [Operators.In]: { symbol: "in", precedence: 3, associative: false },
-      [Operators.LogicalAnd]: { symbol: "&&", precedence: 2, associative: true },
-      [Operators.LogicalOr]: { symbol: "||", precedence: 1, associative: true },
-    };
+    const binaryMap: Record<string, { symbol: string; precedence: number; associative: boolean }> =
+      {
+        [Operators.Multiply]: { symbol: "*", precedence: 6, associative: true },
+        [Operators.Divide]: { symbol: "/", precedence: 6, associative: false },
+        [Operators.Modulo]: { symbol: "%", precedence: 6, associative: false },
+        [Operators.Add]: { symbol: "+", precedence: 5, associative: true },
+        [Operators.Subtract]: { symbol: "-", precedence: 5, associative: false },
+        [Operators.Less]: { symbol: "<", precedence: 4, associative: false },
+        [Operators.LessEquals]: { symbol: "<=", precedence: 4, associative: false },
+        [Operators.Greater]: { symbol: ">", precedence: 4, associative: false },
+        [Operators.GreaterEquals]: { symbol: ">=", precedence: 4, associative: false },
+        [Operators.Equals]: { symbol: "==", precedence: 3, associative: false },
+        [Operators.NotEquals]: { symbol: "!=", precedence: 3, associative: false },
+        [Operators.In]: { symbol: "in", precedence: 3, associative: false },
+        [Operators.LogicalAnd]: { symbol: "&&", precedence: 2, associative: true },
+        [Operators.LogicalOr]: { symbol: "||", precedence: 1, associative: true },
+      };
 
     const entry = binaryMap[name];
     if (!entry || argCount !== 2) {
@@ -268,11 +263,7 @@ export class Emitter {
     if (expr instanceof ComprehensionExpr) {
       return 0;
     }
-    if (
-      expr instanceof ListExpr ||
-      expr instanceof MapExpr ||
-      expr instanceof StructExpr
-    ) {
+    if (expr instanceof ListExpr || expr instanceof MapExpr || expr instanceof StructExpr) {
       return 9;
     }
     if (
@@ -291,7 +282,7 @@ export class Emitter {
       .replace(/\n/g, "\\n")
       .replace(/\r/g, "\\r")
       .replace(/\t/g, "\\t")
-      .replace(/"/g, "\\\"");
+      .replace(/"/g, '\\"');
   }
 
   private escapeIdent(value: string): string {

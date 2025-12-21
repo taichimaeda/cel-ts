@@ -3,9 +3,9 @@
 // Implemented with reference to cel-go's interpret/interpretable.go
 
 import type { TypeProvider } from "../checker/provider";
-import { TypeKind as CheckerTypeKind, type Type as CheckerType } from "../checker/types";
+import { type Type as CheckerType, TypeKind as CheckerTypeKind } from "../checker/types";
 import type { ExprId } from "../common/ast";
-import { MutableActivation, type Activation } from "./activations";
+import { type Activation, MutableActivation } from "./activation";
 import type { Attribute, Qualifier } from "./attributes";
 import type { FunctionResolver } from "./dispatcher";
 import {
@@ -17,6 +17,7 @@ import {
   ErrorValue,
   IntValue,
   ListValue,
+  type MapEntry,
   MapValue,
   NullValue,
   OptionalValue,
@@ -24,11 +25,10 @@ import {
   StructValue,
   TimestampValue,
   UintValue,
-  ValueUtil,
-  resolveAnyValue,
-  type MapEntry,
   type UnknownValue,
   type Value,
+  ValueUtil,
+  resolveAnyValue,
 } from "./values";
 
 /**
@@ -55,8 +55,10 @@ export interface Interpretable {
  * Constant literal interpretable.
  */
 export class ConstValue implements Interpretable {
-
-  constructor(private readonly exprId: ExprId, private readonly val: Value) { }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly val: Value
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -75,8 +77,10 @@ export class ConstValue implements Interpretable {
  * Variable/identifier interpretable.
  */
 export class IdentValue implements Interpretable {
-
-  constructor(private readonly exprId: ExprId, private readonly name: string) { }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly name: string
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -99,7 +103,6 @@ export class IdentValue implements Interpretable {
  * Attribute access interpretable.
  */
 export class AttrValue implements Interpretable {
-
   constructor(private readonly attr: Attribute) { }
 
   id(): ExprId {
@@ -127,8 +130,10 @@ export class AttrValue implements Interpretable {
  * Logical NOT interpretable.
  */
 export class NotValue implements Interpretable {
-
-  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) { }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly operand: Interpretable
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -156,8 +161,10 @@ export class NotValue implements Interpretable {
  * Used by comprehension loop conditions.
  */
 export class NotStrictlyFalseValue implements Interpretable {
-
-  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) { }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly operand: Interpretable
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -186,8 +193,10 @@ export class NotStrictlyFalseValue implements Interpretable {
  * Numeric negation interpretable.
  */
 export class NegValue implements Interpretable {
-
-  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) { }
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly operand: Interpretable
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -216,7 +225,6 @@ export class NegValue implements Interpretable {
  * Logical AND interpretable with short-circuit evaluation.
  */
 export class AndValue implements Interpretable {
-
   constructor(
     private readonly exprId: ExprId,
     private readonly lhs: Interpretable,
@@ -276,7 +284,6 @@ export class AndValue implements Interpretable {
  * Logical OR interpretable with short-circuit evaluation.
  */
 export class OrValue implements Interpretable {
-
   constructor(
     private readonly exprId: ExprId,
     private readonly lhs: Interpretable,
@@ -336,7 +343,6 @@ export class OrValue implements Interpretable {
  * Ternary conditional interpretable.
  */
 export class ConditionalValue implements Interpretable {
-
   constructor(
     private readonly exprId: ExprId,
     private readonly condition: Interpretable,
@@ -364,7 +370,6 @@ export class ConditionalValue implements Interpretable {
       if (truthyVal.equal(falsyVal).value() === true) {
         return truthyVal;
       }
-
       return condVal;
     }
 
@@ -384,7 +389,6 @@ export class ConditionalValue implements Interpretable {
  * Binary operation interpretable.
  */
 export class BinaryValue implements Interpretable {
-
   constructor(
     private readonly exprId: ExprId,
     private readonly operator: string,
@@ -504,10 +508,7 @@ export class BinaryValue implements Interpretable {
     if (lhs instanceof TimestampValue && rhs instanceof TimestampValue) {
       return lhs.subtract(rhs);
     }
-    return ErrorValue.create(
-      `cannot subtract ${rhs.type()} from ${lhs.type()}`,
-      this.exprId
-    );
+    return ErrorValue.create(`cannot subtract ${rhs.type()} from ${lhs.type()}`, this.exprId);
   }
 
   private multiply(lhs: Value, rhs: Value): Value {
@@ -657,7 +658,6 @@ export class BinaryValue implements Interpretable {
  * Function call interpretable.
  */
 export class CallValue implements Interpretable {
-
   constructor(
     private readonly exprId: ExprId,
     private readonly functionName: string,
@@ -971,7 +971,7 @@ function wrapperValueFromStruct(typeName: string, values: Map<string, Value>): V
   }
   let value = values.get("value");
   if (value instanceof OptionalValue) {
-    value = value.hasValue() ? value.value() ?? NullValue.Instance : undefined;
+    value = value.hasValue() ? (value.value() ?? NullValue.Instance) : undefined;
   }
   if (value instanceof NullValue) {
     return NullValue.Instance;
@@ -1055,7 +1055,7 @@ function valueFromGoogleAny(values: Map<string, Value>): Value | null {
 
 function unwrapOptional(value: Value | undefined): Value | undefined {
   if (value instanceof OptionalValue) {
-    return value.hasValue() ? value.value() ?? NullValue.Instance : NullValue.Instance;
+    return value.hasValue() ? (value.value() ?? NullValue.Instance) : NullValue.Instance;
   }
   return value;
 }
@@ -1307,7 +1307,6 @@ function isEnumInt32Range(value: bigint): boolean {
  * Index access interpretable.
  */
 export class IndexValue implements Interpretable {
-
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
@@ -1398,7 +1397,6 @@ function normalizeIndexValue(value: Value): IntValue | ErrorValue {
  * Field access interpretable.
  */
 export class FieldValue implements Interpretable {
-
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
@@ -1442,7 +1440,6 @@ export class FieldValue implements Interpretable {
  * Returns true if the field exists on the operand.
  */
 export class HasFieldValue implements Interpretable {
-
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
@@ -1488,7 +1485,6 @@ export class HasFieldValue implements Interpretable {
  * Comprehension (list/map comprehension) interpretable.
  */
 export class ComprehensionValue implements Interpretable {
-
   constructor(
     private readonly exprId: ExprId,
     private readonly iterVar: string,
@@ -1627,7 +1623,6 @@ export class ComprehensionValue implements Interpretable {
  * Type conversion/assertion interpretable.
  */
 export class TypeConversionValue implements Interpretable {
-
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,

@@ -1,6 +1,6 @@
-import { BytesType, Function, Overload, StringType, type EnvOptions } from "../cel";
+import { BytesType, type EnvOptions, Function, Overload, StringType } from "../cel";
 import { BytesValue, ErrorValue, StringValue, type Value } from "../interpreter/values";
-import { ReceiverMacro, type Macro } from "../parser";
+import { type Macro, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { macroTargetMatchesNamespace } from "./macros";
 

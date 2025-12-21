@@ -9,15 +9,14 @@ export type ProtoObject = Record<string, unknown>;
 export type SimpleTest = {
   name?: string;
   expr?: string;
-  disable_macros?: boolean;
-  disable_check?: boolean;
-  check_only?: boolean;
-  type_env?: ProtoObject[];
+  disableMacros?: boolean;
+  disableCheck?: boolean;
+  checkOnly?: boolean;
+  typeEnv?: ProtoObject[];
   container?: string;
   bindings?: Record<string, unknown>;
-  typed_result?: ProtoObject;
+  typedResult?: ProtoObject;
   value?: ProtoObject;
-  result_matcher?: string;
   resultMatcher?: string;
 };
 
@@ -49,14 +48,14 @@ export type ConformancePaths = {
   descriptorSetPath: string;
 };
 
-export type ProtoFileLists = {
+export type ConformanceProtoFiles = {
   extraProtoFiles: string[];
   conformanceProtoFiles: string[];
 };
 
 export type ConformanceRuntime = {
   paths: ConformancePaths;
-  protoFiles: ProtoFileLists;
+  protoFiles: ConformanceProtoFiles;
   root: protobuf.Root;
   protobufTypeProvider: ProtobufTypeProvider;
   options: protobuf.IConversionOptions;
@@ -88,45 +87,49 @@ export function createRuntime(): ConformanceRuntime {
   };
 
   if (
-    !fileExists(testdataRoot) ||
-    !fileExists(protoRoot) ||
-    !fileExists(proto2Root) ||
-    !fileExists(proto3Root)
+    !existsPath(testdataRoot) ||
+    !existsPath(protoRoot) ||
+    !existsPath(proto2Root) ||
+    !existsPath(proto3Root)
   ) {
     throw new Error(
       "Conformance submodules are missing. Run `git submodule update --init --recursive`."
     );
   }
 
-  const extraProtoFiles = listProtoFilesByRoot(proto3Root, proto2Root);
+  const extraProtoFiles = listProtoFilesAcrossRoots(proto3Root, proto2Root);
   const conformanceProtoFiles = listProtoFiles(path.join(protoRoot, "cel/expr/conformance"));
-  const protoFiles: ProtoFileLists = { extraProtoFiles, conformanceProtoFiles };
+  const protoFiles: ConformanceProtoFiles = { extraProtoFiles, conformanceProtoFiles };
 
   const root = new protobuf.Root();
   root.resolvePath = (_origin, target) => {
-    const normalizedTarget = normalizeAbsolutePath(target);
+    const normalizedTarget = resolveAbsolutePath(target);
+    const relativeTarget = normalizedTarget.replace(/^\.\//, "");
+    const celGoTarget = relativeTarget.startsWith("tests/")
+      ? relativeTarget.replace(/^tests\//, "test/")
+      : relativeTarget;
     if (path.isAbsolute(normalizedTarget)) {
       return normalizedTarget;
     }
-    if (target.startsWith("google/protobuf/")) {
-      return path.join(googleProtoRoot, target.slice("google/protobuf/".length));
+    if (relativeTarget.startsWith("google/protobuf/")) {
+      return path.join(googleProtoRoot, relativeTarget.slice("google/protobuf/".length));
     }
-    if (target.startsWith("test/proto3pb/")) {
-      return path.join(celGoRoot, target);
+    if (celGoTarget.startsWith("test/proto3pb/")) {
+      return path.join(celGoRoot, celGoTarget);
     }
-    if (target.startsWith("test/proto2pb/")) {
-      return path.join(celGoRoot, target);
+    if (celGoTarget.startsWith("test/proto2pb/")) {
+      return path.join(celGoRoot, celGoTarget);
     }
-    const direct = path.join(protoRoot, normalizedTarget);
-    if (fileExists(direct)) {
+    const direct = path.join(protoRoot, relativeTarget);
+    if (existsPath(direct)) {
       return direct;
     }
-    const proto2Path = path.join(proto2Root, normalizedTarget);
-    if (fileExists(proto2Path)) {
+    const proto2Path = path.join(proto2Root, relativeTarget);
+    if (existsPath(proto2Path)) {
       return proto2Path;
     }
-    const proto3Path = path.join(proto3Root, normalizedTarget);
-    if (fileExists(proto3Path)) {
+    const proto3Path = path.join(proto3Root, relativeTarget);
+    if (existsPath(proto3Path)) {
       return proto3Path;
     }
     return direct;
@@ -136,18 +139,9 @@ export function createRuntime(): ConformanceRuntime {
     ["google.api.expr.test.v1.SimpleTestFile", "cel.expr.conformance.test.SimpleTestFile"],
   ]);
 
-  const skipFiles = new Set([
-    "block_ext.textproto",
-    "proto2.textproto",
-    "proto2_ext.textproto",
-  ]);
+  const skipFiles = new Set(["block_ext.textproto", "proto2.textproto", "proto2_ext.textproto"]);
 
-  const skipResultKinds = new Set([
-    "eval_error",
-    "any_eval_errors",
-    "unknown",
-    "any_unknowns",
-  ]);
+  const skipResultKinds = new Set(["eval_error", "any_eval_errors", "unknown", "any_unknowns"]);
 
   const options: protobuf.IConversionOptions = {
     defaults: false,
@@ -171,16 +165,16 @@ export function createRuntime(): ConformanceRuntime {
 
 export const runtime = createRuntime();
 
-export function fileExists(filePath: string): boolean {
+export function existsPath(targetPath: string): boolean {
   try {
-    statSync(filePath);
+    statSync(targetPath);
     return true;
   } catch {
     return false;
   }
 }
 
-export function normalizeAbsolutePath(target: string): string {
+export function resolveAbsolutePath(target: string): string {
   if (path.isAbsolute(target)) {
     return target;
   }
@@ -192,25 +186,10 @@ export function normalizeAbsolutePath(target: string): string {
   ) {
     return absoluteCandidate;
   }
-  if (fileExists(absoluteCandidate)) {
+  if (existsPath(absoluteCandidate)) {
     return absoluteCandidate;
   }
   return target;
-}
-
-export function listProtoFilesByRoot(primaryRoot: string, secondaryRoot: string): string[] {
-  const seen = new Map<string, string>();
-  for (const file of listProtoFiles(primaryRoot)) {
-    const rel = path.relative(primaryRoot, file);
-    seen.set(rel, file);
-  }
-  for (const file of listProtoFiles(secondaryRoot)) {
-    const rel = path.relative(secondaryRoot, file);
-    if (!seen.has(rel)) {
-      seen.set(rel, file);
-    }
-  }
-  return [...seen.values()];
 }
 
 export function listProtoFiles(rootDir: string): string[] {
@@ -227,4 +206,19 @@ export function listProtoFiles(rootDir: string): string[] {
     }
   }
   return files;
+}
+
+export function listProtoFilesAcrossRoots(primaryRoot: string, secondaryRoot: string): string[] {
+  const seen = new Map<string, string>();
+  for (const file of listProtoFiles(primaryRoot)) {
+    const rel = path.relative(primaryRoot, file);
+    seen.set(rel, file);
+  }
+  for (const file of listProtoFiles(secondaryRoot)) {
+    const rel = path.relative(secondaryRoot, file);
+    if (!seen.has(rel)) {
+      seen.set(rel, file);
+    }
+  }
+  return [...seen.values()];
 }

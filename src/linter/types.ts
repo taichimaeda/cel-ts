@@ -1,4 +1,4 @@
-import type { ExprId, AST } from "../common/ast";
+import type { AST, ExprId } from "../common/ast";
 import type { SourceInfo } from "../common/source";
 
 export type LintSeverity = "info" | "warning";

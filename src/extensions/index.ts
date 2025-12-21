@@ -9,4 +9,3 @@ export * from "./protos";
 export * from "./regex";
 export * from "./sets";
 export * from "./strings";
-

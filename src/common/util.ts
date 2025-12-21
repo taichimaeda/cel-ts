@@ -1,4 +1,4 @@
-import { CallExpr, LiteralExpr, Operators, type Expr } from "./ast";
+import { CallExpr, type Expr, LiteralExpr, Operators } from "./ast";
 
 export function isBoolLiteral(expr: Expr): boolean | undefined {
   if (expr instanceof LiteralExpr && expr.value.kind === "bool") {

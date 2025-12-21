@@ -32,13 +32,3 @@ pnpm-debug.log*
 *.tmp
 *.temp
 .cache/
-
-# Test artifacts
-.test-results/
-test/benchmark/results.json
-
-# TypeDoc output
-docs/api/
-
-# Claude
-.claude/

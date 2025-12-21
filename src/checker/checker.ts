@@ -36,7 +36,7 @@ import {
   NullType,
   OptionalType,
   StringType,
-  Type,
+  type Type,
   TypeKind,
   TypeParamType,
   UintType,
@@ -66,8 +66,8 @@ export class Checker {
   constructor(
     private env: CheckerEnv,
     private readonly typeMap: Map<ExprId, Type>,
-    private readonly refMap: Map<ExprId, ReferenceInfo>,
-  ) { }
+    private readonly refMap: Map<ExprId, ReferenceInfo>
+  ) {}
 
   /**
    * Check an AST expression
@@ -336,12 +336,7 @@ export class Checker {
     // Condition must be bool
     const condType = this.getType(condArg.id);
     if (!this.mapping.isAssignable(BoolType, condType)) {
-      this.errors.reportTypeMismatch(
-        condArg.id,
-        BoolType,
-        condType,
-        this.getLocation(condArg.id)
-      );
+      this.errors.reportTypeMismatch(condArg.id, BoolType, condType, this.getLocation(condArg.id));
     }
 
     // Retrieve branch types and join them

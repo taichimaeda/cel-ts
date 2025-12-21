@@ -54,14 +54,14 @@ console.log(result.value()); // "Alice is 30 years old"
 ## Examples
 
 Additional runnable snippets that mirror the [`cel-go` examples](https://github.com/google/cel-go/tree/master/examples)
-are available under [`examples/`](examples). Execute them with `bun` or your
+are available under [`examples/README.md`](examples/README.md). Execute them with `bun` or your
 preferred TS runner, e.g.:
 
 ```bash
 bun run examples/cel-eval.ts
 ```
 
-Formatting examples live in `examples/format.md`.
+Formatting examples live in `examples/formatting.ts`.
 
 ## API Reference
 
@@ -417,7 +417,7 @@ console.log(program.eval().value()); // "ababab - olleh"
 
 ## Architecture
 
-See [doc/cel-ts-architecture.md](doc/cel-ts-architecture.md) for detailed architecture documentation.
+See [docs/README.md](docs/README.md) for detailed architecture documentation.
 
 ```
 Expression → Parse → AST → Check → Plan → Eval → Result
@@ -461,7 +461,7 @@ pnpm docs
 
 ## License
 
-MIT License
+Apache-2.0 License
 
 ## Contributing
 
@@ -471,4 +471,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 - [cel-go](https://github.com/google/cel-go) - Go implementation (reference)
 - [cel-spec](https://github.com/google/cel-spec) - CEL specification
-- [cel-cpp](https://github.com/google/cel-cpp) - C++ implementation

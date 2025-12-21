@@ -7,7 +7,7 @@ import type { LintContext, LintDiagnostic, LintLocation, LintRule } from "./type
 export type { LintContext, LintDiagnostic, LintFix, LintRule, LintSeverity } from "./types";
 
 export class Linter {
-  constructor(private readonly rules: readonly LintRule[] = defaultRules) { }
+  constructor(private readonly rules: readonly LintRule[] = defaultRules) {}
 
   lint(ast: AST): LintDiagnostic[] {
     const diagnostics: LintDiagnostic[] = [];

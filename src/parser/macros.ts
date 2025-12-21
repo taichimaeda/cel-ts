@@ -3,12 +3,7 @@
 // Ported from cel-go/parser/macro.go
 
 import { Operators } from "../common";
-import {
-  AccumulatorName,
-  type Expr,
-  IdentExpr,
-  SelectExpr,
-} from "../common/ast";
+import { AccumulatorName, type Expr, IdentExpr, SelectExpr } from "../common/ast";
 import type { ParserHelper } from "./helper";
 
 // Re-export AccumulatorName
@@ -66,8 +61,7 @@ class BaseMacro implements Macro {
     readonly expander: MacroExpander,
     readonly receiverStyle = false,
     readonly varArgStyle = false
-  ) {
-  }
+  ) {}
 
   macroKey(): string {
     if (this.varArgStyle) {
@@ -220,11 +214,7 @@ export const makeExistsOne: MacroExpander = (helper, target, args) => {
 /**
  * makeMap expands `target.map(var, transform)` or `target.map(var, predicate, transform)`.
  */
-export const makeMap: MacroExpander = (
-  helper,
-  target,
-  args
-) => {
+export const makeMap: MacroExpander = (helper, target, args) => {
   const variable = extractIdent(args[0]!);
   if (!variable) {
     throw new MacroError("argument is not an identifier");
@@ -272,11 +262,7 @@ export const makeMap: MacroExpander = (
 /**
  * makeFilter expands `target.filter(var, predicate)`.
  */
-export const makeFilter: MacroExpander = (
-  helper,
-  target,
-  args
-) => {
+export const makeFilter: MacroExpander = (helper, target, args) => {
   const variable = extractIdent(args[0]!);
   if (!variable) {
     throw new MacroError("argument is not an identifier");
@@ -315,11 +301,7 @@ export const makeFilter: MacroExpander = (
 /**
  * makeHas expands `has(obj.field)` into a presence test.
  */
-export const makeHas: MacroExpander = (
-  helper,
-  _target,
-  args
-) => {
+export const makeHas: MacroExpander = (helper, _target, args) => {
   const arg = args[0]!;
   if (arg instanceof SelectExpr) {
     const select = arg;

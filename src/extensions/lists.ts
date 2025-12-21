@@ -1,19 +1,6 @@
-import {
-  DynType,
-  Function,
-  IntType,
-  MemberOverload,
-  Overload,
-  type EnvOptions,
-} from "../cel";
-import { ListType, TypeParamType, type Type } from "../checker/types";
-import {
-  CallExpr,
-  ComprehensionExpr,
-  IdentExpr,
-  ListExpr,
-  SelectExpr,
-} from "../common/ast";
+import { DynType, type EnvOptions, Function, IntType, MemberOverload, Overload } from "../cel";
+import { ListType, type Type, TypeParamType } from "../checker/types";
+import { CallExpr, ComprehensionExpr, IdentExpr, ListExpr, SelectExpr } from "../common/ast";
 import {
   DoubleValue,
   ErrorValue,
@@ -22,7 +9,7 @@ import {
   UintValue,
   type Value,
 } from "../interpreter/values";
-import { MacroError, ReceiverMacro, type Macro } from "../parser";
+import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import { makeMap } from "../parser/macros";
 import type { Extension } from "./extensions";
 import { compareValues, isComparableValue } from "./util";
@@ -45,11 +32,8 @@ export class ListsExtension implements Extension {
     const functions = [
       new Function(
         "slice",
-        new MemberOverload(
-          "list_slice",
-          [listOfT, IntType, IntType],
-          listOfT,
-          (args: Value[]) => sliceList(args)
+        new MemberOverload("list_slice", [listOfT, IntType, IntType], listOfT, (args: Value[]) =>
+          sliceList(args)
         )
       ),
       new Function(
@@ -97,11 +81,8 @@ export class ListsExtension implements Extension {
       ),
       new Function(
         "lists.range",
-        new Overload(
-          "lists_range_int",
-          [IntType],
-          new ListType(IntType),
-          (arg: Value) => rangeList(arg)
+        new Overload("lists_range_int", [IntType], new ListType(IntType), (arg: Value) =>
+          rangeList(arg)
         )
       ),
     ];
@@ -175,7 +156,9 @@ function sliceList(args: Value[]): Value {
     return endNum;
   }
   if (startNum < 0 || endNum < 0) {
-    return ErrorValue.create(`cannot slice(${startNum}, ${endNum}), negative indexes not supported`);
+    return ErrorValue.create(
+      `cannot slice(${startNum}, ${endNum}), negative indexes not supported`
+    );
   }
   if (startNum > endNum) {
     return ErrorValue.create(

@@ -1,13 +1,8 @@
-import { Function, Overload, type EnvOptions } from "../cel";
+import { type EnvOptions, Function, Overload } from "../cel";
 import { MapType, TypeParamType } from "../checker/types";
-import { AccumulatorName, IdentExpr, Operators, type Expr } from "../common/ast";
-import {
-  ErrorValue,
-  MapValue,
-  type MapEntry,
-  type Value,
-} from "../interpreter/values";
-import { MacroError, ReceiverMacro, type Macro, type MacroExpander } from "../parser";
+import { AccumulatorName, type Expr, IdentExpr, Operators } from "../common/ast";
+import { ErrorValue, type MapEntry, MapValue, type Value } from "../interpreter/values";
+import { type Macro, MacroError, type MacroExpander, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 
 export class TwoVarComprehensionsExtension implements Extension {

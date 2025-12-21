@@ -6,45 +6,107 @@ export { OptionalType, RuntimeType, UnknownType } from "./types";
 
 // Values - Runtime values
 export {
-  BoolValue, BytesValue, DefaultTypeAdapter, DoubleValue, DurationValue, EnumValue, ErrorValue, IntValue, ListValue,
-  MapValue, NullValue, OptionalValue, StringValue, StructValue, TimestampValue, TypeValue, UintValue, UnknownValue, ValueUtil
+  BoolValue,
+  BytesValue,
+  DefaultTypeAdapter,
+  DoubleValue,
+  DurationValue,
+  EnumValue,
+  ErrorValue,
+  IntValue,
+  ListValue,
+  MapValue,
+  NullValue,
+  OptionalValue,
+  StringValue,
+  StructValue,
+  TimestampValue,
+  TypeValue,
+  UintValue,
+  UnknownValue,
+  ValueUtil
 } from "./values";
 export type { MapEntry, TypeAdapter, Value, ValueType } from "./values";
 
 // Activation - Variable resolution
 export {
-  EmptyActivation, HierarchicalActivation, LazyActivation, MapActivation, MutableActivation, PartialActivation, StrictActivation, type Activation
-} from "./activations";
+  EmptyActivation,
+  HierarchicalActivation,
+  LazyActivation,
+  MapActivation,
+  MutableActivation,
+  PartialActivation,
+  StrictActivation,
+  type Activation
+} from "./activation";
 
 // Attributes - Attributes/qualifiers
 export {
-  AbsoluteAttribute, ComputedQualifier, ConditionalAttribute, DefaultAttributeFactory, IndexQualifier, MaybeAttribute, RelativeAttribute, StringQualifier, type Attribute, type AttributeFactory, type Qualifier
+  AbsoluteAttribute,
+  ComputedQualifier,
+  ConditionalAttribute,
+  DefaultAttributeFactory,
+  IndexQualifier,
+  MaybeAttribute,
+  RelativeAttribute,
+  StringQualifier,
+  type Attribute,
+  type AttributeFactory,
+  type Qualifier
 } from "./attributes";
 
 // Dispatcher - Function dispatcher
 export {
-  BinaryDispatcherOverload, DefaultDispatcher, FunctionResolver, ResolvedCall, UnaryDispatcherOverload, VariadicDispatcherOverload, type BinaryOp, type Dispatcher,
-  type FunctionCall, type FunctionOp, type Overload,
+  BinaryDispatcherOverload,
+  DefaultDispatcher,
+  FunctionResolver,
+  ResolvedCall,
+  UnaryDispatcherOverload,
+  VariadicDispatcherOverload,
+  type BinaryOp,
+  type Dispatcher,
+  type FunctionCall,
+  type FunctionOp,
+  type Overload,
   type UnaryOp
 } from "./dispatcher";
 
 // Interpretable - Evaluatable expressions
 export {
-  AndValue, AttrValue, BinaryValue,
-  CallValue, ComprehensionValue, ConditionalValue, ConstValue, CreateListValue,
+  AndValue,
+  AttrValue,
+  BinaryValue,
+  CallValue,
+  ComprehensionValue,
+  ConditionalValue,
+  ConstValue,
+  CreateListValue,
   CreateMapValue,
-  CreateStructValue, FieldValue, IdentValue, IndexValue, NegValue, NotValue, OrValue, TypeConversionValue, type Interpretable
+  CreateStructValue,
+  FieldValue,
+  IdentValue,
+  IndexValue,
+  NegValue,
+  NotValue,
+  OrValue,
+  TypeConversionValue,
+  type Interpretable
 } from "./interpretable";
 
 // Planner - AST transformation
 export {
-  Planner, type PlannerOptions
-} from "./planner";
+  Planner,
+  type PlannerOptions
+} from "../planner";
 
 // Interpreter - Main API
 export {
-  Env, Program, type CompileResult,
-  type Declaration, type EnvOptions, type EvalResult
+  Env,
+  Program,
+  type CompileResult,
+  type Declaration,
+  type EnvOptions,
+  type EvalResult
 } from "./interpreter";
 
 // Functions - Standard functions

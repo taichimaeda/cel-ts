@@ -13,7 +13,7 @@ import {
   StringType,
   StructType,
   TimestampType,
-  Type,
+  type Type,
   UintType,
 } from "./types";
 
@@ -63,7 +63,7 @@ export interface TypeProvider {
  * Type provider that merges multiple providers.
  */
 export class CompositeTypeProvider implements TypeProvider {
-  constructor(private readonly providers: readonly TypeProvider[]) { }
+  constructor(private readonly providers: readonly TypeProvider[]) {}
 
   findStructType(typeName: string): Type | undefined {
     for (const provider of this.providers) {
@@ -188,7 +188,7 @@ export class StructTypeProvider implements TypeProvider {
  * Protobuf-backed type provider for resolving message fields as CEL struct types.
  */
 export class ProtobufTypeProvider implements TypeProvider {
-  constructor(private readonly root: ProtobufRoot) { }
+  constructor(private readonly root: ProtobufRoot) {}
 
   findStructType(typeName: string): Type | undefined {
     const message = this.lookupMessage(typeName);

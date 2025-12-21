@@ -1,5 +1,5 @@
-import { Function, type EnvOptions } from "../cel";
-import { MacroError, ReceiverMacro, type Macro } from "../parser";
+import type { EnvOptions, Function } from "../cel";
+import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { extractIdentName, macroTargetMatchesNamespace } from "./macros";
 

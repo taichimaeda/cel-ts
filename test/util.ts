@@ -9,7 +9,7 @@ import {
   NullType,
   StringType,
   TimestampType,
-  Type,
+  type Type,
   VariableDecl,
 } from "../src/checker";
 import { Env, type EvalResult } from "../src/interpreter";
@@ -51,10 +51,7 @@ function inferDecls(vars: Record<string, unknown>): VariableDecl[] {
   return Object.entries(vars).map(([name, value]) => new VariableDecl(name, inferType(value)));
 }
 
-export function evaluate(
-  exp: string,
-  vars?: Record<string, unknown>,
-): EvalResult {
+export function evaluate(exp: string, vars?: Record<string, unknown>): EvalResult {
   const declarations = vars ? inferDecls(vars) : [];
   const env = new Env({ declarations });
 

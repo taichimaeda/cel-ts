@@ -101,13 +101,7 @@ export class StandardLibrary {
 
     // list.size() -> int (receiver style)
     fn.addOverload(
-      new OverloadDecl(
-        "list_size",
-        [new ListType(new TypeParamType("T"))],
-        IntType,
-        ["T"],
-        true
-      )
+      new OverloadDecl("list_size", [new ListType(new TypeParamType("T"))], IntType, ["T"], true)
     );
 
     // map.size() -> int (receiver style)
@@ -371,10 +365,7 @@ export class StandardLibrary {
     fn.addOverload(
       new OverloadDecl(
         "in_map",
-        [
-          new TypeParamType("K"),
-          new MapType(new TypeParamType("K"), new TypeParamType("V")),
-        ],
+        [new TypeParamType("K"), new MapType(new TypeParamType("K"), new TypeParamType("V"))],
         BoolType,
         ["K", "V"]
       )
@@ -403,10 +394,7 @@ export class StandardLibrary {
     fn.addOverload(
       new OverloadDecl(
         "index_map",
-        [
-          new MapType(new TypeParamType("K"), new TypeParamType("V")),
-          new TypeParamType("K"),
-        ],
+        [new MapType(new TypeParamType("K"), new TypeParamType("V")), new TypeParamType("K")],
         new TypeParamType("V"),
         ["K", "V"]
       )
@@ -491,10 +479,7 @@ export class StandardLibrary {
         fn.addOverload(
           new OverloadDecl(
             "add_list",
-            [
-              new ListType(new TypeParamType("T")),
-              new ListType(new TypeParamType("T")),
-            ],
+            [new ListType(new TypeParamType("T")), new ListType(new TypeParamType("T"))],
             new ListType(new TypeParamType("T")),
             ["T"]
           )
@@ -519,11 +504,7 @@ export class StandardLibrary {
       // duration - duration
       if (op.name === Operators.Subtract) {
         fn.addOverload(
-          new OverloadDecl(
-            "subtract_duration_duration",
-            [DurationType, DurationType],
-            DurationType
-          )
+          new OverloadDecl("subtract_duration_duration", [DurationType, DurationType], DurationType)
         );
 
         // timestamp - duration

@@ -1,4 +1,4 @@
-import { IdentExpr, SelectExpr, type Expr } from "../common/ast";
+import { type Expr, IdentExpr, SelectExpr } from "../common/ast";
 
 export function macroTargetMatchesNamespace(namespace: string, target: Expr | null): boolean {
   if (!target) return false;

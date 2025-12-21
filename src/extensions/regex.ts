@@ -1,10 +1,4 @@
-import {
-  Function,
-  IntType,
-  Overload,
-  StringType,
-  type EnvOptions,
-} from "../cel";
+import { type EnvOptions, Function, IntType, Overload, StringType } from "../cel";
 import { ListType, OptionalType } from "../checker/types";
 import {
   ErrorValue,
@@ -112,7 +106,11 @@ function replaceRegex(args: Value[]): Value {
   const pattern = args[1];
   const replacement = args[2];
   const count = args[3];
-  if (!(target instanceof StringValue) || !(pattern instanceof StringValue) || !(replacement instanceof StringValue)) {
+  if (
+    !(target instanceof StringValue) ||
+    !(pattern instanceof StringValue) ||
+    !(replacement instanceof StringValue)
+  ) {
     return ErrorValue.create("regex.replace expects string arguments");
   }
   let limit = -1;

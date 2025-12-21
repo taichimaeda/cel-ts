@@ -1,6 +1,6 @@
 import type { EnvOptions } from "../cel";
-import { IdentExpr, SelectExpr, type Expr } from "../common/ast";
-import { MacroError, ReceiverMacro, type Macro } from "../parser";
+import { type Expr, IdentExpr, SelectExpr } from "../common/ast";
+import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { macroTargetMatchesNamespace } from "./macros";
 

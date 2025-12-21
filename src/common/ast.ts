@@ -57,14 +57,9 @@ export interface Expr {
  * Base class providing shared behavior for expressions.
  */
 export abstract class BaseExpr implements Expr {
-  constructor(readonly id: ExprId) { }
+  constructor(readonly id: ExprId) {}
 
-  abstract accept(
-    visitor: Visitor,
-    order?: VisitOrder,
-    depth?: number,
-    maxDepth?: number
-  ): void;
+  abstract accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
 
   // Type guard helpers
   static isLiteral(expr: Expr): expr is LiteralExpr {
@@ -130,7 +125,10 @@ export class UnspecifiedExpr extends BaseExpr {
  * Literal value expression.
  */
 export class LiteralExpr extends BaseExpr {
-  constructor(id: ExprId, readonly value: LiteralValue) {
+  constructor(
+    id: ExprId,
+    readonly value: LiteralValue
+  ) {
     super(id);
   }
 
@@ -168,7 +166,10 @@ export type LiteralValue =
  * Identifier expression.
  */
 export class IdentExpr extends BaseExpr {
-  constructor(id: ExprId, readonly name: string) {
+  constructor(
+    id: ExprId,
+    readonly name: string
+  ) {
     super(id);
   }
 
@@ -312,14 +313,9 @@ export interface EntryExpr {
  * Base class providing shared behavior for entries.
  */
 export abstract class BaseEntry implements EntryExpr {
-  constructor(readonly id: ExprId) { }
+  constructor(readonly id: ExprId) {}
 
-  abstract accept(
-    visitor: Visitor,
-    order?: VisitOrder,
-    depth?: number,
-    maxDepth?: number
-  ): void;
+  abstract accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
 
   static isMapEntry(entry: EntryExpr): entry is MapEntry {
     return entry instanceof MapEntry;
@@ -368,7 +364,10 @@ export class MapEntry extends BaseEntry {
  * Map creation expression.
  */
 export class MapExpr extends BaseExpr {
-  constructor(id: ExprId, readonly entries: readonly MapEntry[]) {
+  constructor(
+    id: ExprId,
+    readonly entries: readonly MapEntry[]
+  ) {
     super(id);
   }
 
@@ -559,7 +558,10 @@ export interface ReferenceInfo {
  */
 export class IdentReference implements ReferenceInfo {
   readonly overloadIds: string[] = [];
-  constructor(readonly name: string, readonly value?: unknown) { }
+  constructor(
+    readonly name: string,
+    readonly value?: unknown
+  ) {}
 }
 
 /**
@@ -589,7 +591,7 @@ export class AST {
     readonly sourceInfo: SourceInfo,
     readonly typeMap: Map<ExprId, Type> = new Map(),
     readonly refMap: Map<ExprId, ReferenceInfo> = new Map()
-  ) { }
+  ) {}
 
   /**
    * Get the type for an expression ID.

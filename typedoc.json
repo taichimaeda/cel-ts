@@ -1,7 +1,9 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPoints": ["src/index.ts"],
-  "out": "doc/api",
+  "entryPoints": [
+    "src/index.ts"
+  ],
+  "out": "docs/api",
   "name": "cel-ts",
   "readme": "README.md",
   "includeVersion": true,
@@ -10,7 +12,7 @@
   "excludeInternal": true,
   "skipErrorChecking": true,
   "navigationLinks": {
-    "GitHub": "https://github.com/example/cel-ts"
+    "GitHub": "https://github.com/taichimaeda/cel-ts"
   },
   "githubPages": true,
   "cleanOutputDir": true

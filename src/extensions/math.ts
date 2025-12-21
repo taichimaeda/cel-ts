@@ -2,11 +2,11 @@ import {
   BoolType,
   DoubleType,
   DynType,
+  type EnvOptions,
   Function,
   IntType,
   Overload,
   UintType,
-  type EnvOptions,
 } from "../cel";
 import { ListType } from "../checker/types";
 import {
@@ -18,7 +18,7 @@ import {
   UintValue,
   type Value,
 } from "../interpreter/values";
-import { MacroError, ReceiverVarArgMacro, type Macro } from "../parser";
+import { type Macro, MacroError, ReceiverVarArgMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { macroTargetMatchesNamespace } from "./macros";
 import { compareValues } from "./util";

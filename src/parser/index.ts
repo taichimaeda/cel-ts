@@ -11,16 +11,26 @@ export type { ParserHelperOptions } from "./helper";
 
 // Macros
 export {
-  AccumulatorName, AllMacro, AllMacros, ExistsMacro,
+  AccumulatorName,
+  AllMacro,
+  AllMacros,
+  ExistsMacro,
   ExistsOneMacro,
-  ExistsOneMacroNew, FilterMacro,
+  ExistsOneMacroNew,
+  FilterMacro,
   // Macro classes
-  GlobalMacro, GlobalVarArgMacro,
+  GlobalMacro,
+  GlobalVarArgMacro,
   // Standard macros
-  HasMacro, MacroError,
-  MacroRegistry, MapFilterMacro, MapMacro, NoMacros, ReceiverMacro, ReceiverVarArgMacro,
+  HasMacro,
+  MacroError,
+  MacroRegistry,
+  MapFilterMacro,
+  MapMacro,
+  NoMacros,
+  ReceiverMacro,
+  ReceiverVarArgMacro,
   // Macro types
   type Macro,
-  type MacroExpander
+  type MacroExpander,
 } from "./macros";
-

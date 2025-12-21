@@ -9,15 +9,11 @@ import {
   OverloadDecl,
   StructDecl,
   StructFieldDecl,
-  VariableDecl
+  VariableDecl,
 } from "./checker/decls";
 import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
 import type { CheckerError } from "./checker/error";
-import {
-  CompositeTypeProvider,
-  StructTypeProvider,
-  type TypeProvider,
-} from "./checker/provider";
+import { CompositeTypeProvider, StructTypeProvider, type TypeProvider } from "./checker/provider";
 import {
   AnyType as CheckerAnyType,
   BoolType as CheckerBoolType,
@@ -35,7 +31,7 @@ import {
   MapType,
   OptionalType,
   StructType,
-  Type,
+  type Type,
   TypeTypeWithParam,
 } from "./checker/types";
 import type { AST as CommonAST } from "./common/ast";
@@ -46,13 +42,13 @@ import {
   HierarchicalActivation,
   LazyActivation,
   MapActivation,
-} from "./interpreter/activations";
+} from "./interpreter/activation";
 import {
   DefaultDispatcher,
   type Dispatcher,
-  type Overload as DispatcherOverload
+  type Overload as DispatcherOverload,
 } from "./interpreter/dispatcher";
-import { Planner } from "./interpreter/planner";
+import { Planner } from "./planner";
 import {
   DefaultTypeAdapter,
   type ErrorValue,
@@ -73,7 +69,10 @@ import { AllMacros, type Macro, Parser, ParserHelper } from "./parser";
 export class CELError extends Error {
   override name = "CELError";
 
-  constructor(message: string, readonly issues: Issues = new Issues([])) {
+  constructor(
+    message: string,
+    readonly issues: Issues = new Issues([])
+  ) {
     super(message);
   }
 }
@@ -182,7 +181,10 @@ export const Types = new TypeBuilder();
  * Issues represents a collection of errors and warnings from parsing or type-checking.
  */
 export class Issues {
-  constructor(readonly errors: readonly CheckerError[] = [], _source = "") { }
+  constructor(
+    readonly errors: readonly CheckerError[] = [],
+    _source = ""
+  ) { }
 
   /**
    * Returns true if there are any errors.
@@ -224,7 +226,7 @@ export class Ast {
   constructor(
     readonly ast: CommonAST,
     readonly source: string,
-    private checked: boolean = false
+    private checked = false
   ) { }
 
   /**
@@ -362,6 +364,46 @@ export interface EnvOptions {
   enumValuesAsInt?: boolean;
 }
 
+export function mergeEnvOptions(...options: EnvOptions[]): EnvOptions {
+  const merged: EnvOptions = {};
+  for (const option of options) {
+    if (option.variables) {
+      merged.variables = [...(merged.variables ?? []), ...option.variables];
+    }
+    if (option.constants) {
+      merged.constants = [...(merged.constants ?? []), ...option.constants];
+    }
+    if (option.functions) {
+      merged.functions = [...(merged.functions ?? []), ...option.functions];
+    }
+    if (option.structs) {
+      merged.structs = [...(merged.structs ?? []), ...option.structs];
+    }
+    if (option.macros) {
+      merged.macros = [...(merged.macros ?? []), ...option.macros];
+    }
+    if (option.typeProvider) {
+      merged.typeProvider = option.typeProvider;
+    }
+    if (option.container !== undefined) {
+      merged.container = option.container;
+    }
+    if (option.adapter) {
+      merged.adapter = option.adapter;
+    }
+    if (option.disableStandardLibrary) {
+      merged.disableStandardLibrary = true;
+    }
+    if (option.disableTypeChecking) {
+      merged.disableTypeChecking = true;
+    }
+    if (option.enumValuesAsInt !== undefined) {
+      merged.enumValuesAsInt = option.enumValuesAsInt;
+    }
+  }
+  return merged;
+}
+
 /**
  * Helper class for declaring variables within EnvOptions.
  */
@@ -398,7 +440,10 @@ export class EnvConstantOption {
 export class EnvFunctionOption {
   readonly overloads: readonly FunctionOverloadOption[];
 
-  constructor(readonly name: string, ...overloads: FunctionOverloadOption[]) {
+  constructor(
+    readonly name: string,
+    ...overloads: FunctionOverloadOption[]
+  ) {
     this.overloads = overloads;
   }
 
@@ -448,9 +493,7 @@ export class EnvStructOption {
   }
 
   register(config: EnvConfig): void {
-    const declFields = this.fields.map(
-      (field) => new StructFieldDecl(field.name, field.type)
-    );
+    const declFields = this.fields.map((field) => new StructFieldDecl(field.name, field.type));
     config.structProvider.addStructs(new StructDecl(this.name, declFields));
   }
 }
@@ -556,9 +599,12 @@ class MemberFunctionOverloadOption extends FunctionOverloadOption {
 
 export {
   EnvConstantOption as Constant,
-  EnvFunctionOption as Function, MemberFunctionOverloadOption as MemberOverload,
-  GlobalFunctionOverloadOption as Overload, EnvStructOption as Struct,
-  EnvStructFieldOption as StructField, EnvVariableOption as Variable
+  EnvFunctionOption as Function,
+  MemberFunctionOverloadOption as MemberOverload,
+  GlobalFunctionOverloadOption as Overload,
+  EnvStructOption as Struct,
+  EnvStructFieldOption as StructField,
+  EnvVariableOption as Variable
 };
 export type { EnvOptions as Options };
 
@@ -811,13 +857,16 @@ export {
   MutableActivation,
   PartialActivation,
   StrictActivation
-} from "./interpreter/activations";
-export type { Activation } from "./interpreter/activations";
+} from "./interpreter/activation";
+export type { Activation } from "./interpreter/activation";
 export {
   BoolValue,
   BytesValue,
   DoubleValue,
-  DurationValue, EnumValue, ErrorValue, IntValue,
+  DurationValue,
+  EnumValue,
+  ErrorValue,
+  IntValue,
   ListValue,
   MapValue,
   NullValue,
@@ -828,4 +877,3 @@ export {
   ValueUtil
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";
-

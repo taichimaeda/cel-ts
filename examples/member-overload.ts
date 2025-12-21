@@ -1,4 +1,4 @@
-import { Env, Function, Variable, MemberOverload, StringType, StringValue } from "../src/cel";
+import { Env, Function, MemberOverload, StringType, StringValue, Variable } from "../src/cel";
 
 const env = new Env({
   variables: [new Variable("i", StringType), new Variable("you", StringType)],

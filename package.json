@@ -1,7 +1,7 @@
 {
   "name": "cel-ts",
   "version": "0.1.0-alpha",
-  "description": "Common Expression Language (CEL) implementation in TypeScript - A fast, safe expression evaluator compatible with cel-go",
+  "description": " Yet another CEL interpreter for TypeScript",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -32,9 +32,9 @@
     "benchmark": "bun run test/benchmark/run.ts",
     "prepublishOnly": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
     "version": "pnpm run build",
-    "clean": "rm -rf dist coverage doc/api",
-    "docs": "typedoc",
-    "docs:watch": "typedoc --watch"
+    "clean": "rm -rf dist coverage docs/api",
+    "docs": "pnpm exec typedoc",
+    "docs:watch": "pnpm exec typedoc --watch"
   },
   "keywords": [
     "cel",
@@ -49,14 +49,14 @@
     "dsl"
   ],
   "author": "",
-  "license": "MIT",
-  "homepage": "https://github.com/example/cel-ts#readme",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/taichimaeda/cel-ts/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/example/cel-ts.git"
+    "url": "git+https://github.com/taichimaeda/cel-ts.git"
   },
   "bugs": {
-    "url": "https://github.com/example/cel-ts/issues"
+    "url": "https://github.com/taichimaeda/cel-ts/issues"
   },
   "engines": {
     "node": ">=18.0.0"

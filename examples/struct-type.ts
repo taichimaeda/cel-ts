@@ -1,11 +1,4 @@
-import {
-  Env,
-  EnvStructOption,
-  IntType,
-  StringType,
-  Types,
-  Variable,
-} from "../src/cel";
+import { Env, EnvStructOption, IntType, StringType, Types, Variable } from "../src/cel";
 
 const env = new Env({
   structs: [

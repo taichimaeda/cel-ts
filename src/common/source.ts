@@ -23,7 +23,10 @@ export class SourceInfo {
   /** Map from expression ID to macro call (original call before expansion) */
   private readonly macroCalls: Map<ExprId, Expr> = new Map();
 
-  constructor(readonly source: string, readonly description = "<input>") {
+  constructor(
+    readonly source: string,
+    readonly description = "<input>"
+  ) {
     // Compute line offsets.
     const offsets: number[] = [];
     for (let i = 0; i < source.length; i++) {

@@ -1,4 +1,4 @@
-import { CallExpr, Operators, type Expr } from "../common/ast";
+import { CallExpr, type Expr, Operators } from "../common/ast";
 import { isBoolLiteral, isLogicalNot } from "../common/util";
 import type { LintContext, LintRule } from "./types";
 

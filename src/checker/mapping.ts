@@ -6,7 +6,7 @@ import {
   ListType,
   MapType,
   OpaqueType,
-  Type,
+  type Type,
   TypeKind,
   TypeTypeWithParam,
   wellKnownTypeToNative,

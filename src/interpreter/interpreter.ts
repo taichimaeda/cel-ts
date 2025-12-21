@@ -10,18 +10,18 @@ import {
   type Token,
 } from "antlr4";
 import { type CheckResult, Checker } from "../checker/checker";
-import { type FunctionDecl, VariableDecl } from "../checker/decls";
+import type { FunctionDecl, VariableDecl } from "../checker/decls";
 import { CheckerEnv, Container } from "../checker/env";
 import { StandardLibrary } from "../checker/stdlib";
 import type { SourceInfo } from "../common/source";
 import CELLexer from "../parser/gen/CELLexer.js";
 import CELParser, { type StartContext } from "../parser/gen/CELParser.js";
 import { ParserHelper } from "../parser/helper";
-import { type Activation, EmptyActivation, LazyActivation, MapActivation } from "./activations";
+import { type Activation, EmptyActivation, LazyActivation, MapActivation } from "./activation";
 import { DefaultDispatcher, type Dispatcher } from "./dispatcher";
 import { standardFunctions } from "./functions";
 import type { Interpretable } from "./interpretable";
-import { Planner } from "./planner";
+import { Planner } from "../planner";
 import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, ValueUtil } from "./values";
 
 /**
@@ -149,12 +149,7 @@ export class Env {
     const interpretable = planner.plan(ast);
 
     // Create Program
-    const program = new Program(
-      interpretable,
-      checkResult,
-      this.adapter,
-      ast.sourceInfo
-    );
+    const program = new Program(interpretable, checkResult, this.adapter, ast.sourceInfo);
 
     return {
       program,

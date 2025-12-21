@@ -14,7 +14,7 @@ import {
   StringType,
   StructType,
   TimestampType,
-  Type,
+  type Type,
   TypeParamType,
   TypeTypeWithParam,
   UintType,
@@ -27,6 +27,7 @@ import {
   EnumValue,
   IntValue,
   ListValue,
+  type MapEntry,
   MapValue,
   NullValue,
   StringValue,
@@ -34,13 +35,12 @@ import {
   TimestampValue,
   TypeValue,
   UintValue,
-  type MapEntry,
   type Value,
 } from "../../src/interpreter/values";
 import { stripTypeUrl } from "./proto";
-import { runtime, type ProtoObject } from "./runtime";
+import { type ProtoObject, runtime } from "./runtime";
 
-export function valueFromProto(value: ProtoObject): Value | null {
+export function protoToValue(value: ProtoObject): Value | null {
   const kind = value["kind"] as string | undefined;
   if (!kind) {
     return null;
@@ -52,9 +52,9 @@ export function valueFromProto(value: ProtoObject): Value | null {
     case "bool_value":
       return BoolValue.of(Boolean(value["bool_value"]));
     case "int64_value":
-      return IntValue.of(toBigInt(value["int64_value"]));
+      return IntValue.of(unknownToBigInt(value["int64_value"]));
     case "uint64_value":
-      return UintValue.of(toBigInt(value["uint64_value"]));
+      return UintValue.of(unknownToBigInt(value["uint64_value"]));
     case "double_value":
       return DoubleValue.of(Number(value["double_value"]));
     case "string_value":
@@ -66,14 +66,14 @@ export function valueFromProto(value: ProtoObject): Value | null {
     case "list_value": {
       const list = value["list_value"] as ProtoObject | undefined;
       const values = (list?.["values"] ?? []) as ProtoObject[];
-      return ListValue.of(values.map((entry) => valueFromProto(entry) ?? NullValue.Instance));
+      return ListValue.of(values.map((entry) => protoToValue(entry) ?? NullValue.Instance));
     }
     case "map_value": {
       const map = value["map_value"] as ProtoObject | undefined;
       const entries = (map?.["entries"] ?? []) as ProtoObject[];
       const mapEntries: MapEntry[] = entries.map((entry) => ({
-        key: valueFromProto(entry["key"] as ProtoObject) ?? NullValue.Instance,
-        value: valueFromProto(entry["value"] as ProtoObject) ?? NullValue.Instance,
+        key: protoToValue(entry["key"] as ProtoObject) ?? NullValue.Instance,
+        value: protoToValue(entry["value"] as ProtoObject) ?? NullValue.Instance,
       }));
       return MapValue.of(mapEntries);
     }
@@ -82,7 +82,7 @@ export function valueFromProto(value: ProtoObject): Value | null {
       if (!objectValue) {
         return null;
       }
-      return objectValueFromProto(objectValue);
+      return protoToObjectValue(objectValue);
     }
     case "enum_value": {
       const enumValue = value["enum_value"] as ProtoObject | undefined;
@@ -91,17 +91,17 @@ export function valueFromProto(value: ProtoObject): Value | null {
       if (typeof typeName !== "string") {
         return null;
       }
-      const numberValue = toBigInt(numeric);
+      const numberValue = unknownToBigInt(numeric);
       return new EnumValue(normalizeTypeName(typeName), numberValue);
     }
     case "type_value":
-      return typeValueFromName(String(value["type_value"] ?? ""));
+      return typeNameToTypeValue(String(value["type_value"] ?? ""));
     default:
       return null;
   }
 }
 
-export function objectValueFromProto(anyValue: ProtoObject): Value | null {
+export function protoToObjectValue(anyValue: ProtoObject): Value | null {
   const typeUrl = anyValue["type_url"] ?? anyValue["typeUrl"];
   const bytes = anyValue["value"] as Uint8Array | number[] | undefined;
   if (!typeUrl || !bytes) {
@@ -129,46 +129,46 @@ export function normalizeTypeName(typeName: string): string {
   return typeName.startsWith(".") ? typeName.slice(1) : typeName;
 }
 
-export function normalizeFieldName(name: string): string {
+export function normalizeProtoFieldName(name: string): string {
   if (name.includes("_")) {
     return name;
   }
   return name.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`);
 }
 
-export function googleValueFromObject(object: ProtoObject): Value {
+export function objectToGoogleValue(object: ProtoObject): Value {
   const kind = object["kind"];
-  const nullValue = getProtoField(object, "null_value", "nullValue");
+  const nullValue = protoFieldToValue(object, "null_value", "nullValue");
   if (kind === "null_value" || nullValue !== undefined) {
     return NullValue.Instance;
   }
-  const numberValue = getProtoField(object, "number_value", "numberValue");
+  const numberValue = protoFieldToValue(object, "number_value", "numberValue");
   if (kind === "number_value" || numberValue !== undefined) {
     return DoubleValue.of(Number(numberValue ?? 0));
   }
-  const stringValue = getProtoField(object, "string_value", "stringValue");
+  const stringValue = protoFieldToValue(object, "string_value", "stringValue");
   if (kind === "string_value" || stringValue !== undefined) {
     return StringValue.of(String(stringValue ?? ""));
   }
-  const boolValue = getProtoField(object, "bool_value", "boolValue");
+  const boolValue = protoFieldToValue(object, "bool_value", "boolValue");
   if (kind === "bool_value" || boolValue !== undefined) {
     return BoolValue.of(Boolean(boolValue));
   }
-  const structValue = getProtoField(object, "struct_value", "structValue");
+  const structValue = protoFieldToValue(object, "struct_value", "structValue");
   if (kind === "struct_value" || structValue !== undefined) {
     const structObj = structValue as ProtoObject | undefined;
-    return googleStructFromObject(structObj ?? {});
+    return objectToGoogleStruct(structObj ?? {});
   }
-  const listValue = getProtoField(object, "list_value", "listValue");
+  const listValue = protoFieldToValue(object, "list_value", "listValue");
   if (kind === "list_value" || listValue !== undefined) {
     const listObj = listValue as ProtoObject | undefined;
-    return googleListFromObject(listObj ?? {});
+    return objectToGoogleList(listObj ?? {});
   }
   return NullValue.Instance;
 }
 
-export function googleStructFromObject(object: ProtoObject): Value {
-  const fieldsRaw = getProtoField(object, "fields");
+export function objectToGoogleStruct(object: ProtoObject): Value {
+  const fieldsRaw = protoFieldToValue(object, "fields");
   if (!fieldsRaw || typeof fieldsRaw !== "object") {
     return MapValue.of([]);
   }
@@ -183,7 +183,7 @@ export function googleStructFromObject(object: ProtoObject): Value {
       }
       entries.push({
         key: StringValue.of(key),
-        value: googleValueFromObject(value as ProtoObject),
+        value: objectToGoogleValue(value as ProtoObject),
       });
     }
     return MapValue.of(entries);
@@ -194,29 +194,29 @@ export function googleStructFromObject(object: ProtoObject): Value {
     }
     entries.push({
       key: StringValue.of(key),
-      value: googleValueFromObject(value as ProtoObject),
+      value: objectToGoogleValue(value as ProtoObject),
     });
   }
   return MapValue.of(entries);
 }
 
-export function googleListFromObject(object: ProtoObject): Value {
-  const values = (getProtoField(object, "values") ?? []) as ProtoObject[];
-  const entries = values.map((entry) => googleValueFromObject(entry));
+export function objectToGoogleList(object: ProtoObject): Value {
+  const values = (protoFieldToValue(object, "values") ?? []) as ProtoObject[];
+  const entries = values.map((entry) => objectToGoogleValue(entry));
   return ListValue.of(entries);
 }
 
-export function googleAnyFromObject(object: ProtoObject): Value | null {
-  const typeUrl = getProtoField(object, "type_url", "typeUrl");
-  const bytes = getProtoField(object, "value") as Uint8Array | number[] | undefined;
+export function objectToGoogleAny(object: ProtoObject): Value | null {
+  const typeUrl = protoFieldToValue(object, "type_url", "typeUrl");
+  const bytes = protoFieldToValue(object, "value") as Uint8Array | number[] | undefined;
   if (!typeUrl || !bytes) {
     return null;
   }
   const byteArray = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  return setResolvedAnyValue(String(typeUrl), byteArray);
+  return anyToValue(String(typeUrl), byteArray);
 }
 
-export function setResolvedAnyValue(typeUrl: string, bytes: Uint8Array): Value | null {
+export function anyToValue(typeUrl: string, bytes: Uint8Array): Value | null {
   const typeName = stripTypeUrl(typeUrl);
   let messageType: protobuf.Type;
   try {
@@ -229,7 +229,7 @@ export function setResolvedAnyValue(typeUrl: string, bytes: Uint8Array): Value |
   return messageToValue(messageType, object);
 }
 
-export function getProtoField(object: ProtoObject, ...names: string[]): unknown {
+export function protoFieldToValue(object: ProtoObject, ...names: string[]): unknown {
   for (const name of names) {
     if (object[name] !== undefined) {
       return object[name];
@@ -238,7 +238,7 @@ export function getProtoField(object: ProtoObject, ...names: string[]): unknown 
   return undefined;
 }
 
-export function fround(value: number): number {
+export function roundFloat32(value: number): number {
   const buffer = new Float32Array(1);
   buffer[0] = value;
   return buffer[0]!;
@@ -246,28 +246,28 @@ export function fround(value: number): number {
 
 export function messageToValue(messageType: protobuf.Type, object: ProtoObject): Value {
   if (messageType.fullName === ".google.protobuf.Timestamp") {
-    return timestampFromProto(object);
+    return protoToTimestamp(object);
   }
   if (messageType.fullName === ".google.protobuf.Duration") {
-    return durationFromProto(object);
+    return protoToDuration(object);
   }
   if (messageType.fullName === ".google.protobuf.Value") {
-    return googleValueFromObject(object);
+    return objectToGoogleValue(object);
   }
   if (messageType.fullName === ".google.protobuf.Struct") {
-    return googleStructFromObject(object);
+    return objectToGoogleStruct(object);
   }
   if (messageType.fullName === ".google.protobuf.ListValue") {
-    return googleListFromObject(object);
+    return objectToGoogleList(object);
   }
   if (messageType.fullName === ".google.protobuf.Any") {
-    const anyValue = googleAnyFromObject(object);
+    const anyValue = objectToGoogleAny(object);
     if (anyValue) {
       return anyValue;
     }
   }
 
-  const wrapperValue = wrapperValueFromMessage(messageType, object);
+  const wrapperValue = messageToWrapperValue(messageType, object);
   if (wrapperValue) {
     return wrapperValue;
   }
@@ -278,7 +278,7 @@ export function messageToValue(messageType: protobuf.Type, object: ProtoObject):
   const typeName = normalizeTypeName(messageType.fullName ?? "");
 
   for (const field of messageType.fieldsArray) {
-    const fieldName = normalizeFieldName(field.name);
+    const fieldName = normalizeProtoFieldName(field.name);
     const fieldType = runtime.protobufTypeProvider.findStructFieldType(typeName, fieldName);
     if (fieldType) {
       fieldTypes.set(fieldName, fieldType);
@@ -287,7 +287,7 @@ export function messageToValue(messageType: protobuf.Type, object: ProtoObject):
     if (raw === undefined || raw === null) {
       continue;
     }
-    const fieldValue = fieldValueFromProto(field, raw);
+    const fieldValue = fieldToValue(field, raw);
     if (fieldValue) {
       values.set(fieldName, fieldValue);
       presentFields.add(fieldName);
@@ -296,28 +296,31 @@ export function messageToValue(messageType: protobuf.Type, object: ProtoObject):
   return new StructValue(typeName, values, presentFields, fieldTypes, runtime.protobufTypeProvider);
 }
 
-export function wrapperValueFromMessage(messageType: protobuf.Type, object: ProtoObject): Value | null {
-  const kind = wrapperKindFromTypeName(messageType.fullName ?? "");
+export function messageToWrapperValue(
+  messageType: protobuf.Type,
+  object: ProtoObject
+): Value | null {
+  const kind = typeNameToWrapperKind(messageType.fullName ?? "");
   if (!kind) {
     return null;
   }
   const raw = object["value"];
   if (raw === undefined || raw === null) {
-    return wrapperDefaultValue(kind);
+    return wrapperKindToDefaultValue(kind);
   }
   switch (kind) {
     case "bool":
       return BoolValue.of(Boolean(raw));
     case "bytes":
-      return BytesValue.of(bytesFromRaw(raw));
+      return BytesValue.of(rawToBytes(raw));
     case "double":
       return DoubleValue.of(Number(raw));
     case "float":
-      return DoubleValue.of(fround(Number(raw)));
+      return DoubleValue.of(roundFloat32(Number(raw)));
     case "int":
-      return IntValue.of(toBigInt(raw));
+      return IntValue.of(unknownToBigInt(raw));
     case "uint":
-      return UintValue.of(toBigInt(raw));
+      return UintValue.of(unknownToBigInt(raw));
     case "string":
       return StringValue.of(String(raw ?? ""));
     default:
@@ -325,7 +328,7 @@ export function wrapperValueFromMessage(messageType: protobuf.Type, object: Prot
   }
 }
 
-export function wrapperKindFromTypeName(
+export function typeNameToWrapperKind(
   typeName: string
 ): "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string" | null {
   const normalized = normalizeTypeName(typeName);
@@ -351,7 +354,7 @@ export function wrapperKindFromTypeName(
   }
 }
 
-export function wrapperDefaultValue(
+export function wrapperKindToDefaultValue(
   kind: "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string"
 ): Value {
   switch (kind) {
@@ -372,27 +375,27 @@ export function wrapperDefaultValue(
   }
 }
 
-export function fieldValueFromProto(field: protobuf.Field, raw: unknown): Value | null {
+export function fieldToValue(field: protobuf.Field, raw: unknown): Value | null {
   if (field.map) {
-    return mapFieldValueFromProto(field, raw);
+    return mapFieldToValue(field, raw);
   }
   if (field.repeated) {
     const values = Array.isArray(raw) ? raw : [];
-    const entries = values.map((value) => fieldScalarOrMessageValue(field, value));
+    const entries = values.map((value) => fieldScalarOrMessageToValue(field, value));
     return ListValue.of(entries.map((entry) => entry ?? NullValue.Instance));
   }
-  return fieldScalarOrMessageValue(field, raw);
+  return fieldScalarOrMessageToValue(field, raw);
 }
 
-export function mapFieldValueFromProto(field: protobuf.Field, raw: unknown): Value | null {
+export function mapFieldToValue(field: protobuf.Field, raw: unknown): Value | null {
   if (!raw || typeof raw !== "object") {
     return null;
   }
   const entries: MapEntry[] = [];
   const keyType = (field as protobuf.Field & { keyType?: string }).keyType;
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    const keyValue = mapKeyValue(keyType, key);
-    const valueValue = fieldScalarOrMessageValue(field, value);
+    const keyValue = mapKeyToValue(keyType, key);
+    const valueValue = fieldScalarOrMessageToValue(field, value);
     if (keyValue && valueValue) {
       entries.push({ key: keyValue, value: valueValue });
     }
@@ -400,7 +403,7 @@ export function mapFieldValueFromProto(field: protobuf.Field, raw: unknown): Val
   return MapValue.of(entries);
 }
 
-export function mapKeyValue(keyType: string | undefined, key: string): Value | null {
+export function mapKeyToValue(keyType: string | undefined, key: string): Value | null {
   switch (keyType) {
     case "bool":
       return BoolValue.of(key === "true");
@@ -412,26 +415,26 @@ export function mapKeyValue(keyType: string | undefined, key: string): Value | n
     case "int64":
     case "sint64":
     case "sfixed64":
-      return IntValue.of(toBigInt(key));
+      return IntValue.of(unknownToBigInt(key));
     case "uint32":
     case "uint64":
     case "fixed32":
     case "fixed64":
-      return UintValue.of(toBigInt(key));
+      return UintValue.of(unknownToBigInt(key));
     default:
       return StringValue.of(key);
   }
 }
 
-export function fieldScalarOrMessageValue(field: protobuf.Field, raw: unknown): Value | null {
-  const scalar = scalarValueFromProto(field.type, raw);
+export function fieldScalarOrMessageToValue(field: protobuf.Field, raw: unknown): Value | null {
+  const scalar = scalarToValue(field.type, raw);
   if (scalar) {
     return scalar;
   }
 
   const resolved = field.resolvedType;
   if (resolved instanceof protobuf.Enum) {
-    return enumValueFromProto(resolved, raw);
+    return enumToValue(resolved, raw);
   }
   if (resolved instanceof protobuf.Type) {
     const object = raw as ProtoObject;
@@ -440,36 +443,36 @@ export function fieldScalarOrMessageValue(field: protobuf.Field, raw: unknown): 
   return null;
 }
 
-export function scalarValueFromProto(typeName: string, raw: unknown): Value | null {
+export function scalarToValue(typeName: string, raw: unknown): Value | null {
   switch (typeName) {
     case "bool":
       return BoolValue.of(Boolean(raw));
     case "string":
       return StringValue.of(String(raw ?? ""));
     case "bytes":
-      return BytesValue.of(bytesFromRaw(raw));
+      return BytesValue.of(rawToBytes(raw));
     case "double":
       return DoubleValue.of(Number(raw));
     case "float":
-      return DoubleValue.of(fround(Number(raw)));
+      return DoubleValue.of(roundFloat32(Number(raw)));
     case "int32":
     case "sint32":
     case "sfixed32":
     case "int64":
     case "sint64":
     case "sfixed64":
-      return IntValue.of(toBigInt(raw));
+      return IntValue.of(unknownToBigInt(raw));
     case "uint32":
     case "uint64":
     case "fixed32":
     case "fixed64":
-      return UintValue.of(toBigInt(raw));
+      return UintValue.of(unknownToBigInt(raw));
     default:
       return null;
   }
 }
 
-export function bytesFromRaw(raw: unknown): Uint8Array {
+export function rawToBytes(raw: unknown): Uint8Array {
   if (raw instanceof Uint8Array) {
     return raw;
   }
@@ -482,7 +485,7 @@ export function bytesFromRaw(raw: unknown): Uint8Array {
   return new Uint8Array();
 }
 
-export function enumValueFromProto(enumType: protobuf.Enum, raw: unknown): Value | null {
+export function enumToValue(enumType: protobuf.Enum, raw: unknown): Value | null {
   const typeName = normalizeTypeName(enumType.fullName ?? "");
   if (typeof raw === "string") {
     const numeric = enumType.values[raw];
@@ -500,19 +503,19 @@ export function enumValueFromProto(enumType: protobuf.Enum, raw: unknown): Value
   return null;
 }
 
-export function timestampFromProto(object: ProtoObject): Value {
-  const seconds = toBigInt(object["seconds"]);
-  const nanos = toBigInt(object["nanos"]);
+export function protoToTimestamp(object: ProtoObject): Value {
+  const seconds = unknownToBigInt(object["seconds"]);
+  const nanos = unknownToBigInt(object["nanos"]);
   return TimestampValue.of(seconds * 1_000_000_000n + nanos);
 }
 
-export function durationFromProto(object: ProtoObject): Value {
-  const seconds = toBigInt(object["seconds"]);
-  const nanos = toBigInt(object["nanos"]);
+export function protoToDuration(object: ProtoObject): Value {
+  const seconds = unknownToBigInt(object["seconds"]);
+  const nanos = unknownToBigInt(object["nanos"]);
   return DurationValue.of(seconds * 1_000_000_000n + nanos);
 }
 
-export function toBigInt(value: unknown): bigint {
+export function unknownToBigInt(value: unknown): bigint {
   if (typeof value === "bigint") {
     return value;
   }
@@ -528,7 +531,7 @@ export function toBigInt(value: unknown): bigint {
   return 0n;
 }
 
-export function typeFromProto(type: ProtoObject): Type | null {
+export function protoToType(type: ProtoObject): Type | null {
   const typeKind = (type["type_kind"] ?? type["typeKind"]) as string | undefined;
   if (!typeKind) {
     return null;
@@ -542,14 +545,14 @@ export function typeFromProto(type: ProtoObject): Type | null {
     case "error":
       return ErrorType;
     case "primitive":
-      return primitiveTypeFromProto(type["primitive"] as string);
+      return protoPrimitiveToType(type["primitive"] as string);
     case "wrapper":
-      return wrapperTypeFromProto(type["wrapper"] as string);
+      return protoWrapperToType(type["wrapper"] as string);
     case "well_known":
-      return wellKnownTypeFromProto(type["well_known"] as string);
+      return protoWellKnownToType(type["well_known"] as string);
     case "list_type": {
       const listType = type["list_type"] as ProtoObject | undefined;
-      const elemType = listType ? typeFromProto(listType["elem_type"] as ProtoObject) : null;
+      const elemType = listType ? protoToType(listType["elem_type"] as ProtoObject) : null;
       return new ListType(elemType ?? DynType);
     }
     case "map_type": {
@@ -557,16 +560,16 @@ export function typeFromProto(type: ProtoObject): Type | null {
       if (!mapType) {
         return new MapType(DynType, DynType);
       }
-      const key = typeFromProto(mapType["key_type"] as ProtoObject);
-      const value = typeFromProto(mapType["value_type"] as ProtoObject);
+      const key = protoToType(mapType["key_type"] as ProtoObject);
+      const value = protoToType(mapType["value_type"] as ProtoObject);
       return new MapType(key ?? DynType, value ?? DynType);
     }
     case "message_type":
-      return messageTypeFromProto(String(type["message_type"] ?? ""));
+      return protoMessageNameToType(String(type["message_type"] ?? ""));
     case "type_param":
       return new TypeParamType(String(type["type_param"] ?? ""));
     case "type": {
-      const nested = typeFromProto(type["type"] as ProtoObject);
+      const nested = protoToType(type["type"] as ProtoObject);
       return new TypeTypeWithParam(nested ?? DynType);
     }
     case "opaque":
@@ -577,14 +580,14 @@ export function typeFromProto(type: ProtoObject): Type | null {
         return new OpaqueType("unknown");
       }
       const params = (opaque?.["parameter_types"] ?? []) as ProtoObject[];
-      return new OpaqueType(name, ...params.map((param) => typeFromProto(param) ?? DynType));
+      return new OpaqueType(name, ...params.map((param) => protoToType(param) ?? DynType));
     }
     default:
       return DynType;
   }
 }
 
-export function messageTypeFromProto(name: string): Type {
+export function protoMessageNameToType(name: string): Type {
   switch (name) {
     case "google.protobuf.Timestamp":
       return TimestampType;
@@ -602,7 +605,7 @@ export function messageTypeFromProto(name: string): Type {
   }
 }
 
-export function primitiveTypeFromProto(value: string | undefined): Type {
+export function protoPrimitiveToType(value: string | undefined): Type {
   switch (value) {
     case "BOOL":
       return BoolType;
@@ -625,7 +628,7 @@ export function primitiveTypeFromProto(value: string | undefined): Type {
   }
 }
 
-export function wrapperTypeFromProto(value: string | undefined): Type {
+export function protoWrapperToType(value: string | undefined): Type {
   switch (value) {
     case "BOOL":
       return new StructType("google.protobuf.BoolValue");
@@ -650,7 +653,7 @@ export function wrapperTypeFromProto(value: string | undefined): Type {
   }
 }
 
-export function wellKnownTypeFromProto(value: string | undefined): Type {
+export function protoWellKnownToType(value: string | undefined): Type {
   switch (value) {
     case "DURATION":
       return DurationType;
@@ -661,7 +664,7 @@ export function wellKnownTypeFromProto(value: string | undefined): Type {
   }
 }
 
-export function typeValueFromName(name: string): Value | null {
+export function typeNameToTypeValue(name: string): Value | null {
   switch (name) {
     case "bool":
       return TypeValue.BoolType;

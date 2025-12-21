@@ -1,4 +1,4 @@
-import { Env, Variable, StringType } from "../src/cel";
+import { Env, StringType, Variable } from "../src/cel";
 
 const env = new Env({
   variables: [new Variable("name", StringType)],

@@ -1,11 +1,4 @@
-import {
-  BoolType,
-  IntType,
-  StringType,
-  Types,
-  Variable,
-  Env,
-} from "../../src/cel";
+import { BoolType, Env, IntType, StringType, Types, Variable } from "../../src/cel";
 
 export type BenchCase = {
   name: string;
@@ -31,10 +24,7 @@ export const cases: BenchCase[] = [
     name: "list_in",
     expr: "x in list",
     env: {
-      variables: [
-        new Variable("x", StringType),
-        new Variable("list", Types.list(StringType)),
-      ],
+      variables: [new Variable("x", StringType), new Variable("list", Types.list(StringType))],
     },
     activation: { x: "c", list: ["a", "b", "c", "d"] },
   },

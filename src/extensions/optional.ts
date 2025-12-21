@@ -1,4 +1,4 @@
-import { BoolType, Function, IntType, MemberOverload, Overload, type EnvOptions } from "../cel";
+import { BoolType, type EnvOptions, Function, IntType, MemberOverload, Overload } from "../cel";
 import { ListType, MapType, OptionalType, TypeParamType } from "../checker/types";
 import { Operators } from "../common/ast";
 import {
@@ -18,7 +18,7 @@ import {
   UintValue,
   type Value,
 } from "../interpreter/values";
-import { MacroError, ReceiverMacro, type Macro } from "../parser";
+import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { extractIdentName } from "./macros";
 
@@ -97,8 +97,7 @@ export class OptionalTypesExtension implements Extension {
           "optional_ofNonZeroValue",
           [typeParamV],
           optionalTypeV,
-          (arg: Value) => (isZeroValue(arg) ? OptionalValue.none() : OptionalValue.of(arg))
-          ,
+          (arg: Value) => (isZeroValue(arg) ? OptionalValue.none() : OptionalValue.of(arg)),
           { typeParams: ["V"] }
         )
       ),
@@ -166,20 +165,16 @@ export class OptionalTypesExtension implements Extension {
             if (!(lhs instanceof OptionalValue)) {
               return ErrorValue.create("optional.orValue expects optional receiver");
             }
-            return lhs.hasValue() ? lhs.value() ?? NullValue.Instance : rhs;
+            return lhs.hasValue() ? (lhs.value() ?? NullValue.Instance) : rhs;
           },
           { typeParams: ["V"] }
         )
       ),
       new Function(
         Operators.OptIndex,
-        new Overload(
-          "list_optindex_optional_int",
-          [listTypeV, IntType],
-          optionalTypeV,
-          undefined,
-          { typeParams: ["V"] }
-        ),
+        new Overload("list_optindex_optional_int", [listTypeV, IntType], optionalTypeV, undefined, {
+          typeParams: ["V"],
+        }),
         new Overload(
           "optional_list_optindex_optional_int",
           [new OptionalType(listTypeV), IntType],
@@ -224,7 +219,6 @@ export class OptionalTypesExtension implements Extension {
     return { macros, functions };
   }
 }
-
 
 function isZeroValue(value: Value): boolean {
   if (value instanceof NullValue) return true;

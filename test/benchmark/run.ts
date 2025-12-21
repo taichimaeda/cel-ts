@@ -1,5 +1,5 @@
-import { bench, do_not_optimize, run, summary } from "mitata";
 import { writeFileSync } from "node:fs";
+import { bench, do_not_optimize, run, summary } from "mitata";
 import { preparedCases } from "./cases";
 import { buildResults } from "./results";
 

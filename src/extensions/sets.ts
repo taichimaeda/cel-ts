@@ -1,4 +1,4 @@
-import { BoolType, Function, Overload, type EnvOptions } from "../cel";
+import { BoolType, type EnvOptions, Function, Overload } from "../cel";
 import { ListType, TypeParamType } from "../checker/types";
 import { BoolValue, ErrorValue, ListValue, type Value } from "../interpreter/values";
 import { ReceiverVarArgMacro } from "../parser";

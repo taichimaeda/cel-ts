@@ -14,12 +14,12 @@ import {
   StringType as CheckerStringType,
   StructType as CheckerStructType,
   TimestampType as CheckerTimestampType,
+  type Type as CheckerType,
   TypeKind as CheckerTypeKind,
   TypeType as CheckerTypeType,
   UintType as CheckerUintType,
   DynType,
   OpaqueType,
-  type Type as CheckerType,
 } from "../checker/types";
 import type { ExprId } from "../common/ast";
 import {
@@ -73,7 +73,7 @@ export class BoolValue implements Value {
   static readonly True = new BoolValue(true);
   static readonly False = new BoolValue(false);
 
-  private constructor(private readonly val: boolean) { }
+  private constructor(private readonly val: boolean) {}
 
   static of(val: boolean): BoolValue {
     return val ? BoolValue.True : BoolValue.False;
@@ -419,7 +419,7 @@ export class DoubleValue implements Value {
 export class StringValue implements Value {
   static readonly Empty = new StringValue("");
 
-  constructor(private readonly val: string) { }
+  constructor(private readonly val: string) {}
 
   static of(val: string): StringValue {
     if (val === "") return StringValue.Empty;
@@ -497,7 +497,7 @@ export class StringValue implements Value {
 export class BytesValue implements Value {
   static readonly Empty = new BytesValue(new Uint8Array(0));
 
-  constructor(private readonly val: Uint8Array) { }
+  constructor(private readonly val: Uint8Array) {}
 
   static of(val: Uint8Array | number[]): BytesValue {
     const arr = val instanceof Uint8Array ? val : new Uint8Array(val);
@@ -565,7 +565,7 @@ export class BytesValue implements Value {
 export class NullValue implements Value {
   static readonly Instance = new NullValue();
 
-  private constructor() { }
+  private constructor() {}
 
   type(): ValueType {
     return CheckerNullType;
@@ -807,9 +807,7 @@ export class StructValue implements Value {
   }
 
   toString(): string {
-    const entries = [...this.values.entries()].map(
-      ([key, value]) => `${key}: ${value.toString()}`
-    );
+    const entries = [...this.values.entries()].map(([key, value]) => `${key}: ${value.toString()}`);
     return `${this.typeName}{${entries.join(", ")}}`;
   }
 
@@ -949,7 +947,7 @@ export class TypeValue implements Value {
   static readonly DurationType = new TypeValue(CheckerDurationType);
   static readonly TimestampType = new TypeValue(CheckerTimestampType);
 
-  constructor(private readonly typeName: ValueType) { }
+  constructor(private readonly typeName: ValueType) {}
 
   type(): ValueType {
     return CheckerTypeType;
@@ -1015,7 +1013,7 @@ export class ValueUtil {
 export class DurationValue implements Value {
   static readonly Zero = new DurationValue(0n);
 
-  constructor(private readonly nanos: bigint) { }
+  constructor(private readonly nanos: bigint) {}
 
   static of(nanos: bigint): DurationValue {
     if (nanos === 0n) return DurationValue.Zero;
@@ -1089,7 +1087,7 @@ export class DurationValue implements Value {
  * Timestamp value (Unix timestamp in nanoseconds)
  */
 export class TimestampValue implements Value {
-  constructor(private readonly nanos: bigint) { }
+  constructor(private readonly nanos: bigint) {}
 
   static of(nanos: bigint): TimestampValue {
     return new TimestampValue(nanos);
@@ -1304,8 +1302,7 @@ function formatTimestamp(nanos: bigint): string {
   const hour = date.getUTCHours();
   const minute = date.getUTCMinutes();
   const second = date.getUTCSeconds();
-  let result =
-    `${pad4(year)}-${pad2(month)}-${pad2(day)}T${pad2(hour)}:${pad2(minute)}:${pad2(second)}`;
+  let result = `${pad4(year)}-${pad2(month)}-${pad2(day)}T${pad2(hour)}:${pad2(minute)}:${pad2(second)}`;
   if (nanosRem !== 0n) {
     let fraction = nanosRem.toString().padStart(9, "0");
     fraction = fraction.replace(/0+$/, "");
@@ -1364,7 +1361,10 @@ function weekdayToNumber(weekday: string): number {
  * Error value for runtime errors
  */
 export class ErrorValue implements Value {
-  constructor(private readonly message: string, private readonly exprId?: ExprId) { }
+  constructor(
+    private readonly message: string,
+    private readonly exprId?: ExprId
+  ) {}
 
   static create(message: string, exprId?: ExprId): ErrorValue {
     return new ErrorValue(message, exprId);
@@ -1471,7 +1471,7 @@ export class UnknownValue implements Value {
 export class OptionalValue implements Value {
   static readonly None = new OptionalValue(null);
 
-  private constructor(private readonly inner: Value | null) { }
+  private constructor(private readonly inner: Value | null) {}
 
   static of(val: Value): OptionalValue {
     return new OptionalValue(val);

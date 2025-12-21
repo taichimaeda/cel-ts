@@ -1,11 +1,11 @@
 import {
   DynType,
+  type EnvOptions,
   Function,
   IntType,
   MemberOverload,
   Overload,
   StringType,
-  type EnvOptions,
 } from "../cel";
 import { ListType } from "../checker/types";
 import {
@@ -24,7 +24,7 @@ import {
   UintValue,
   type Value,
 } from "../interpreter/values";
-import { ReceiverMacro, type Macro } from "../parser";
+import { type Macro, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { macroTargetMatchesNamespace } from "./macros";
 
@@ -206,7 +206,6 @@ export class StringsExtension implements Extension {
   }
 }
 
-
 function stringCharAt(target: Value, index: Value): Value {
   if (!(target instanceof StringValue)) return ErrorValue.typeMismatch("string", target);
   if (!(index instanceof IntValue)) return ErrorValue.typeMismatch("int", index);
@@ -232,7 +231,11 @@ function stringIndexOfOffset(args: Value[]): Value {
   const target = args[0];
   const search = args[1];
   const offset = args[2];
-  if (!(target instanceof StringValue) || !(search instanceof StringValue) || !(offset instanceof IntValue)) {
+  if (
+    !(target instanceof StringValue) ||
+    !(search instanceof StringValue) ||
+    !(offset instanceof IntValue)
+  ) {
     return ErrorValue.create("indexOf expects string, string, int arguments");
   }
   const offsetNum = Number(offset.value());
@@ -256,7 +259,11 @@ function stringLastIndexOfOffset(args: Value[]): Value {
   const target = args[0];
   const search = args[1];
   const offset = args[2];
-  if (!(target instanceof StringValue) || !(search instanceof StringValue) || !(offset instanceof IntValue)) {
+  if (
+    !(target instanceof StringValue) ||
+    !(search instanceof StringValue) ||
+    !(offset instanceof IntValue)
+  ) {
     return ErrorValue.create("lastIndexOf expects string, string, int arguments");
   }
   const offsetNum = Number(offset.value());
@@ -273,7 +280,11 @@ function stringReplace(args: Value[]): Value {
   const oldValue = args[1];
   const newValue = args[2];
   const limit = args[3];
-  if (!(target instanceof StringValue) || !(oldValue instanceof StringValue) || !(newValue instanceof StringValue)) {
+  if (
+    !(target instanceof StringValue) ||
+    !(oldValue instanceof StringValue) ||
+    !(newValue instanceof StringValue)
+  ) {
     return ErrorValue.create("replace expects string arguments");
   }
   if (limit !== undefined) {
@@ -323,7 +334,11 @@ function stringSplitN(args: Value[]): Value {
   const target = args[0];
   const separator = args[1];
   const limit = args[2];
-  if (!(target instanceof StringValue) || !(separator instanceof StringValue) || !(limit instanceof IntValue)) {
+  if (
+    !(target instanceof StringValue) ||
+    !(separator instanceof StringValue) ||
+    !(limit instanceof IntValue)
+  ) {
     return ErrorValue.create("split expects string, string, int arguments");
   }
   const count = Number(limit.value());
@@ -357,7 +372,11 @@ function stringSubstringRange(args: Value[]): Value {
   const target = args[0];
   const start = args[1];
   const end = args[2];
-  if (!(target instanceof StringValue) || !(start instanceof IntValue) || !(end instanceof IntValue)) {
+  if (
+    !(target instanceof StringValue) ||
+    !(start instanceof IntValue) ||
+    !(end instanceof IntValue)
+  ) {
     return ErrorValue.create("substring expects string, int, int arguments");
   }
   const startNum = Number(start.value());
@@ -434,7 +453,9 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
       continue;
     }
     if (!next) {
-      return ErrorValue.create('could not parse formatting clause: unrecognized formatting clause "%"');
+      return ErrorValue.create(
+        'could not parse formatting clause: unrecognized formatting clause "%"'
+      );
     }
 
     let precision: number | null = null;
@@ -447,14 +468,18 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
         cursor += 1;
       }
       if (digits.length === 0) {
-        return ErrorValue.create('could not parse formatting clause: precision must be a non-negative integer');
+        return ErrorValue.create(
+          "could not parse formatting clause: precision must be a non-negative integer"
+        );
       }
       precision = Number(digits);
     }
 
     const code = format[cursor];
     if (!code) {
-      return ErrorValue.create('could not parse formatting clause: unrecognized formatting clause "%"');
+      return ErrorValue.create(
+        'could not parse formatting clause: unrecognized formatting clause "%"'
+      );
     }
     if (argIndex >= args.length) {
       return ErrorValue.create(`index ${argIndex} out of range`);
@@ -489,7 +514,9 @@ function formatArg(code: string, value: Value, precision: number | null): string
     case "e":
       return wrapFormatError(formatScientific(value, precision ?? 6));
     default:
-      return ErrorValue.create(`could not parse formatting clause: unrecognized formatting clause "${code}"`);
+      return ErrorValue.create(
+        `could not parse formatting clause: unrecognized formatting clause "${code}"`
+      );
   }
 }
 
@@ -564,14 +591,18 @@ function formatDecimal(value: Value): string | ErrorValue {
     if (num === Number.NEGATIVE_INFINITY) return "-Infinity";
     return ErrorValue.create("decimal clause can only be used on integers, was given double");
   }
-  return ErrorValue.create(`decimal clause can only be used on integers, was given ${value.type()}`);
+  return ErrorValue.create(
+    `decimal clause can only be used on integers, was given ${value.type()}`
+  );
 }
 
 function formatFixed(value: Value, precision: number): string | ErrorValue {
   if (value instanceof IntValue) return formatFixedNumber(Number(value.value()), precision);
   if (value instanceof UintValue) return formatFixedNumber(Number(value.value()), precision);
   if (value instanceof DoubleValue) return formatFixedNumber(value.value(), precision);
-  return ErrorValue.create(`fixed-point clause can only be used on doubles, was given ${value.type()}`);
+  return ErrorValue.create(
+    `fixed-point clause can only be used on doubles, was given ${value.type()}`
+  );
 }
 
 function formatScientific(value: Value, precision: number): string | ErrorValue {
@@ -579,7 +610,10 @@ function formatScientific(value: Value, precision: number): string | ErrorValue 
   if (value instanceof IntValue) num = Number(value.value());
   else if (value instanceof UintValue) num = Number(value.value());
   else if (value instanceof DoubleValue) num = value.value();
-  else return ErrorValue.create(`scientific clause can only be used on doubles, was given ${value.type()}`);
+  else
+    return ErrorValue.create(
+      `scientific clause can only be used on doubles, was given ${value.type()}`
+    );
 
   if (Number.isNaN(num)) return "NaN";
   if (num === Number.POSITIVE_INFINITY) return "Infinity";
@@ -746,30 +780,8 @@ function toUpperAscii(value: string): string {
 }
 
 const trimSpaceCodePoints = new Set<number>([
-  0x0009,
-  0x000a,
-  0x000b,
-  0x000c,
-  0x000d,
-  0x0020,
-  0x0085,
-  0x00a0,
-  0x1680,
-  0x2000,
-  0x2001,
-  0x2002,
-  0x2003,
-  0x2004,
-  0x2005,
-  0x2006,
-  0x2007,
-  0x2008,
-  0x2009,
-  0x200a,
-  0x2028,
-  0x2029,
-  0x202f,
-  0x205f,
+  0x0009, 0x000a, 0x000b, 0x000c, 0x000d, 0x0020, 0x0085, 0x00a0, 0x1680, 0x2000, 0x2001, 0x2002,
+  0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f,
   0x3000,
 ]);
 
@@ -787,12 +799,12 @@ function trimUnicodeSpaces(value: string): string {
 }
 
 function quoteString(value: string): string {
-  let out = "\"";
+  let out = '"';
   for (const ch of value) {
     const code = ch.codePointAt(0)!;
     switch (ch) {
-      case "\"":
-        out += "\\\"";
+      case '"':
+        out += '\\"';
         break;
       case "\\":
         out += "\\\\";
@@ -827,6 +839,6 @@ function quoteString(value: string): string {
         break;
     }
   }
-  out += "\"";
+  out += '"';
   return out;
 }

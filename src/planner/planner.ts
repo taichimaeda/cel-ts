@@ -9,7 +9,7 @@ import {
   CallExpr,
   ComprehensionExpr,
   type Expr,
-  ExprId,
+  type ExprId,
   IdentExpr,
   ListExpr,
   LiteralExpr,
@@ -19,8 +19,8 @@ import {
   SelectExpr,
   StructExpr,
 } from "../common/ast";
-import { type Attribute, DefaultAttributeFactory, MaybeAttribute } from "./attributes";
-import { DefaultDispatcher, type Dispatcher, FunctionResolver } from "./dispatcher";
+import { type Attribute, DefaultAttributeFactory, MaybeAttribute } from "../interpreter/attributes";
+import { DefaultDispatcher, type Dispatcher, FunctionResolver } from "../interpreter/dispatcher";
 import {
   AndValue,
   AttrValue,
@@ -39,16 +39,20 @@ import {
   NotValue,
   OrValue,
   TypeConversionValue,
-} from "./interpretable";
+} from "../interpreter/interpretable";
 import {
   BoolValue,
   BytesValue,
-  DoubleValue, EnumValue, ErrorValue, IntValue,
+  DoubleValue,
+  EnumValue,
+  ErrorValue,
+  IntValue,
   NullValue,
   StringValue,
   UintValue,
-  type Value, ValueUtil
-} from "./values";
+  type Value,
+  ValueUtil,
+} from "../interpreter/values";
 
 /**
  * Planner options for controlling interpretable generation.
@@ -256,7 +260,6 @@ export class Planner {
     }
     return candidates;
   }
-
 
   private resolveQualifiedName(expr: Expr): string[] | null {
     if (expr instanceof IdentExpr) {

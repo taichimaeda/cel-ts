@@ -173,11 +173,13 @@ export class CheckerErrors {
    * Format all errors as a string
    */
   toString(): string {
-    return this.errors.map((error) => {
-      if (error.location) {
-        return `ERROR: ${error.location.line}:${error.location.column}: ${error.message}`;
-      }
-      return `ERROR: ${error.message}`;
-    }).join("\n");
+    return this.errors
+      .map((error) => {
+        if (error.location) {
+          return `ERROR: ${error.location.line}:${error.location.column}: ${error.message}`;
+        }
+        return `ERROR: ${error.message}`;
+      })
+      .join("\n");
   }
 }

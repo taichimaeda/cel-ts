@@ -9,7 +9,7 @@ import {
   CallExpr,
   ComprehensionExpr,
   type Expr,
-  ExprId,
+  type ExprId,
   IdentExpr,
   ListExpr,
   LiteralExpr,
@@ -54,7 +54,7 @@ import {
   type StartContext,
   StringContext,
   UintContext,
-  type UnaryContext
+  type UnaryContext,
 } from "./gen/CELParser.js";
 import { AllMacros, type Macro, MacroError, MacroRegistry } from "./macros";
 
@@ -909,7 +909,7 @@ export class ParserHelper {
           bytes.push(0x5c);
           i += 1;
           continue;
-        case "\"":
+        case '"':
           bytes.push(0x22);
           i += 1;
           continue;

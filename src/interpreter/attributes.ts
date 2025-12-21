@@ -3,7 +3,7 @@
 // Implementation based on cel-go's interpret/attribute.go
 
 import type { ExprId } from "../common/ast";
-import type { Activation } from "./activations";
+import type { Activation } from "./activation";
 import {
   BoolValue,
   BytesValue,
@@ -520,7 +520,10 @@ export class MaybeAttribute implements Attribute {
   private readonly candidates: Attribute[];
   private readonly quals: Qualifier[];
 
-  constructor(private readonly exprId: ExprId, candidates: Attribute[] = []) {
+  constructor(
+    private readonly exprId: ExprId,
+    candidates: Attribute[] = []
+  ) {
     this.candidates = candidates;
     this.quals = [];
   }

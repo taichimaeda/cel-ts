@@ -16,7 +16,7 @@ import {
   OptionalType,
   StringType,
   TimestampType,
-  Type,
+  type Type,
   TypeKind,
   TypeType,
   TypeTypeWithParam,
@@ -70,7 +70,7 @@ class Scope {
 class Scopes {
   private readonly scope: Scope = new Scope();
 
-  constructor(private readonly parent: Scopes | null = null) { }
+  constructor(private readonly parent: Scopes | null = null) {}
 
   /**
    * Add a variable declaration to the current scope
@@ -132,7 +132,7 @@ class Scopes {
 export class Container {
   private readonly aliases: Map<string, string> = new Map();
 
-  constructor(readonly name = "") { }
+  constructor(readonly name = "") {}
 
   /**
    * Add a type alias
@@ -206,8 +206,8 @@ export class CheckerEnv {
   constructor(
     readonly container: Container = new Container(),
     readonly provider: TypeProvider | undefined = undefined,
-    private readonly enumValuesAsInt: boolean = false,
-  ) { }
+    private readonly enumValuesAsInt: boolean = false
+  ) {}
 
   /**
    * Add variable declarations to the environment
@@ -298,7 +298,7 @@ export class CheckerEnv {
         if (enumValue !== undefined) {
           const resolvedEnumType = this.enumValuesAsInt
             ? IntType
-            : this.provider.findEnumType(enumParts.enumName) ?? IntType;
+            : (this.provider.findEnumType(enumParts.enumName) ?? IntType);
           return {
             name: candidate,
             type: resolvedEnumType,

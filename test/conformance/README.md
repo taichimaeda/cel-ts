@@ -21,7 +21,7 @@ with `protobufjs`, then executes supported tests against `cel-ts`.
 
 ## Sources
 
-- `cel-spec/tests/simple/testdata`: https://github.com/google/cel-spec/tree/master/tests/simple/testdata
+- `cel-spec/test/simple/testdata`: https://github.com/google/cel-spec/tree/master/test/simple/testdata
 - `cel-spec/proto/cel/expr`: https://github.com/google/cel-spec/tree/master/proto/cel/expr
 - `cel-go/test/proto2pb`: https://github.com/google/cel-go/tree/master/test/proto2pb
 - `cel-go/test/proto3pb`: https://github.com/google/cel-go/tree/master/test/proto3pb

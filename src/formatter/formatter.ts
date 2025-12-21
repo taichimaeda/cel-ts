@@ -127,11 +127,7 @@ export class Formatter {
     const left = op.logical
       ? this.emitter.emitExpr(expr.args[0]!, sourceInfo)
       : this.formatExpr(expr.args[0]!, sourceInfo, indent);
-    const right = this.formatExpr(
-      expr.args[1]!,
-      sourceInfo,
-      indent + this.options.indentSize
-    );
+    const right = this.formatExpr(expr.args[1]!, sourceInfo, indent + this.options.indentSize);
     return `${left} ${op.symbol}\n${this.indentText(right, indent + this.options.indentSize)}`;
   }
 
@@ -146,16 +142,8 @@ export class Formatter {
     }
 
     const cond = this.formatExpr(expr.args[0]!, sourceInfo, indent);
-    const truthy = this.formatExpr(
-      expr.args[1]!,
-      sourceInfo,
-      indent + this.options.indentSize
-    );
-    const falsy = this.formatExpr(
-      expr.args[2]!,
-      sourceInfo,
-      indent + this.options.indentSize
-    );
+    const truthy = this.formatExpr(expr.args[1]!, sourceInfo, indent + this.options.indentSize);
+    const falsy = this.formatExpr(expr.args[2]!, sourceInfo, indent + this.options.indentSize);
 
     return `${cond}\n${this.formatTernaryBranch("?", truthy, indent)}\n${this.formatTernaryBranch(
       ":",
@@ -311,10 +299,7 @@ export class Formatter {
 
         if (!shouldBreak || segment.expr.args.length === 0) {
           lines.push(
-            `${this.indentText(
-              `.${this.emitCallInline(segment.expr, sourceInfo)}`,
-              segmentIndent
-            )}`
+            `${this.indentText(`.${this.emitCallInline(segment.expr, sourceInfo)}`, segmentIndent)}`
           );
           continue;
         }
@@ -421,7 +406,12 @@ export class Formatter {
       [Operators.Less]: { symbol: "<", precedence: 4, associative: false, logical: false },
       [Operators.LessEquals]: { symbol: "<=", precedence: 4, associative: false, logical: false },
       [Operators.Greater]: { symbol: ">", precedence: 4, associative: false, logical: false },
-      [Operators.GreaterEquals]: { symbol: ">=", precedence: 4, associative: false, logical: false },
+      [Operators.GreaterEquals]: {
+        symbol: ">=",
+        precedence: 4,
+        associative: false,
+        logical: false,
+      },
       [Operators.Equals]: { symbol: "==", precedence: 3, associative: false, logical: false },
       [Operators.NotEquals]: { symbol: "!=", precedence: 3, associative: false, logical: false },
       [Operators.In]: { symbol: "in", precedence: 3, associative: false, logical: false },
@@ -456,10 +446,7 @@ export class Formatter {
     return output.join("\n");
   }
 
-  private resolveMacroCall(
-    expr: Expr,
-    sourceInfo: AST["sourceInfo"] | undefined
-  ): Expr {
+  private resolveMacroCall(expr: Expr, sourceInfo: AST["sourceInfo"] | undefined): Expr {
     if (!this.options.preferMacroCalls || !sourceInfo?.isMacroCall(expr.id)) {
       return expr;
     }

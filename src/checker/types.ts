@@ -289,8 +289,8 @@ export function joinTypes(typ1: Type, typ2: Type): Type {
     return typ2;
   }
   if (typ1.isOptionalType() || typ2.isOptionalType()) {
-    const inner1 = typ1.isOptionalType() ? typ1.parameters[0] ?? DynType : typ1;
-    const inner2 = typ2.isOptionalType() ? typ2.parameters[0] ?? DynType : typ2;
+    const inner1 = typ1.isOptionalType() ? (typ1.parameters[0] ?? DynType) : typ1;
+    const inner2 = typ2.isOptionalType() ? (typ2.parameters[0] ?? DynType) : typ2;
     return new OptionalType(joinTypes(inner1, inner2));
   }
 
