@@ -17,7 +17,7 @@ import {
   type UnknownValue,
   type Value,
   ValueUtil,
-} from "./values";
+} from "./value";
 
 /**
  * Attribute represents a qualified variable reference.
@@ -116,7 +116,7 @@ export class StringQualifier implements Qualifier {
     private readonly field: string,
     private readonly optional = false,
     private readonly adapter: TypeAdapter = new DefaultTypeAdapter()
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -166,7 +166,7 @@ export class IndexQualifier implements Qualifier {
     private readonly exprId: ExprId,
     private readonly index: Value,
     private readonly optional = false
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -227,7 +227,7 @@ export class ComputedQualifier implements Qualifier {
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
     private readonly optional = false
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -377,7 +377,7 @@ export class ConditionalAttribute implements Attribute {
     private readonly condition: Interpretable,
     private readonly truthy: Attribute,
     private readonly falsy: Attribute
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -474,7 +474,7 @@ export class MaybeAttribute implements Attribute {
  * Default AttributeFactory implementation.
  */
 export class DefaultAttributeFactory implements AttributeFactory {
-  constructor(private readonly adapter: TypeAdapter = new DefaultTypeAdapter()) {}
+  constructor(private readonly adapter: TypeAdapter = new DefaultTypeAdapter()) { }
 
   absoluteAttribute(exprId: ExprId, names: string[]): Attribute {
     return new AbsoluteAttribute(exprId, names, [], this.adapter);

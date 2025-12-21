@@ -8,13 +8,19 @@ export type { CheckResult } from "./checker";
 export { FunctionReference, IdentReference } from "../common/ast";
 export type { ReferenceInfo } from "../common/ast";
 
-export { FunctionDecl, OverloadDecl, VariableDecl } from "./decls";
+export {
+  FunctionDecl,
+  OverloadDecl,
+  StructDecl,
+  StructFieldDecl,
+  VariableDecl
+} from "./decl";
 
-export { CheckerEnv, Container } from "./env";
+export { CheckerEnv, Container, StructTypeProvider } from "./env";
 export type { LookupResult, TypeProvider } from "./env";
 
-export { CheckerErrors } from "./errors";
-export type { CheckerError, Location } from "./errors";
+export { CheckerErrors } from "./error";
+export type { CheckerError, Location } from "./error";
 
 export { TypeMapping } from "./mapping";
 export {
@@ -39,6 +45,6 @@ export {
   TypeType,
   TypeTypeWithParam,
   UintType
-} from "./types";
+} from "./type";
 
 export { StandardLibrary } from "./stdlib";

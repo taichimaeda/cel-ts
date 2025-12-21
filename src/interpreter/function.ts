@@ -22,7 +22,7 @@ import {
   UintValue,
   type Value,
   ValueUtil,
-} from "./values";
+} from "./value";
 
 export const sizeFunctions: Overload[] = [
   // size(string) -> int

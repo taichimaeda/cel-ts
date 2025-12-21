@@ -4,7 +4,7 @@
 
 import type { ExprId } from "../common/ast";
 import { type Activation, MutableActivation } from "./activation";
-import type { Attribute, Qualifier } from "./attributes";
+import type { Attribute, Qualifier } from "./attribute";
 import type { FunctionResolver } from "./dispatcher";
 import {
   BoolValue,
@@ -21,7 +21,7 @@ import {
   type UnknownValue,
   type Value,
   ValueUtil,
-} from "./values";
+} from "./value";
 
 /**
  * Interpretable represents an evaluatable expression.
@@ -48,7 +48,7 @@ export interface Interpretable {
  */
 export class ConstValue implements Interpretable {
 
-  constructor(private readonly exprId: ExprId, private readonly val: Value) {}
+  constructor(private readonly exprId: ExprId, private readonly val: Value) { }
 
   id(): ExprId {
     return this.exprId;
@@ -68,7 +68,7 @@ export class ConstValue implements Interpretable {
  */
 export class IdentValue implements Interpretable {
 
-  constructor(private readonly exprId: ExprId, private readonly name: string) {}
+  constructor(private readonly exprId: ExprId, private readonly name: string) { }
 
   id(): ExprId {
     return this.exprId;
@@ -92,7 +92,7 @@ export class IdentValue implements Interpretable {
  */
 export class AttrValue implements Interpretable {
 
-  constructor(private readonly attr: Attribute) {}
+  constructor(private readonly attr: Attribute) { }
 
   id(): ExprId {
     return this.attr.id();
@@ -120,7 +120,7 @@ export class AttrValue implements Interpretable {
  */
 export class NotValue implements Interpretable {
 
-  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) {}
+  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) { }
 
   id(): ExprId {
     return this.exprId;
@@ -149,7 +149,7 @@ export class NotValue implements Interpretable {
  */
 export class NotStrictlyFalseValue implements Interpretable {
 
-  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) {}
+  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) { }
 
   id(): ExprId {
     return this.exprId;
@@ -179,7 +179,7 @@ export class NotStrictlyFalseValue implements Interpretable {
  */
 export class NegValue implements Interpretable {
 
-  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) {}
+  constructor(private readonly exprId: ExprId, private readonly operand: Interpretable) { }
 
   id(): ExprId {
     return this.exprId;
@@ -213,7 +213,7 @@ export class AndValue implements Interpretable {
     private readonly exprId: ExprId,
     private readonly lhs: Interpretable,
     private readonly rhs: Interpretable
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -273,7 +273,7 @@ export class OrValue implements Interpretable {
     private readonly exprId: ExprId,
     private readonly lhs: Interpretable,
     private readonly rhs: Interpretable
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -334,7 +334,7 @@ export class ConditionalValue implements Interpretable {
     private readonly condition: Interpretable,
     private readonly truthy: Interpretable,
     private readonly falsy: Interpretable
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -382,7 +382,7 @@ export class BinaryValue implements Interpretable {
     private readonly operator: string,
     private readonly lhs: Interpretable,
     private readonly rhs: Interpretable
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -603,7 +603,7 @@ export class CallValue implements Interpretable {
     private readonly overloadId: string,
     private readonly args: Interpretable[],
     private readonly resolver: FunctionResolver
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -770,7 +770,7 @@ export class CreateStructValue implements Interpretable {
     readonly typeName: string,
     private readonly fields: string[],
     private readonly values: Interpretable[]
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -807,7 +807,7 @@ export class IndexValue implements Interpretable {
     private readonly operand: Interpretable,
     private readonly index: Interpretable,
     private readonly optional = false
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -873,7 +873,7 @@ export class FieldValue implements Interpretable {
     private readonly operand: Interpretable,
     private readonly field: string,
     private readonly optional = false
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -916,7 +916,7 @@ export class HasFieldValue implements Interpretable {
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
     private readonly field: string
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -957,7 +957,7 @@ export class ComprehensionValue implements Interpretable {
     private readonly loopCondition: Interpretable,
     private readonly loopStep: Interpretable,
     private readonly result: Interpretable
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -1036,7 +1036,7 @@ export class TypeConversionValue implements Interpretable {
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
     private readonly targetType: string
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;

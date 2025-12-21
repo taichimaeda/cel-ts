@@ -35,6 +35,7 @@ pnpm-debug.log*
 
 # Test artifacts
 .test-results/
+test/benchmark/results.json
 
 # TypeDoc output
 docs/api/

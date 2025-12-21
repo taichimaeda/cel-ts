@@ -2,7 +2,7 @@
 // Error types and error collection for type checking
 
 import type { ExprId } from "../common/ast";
-import type { Type } from "./types";
+import type { Type } from "./type";
 
 /**
  * Location information for error reporting

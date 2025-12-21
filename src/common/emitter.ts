@@ -1,16 +1,16 @@
-import { Operators } from "../parser/operators";
+import { Operators } from "../parser/operator";
 import {
   AST,
-  ExprKind,
-  type CallExpr,
-  type ComprehensionExpr,
-  type Expr,
-  type IdentExpr,
-  type ListExpr,
-  type LiteralExpr,
-  type MapExpr,
-  type SelectExpr,
-  type StructExpr,
+  CallExpr,
+  ComprehensionExpr,
+  Expr,
+  IdentExpr,
+  ListExpr,
+  LiteralExpr,
+  MapExpr,
+  SelectExpr,
+  StructExpr,
+  UnspecifiedExpr,
 } from "./ast";
 
 export interface EmitterOptions {
@@ -48,28 +48,34 @@ export class Emitter {
       }
     }
 
-    switch (expr.kind) {
-      case ExprKind.Unspecified:
-        return "_";
-      case ExprKind.Literal:
-        return this.emitLiteral(expr as LiteralExpr);
-      case ExprKind.Ident:
-        return (expr as IdentExpr).name;
-      case ExprKind.Select:
-        return this.emitSelect(expr as SelectExpr, sourceInfo);
-      case ExprKind.Call:
-        return this.emitCall(expr as CallExpr, sourceInfo);
-      case ExprKind.List:
-        return this.emitList(expr as ListExpr, sourceInfo);
-      case ExprKind.Map:
-        return this.emitMap(expr as MapExpr, sourceInfo);
-      case ExprKind.Struct:
-        return this.emitStruct(expr as StructExpr, sourceInfo);
-      case ExprKind.Comprehension:
-        return this.emitComprehension(expr as ComprehensionExpr, sourceInfo);
-      default:
-        return "_";
+    if (expr instanceof UnspecifiedExpr) {
+      return "_";
     }
+    if (expr instanceof LiteralExpr) {
+      return this.emitLiteral(expr);
+    }
+    if (expr instanceof IdentExpr) {
+      return expr.name;
+    }
+    if (expr instanceof SelectExpr) {
+      return this.emitSelect(expr, sourceInfo);
+    }
+    if (expr instanceof CallExpr) {
+      return this.emitCall(expr, sourceInfo);
+    }
+    if (expr instanceof ListExpr) {
+      return this.emitList(expr, sourceInfo);
+    }
+    if (expr instanceof MapExpr) {
+      return this.emitMap(expr, sourceInfo);
+    }
+    if (expr instanceof StructExpr) {
+      return this.emitStruct(expr, sourceInfo);
+    }
+    if (expr instanceof ComprehensionExpr) {
+      return this.emitComprehension(expr, sourceInfo);
+    }
+    return "_";
   }
 
   private emitLiteral(expr: LiteralExpr): string {
@@ -243,28 +249,27 @@ export class Emitter {
   }
 
   private getPrecedence(expr: Expr): number | null {
-    if (expr.kind === ExprKind.Call) {
-      const call = expr as CallExpr;
-      const op = this.operatorFromName(call.funcName, call.args.length);
+    if (expr instanceof CallExpr) {
+      const op = this.operatorFromName(expr.funcName, expr.args.length);
       return op?.precedence ?? 9;
     }
-    if (expr.kind === ExprKind.Select) {
+    if (expr instanceof SelectExpr) {
       return 9;
     }
-    if (expr.kind === ExprKind.Comprehension) {
+    if (expr instanceof ComprehensionExpr) {
       return 0;
     }
     if (
-      expr.kind === ExprKind.List ||
-      expr.kind === ExprKind.Map ||
-      expr.kind === ExprKind.Struct
+      expr instanceof ListExpr ||
+      expr instanceof MapExpr ||
+      expr instanceof StructExpr
     ) {
       return 9;
     }
     if (
-      expr.kind === ExprKind.Literal ||
-      expr.kind === ExprKind.Ident ||
-      expr.kind === ExprKind.Unspecified
+      expr instanceof LiteralExpr ||
+      expr instanceof IdentExpr ||
+      expr instanceof UnspecifiedExpr
     ) {
       return 9;
     }

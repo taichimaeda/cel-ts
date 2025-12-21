@@ -3,23 +3,40 @@
 // This is the canonical representation used throughout cel-ts, similar to cel-go's ast package.
 // Includes visitor pattern for AST traversal.
 
-import type { Type } from "../checker/types";
+import type { Type } from "../checker/type";
 import type { SourceInfo } from "./source";
 import { VisitOrder, type Visitor } from "./visitor";
 
 /**
- * Expression kinds in the CEL AST.
+ * Operator names for CEL (shared between parser, checker, and interpreter).
  */
-export enum ExprKind {
-  Unspecified,
-  Literal,
-  Ident,
-  Select,
-  Call,
-  List,
-  Map,
-  Struct,
-  Comprehension,
+export enum Operators {
+  // Arithmetic
+  Add = "_+_",
+  Subtract = "_-_",
+  Multiply = "_*_",
+  Divide = "_/_",
+  Modulo = "_%_",
+  Negate = "-_",
+
+  // Comparison
+  Equals = "_==_",
+  NotEquals = "_!=_",
+  Less = "_<_",
+  LessEquals = "_<=_",
+  Greater = "_>_",
+  GreaterEquals = "_>=_",
+  In = "_in_",
+
+  // Logical
+  LogicalAnd = "_&&_",
+  LogicalOr = "_||_",
+  LogicalNot = "!_",
+  NotStrictlyFalse = "@not_strictly_false",
+  Conditional = "_?_:_",
+
+  // Index
+  Index = "_[_]",
 }
 
 /**
@@ -30,8 +47,6 @@ export type ExprId = number;
 export interface Expr {
   /** Unique ID for this expression node */
   readonly id: ExprId;
-  /** The kind of expression */
-  readonly kind: ExprKind;
   /** Traverse the expression with a visitor. */
   accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
 }
@@ -40,7 +55,7 @@ export interface Expr {
  * Base class providing shared behavior for expressions.
  */
 export abstract class BaseExpr implements Expr {
-  constructor(readonly id: ExprId, readonly kind: ExprKind) { }
+  constructor(readonly id: ExprId) { }
 
   abstract accept(
     visitor: Visitor,
@@ -51,35 +66,35 @@ export abstract class BaseExpr implements Expr {
 
   // Type guard helpers
   static isLiteral(expr: Expr): expr is LiteralExpr {
-    return expr.kind === ExprKind.Literal;
+    return expr instanceof LiteralExpr;
   }
 
   static isIdent(expr: Expr): expr is IdentExpr {
-    return expr.kind === ExprKind.Ident;
+    return expr instanceof IdentExpr;
   }
 
   static isSelect(expr: Expr): expr is SelectExpr {
-    return expr.kind === ExprKind.Select;
+    return expr instanceof SelectExpr;
   }
 
   static isCall(expr: Expr): expr is CallExpr {
-    return expr.kind === ExprKind.Call;
+    return expr instanceof CallExpr;
   }
 
   static isList(expr: Expr): expr is ListExpr {
-    return expr.kind === ExprKind.List;
+    return expr instanceof ListExpr;
   }
 
   static isMap(expr: Expr): expr is MapExpr {
-    return expr.kind === ExprKind.Map;
+    return expr instanceof MapExpr;
   }
 
   static isStruct(expr: Expr): expr is StructExpr {
-    return expr.kind === ExprKind.Struct;
+    return expr instanceof StructExpr;
   }
 
   static isComprehension(expr: Expr): expr is ComprehensionExpr {
-    return expr.kind === ExprKind.Comprehension;
+    return expr instanceof ComprehensionExpr;
   }
 }
 
@@ -88,7 +103,7 @@ export abstract class BaseExpr implements Expr {
  */
 export class UnspecifiedExpr extends BaseExpr {
   constructor(id: ExprId) {
-    super(id, ExprKind.Unspecified);
+    super(id);
   }
 
   override accept(
@@ -114,7 +129,7 @@ export class UnspecifiedExpr extends BaseExpr {
  */
 export class LiteralExpr extends BaseExpr {
   constructor(id: ExprId, readonly value: LiteralValue) {
-    super(id, ExprKind.Literal);
+    super(id);
   }
 
   override accept(
@@ -152,7 +167,7 @@ export type LiteralValue =
  */
 export class IdentExpr extends BaseExpr {
   constructor(id: ExprId, readonly name: string) {
-    super(id, ExprKind.Ident);
+    super(id);
   }
 
   override accept(
@@ -184,7 +199,7 @@ export class SelectExpr extends BaseExpr {
     readonly field: string,
     readonly testOnly: boolean
   ) {
-    super(id, ExprKind.Select);
+    super(id);
   }
 
   override accept(
@@ -217,7 +232,7 @@ export class CallExpr extends BaseExpr {
     readonly args: readonly Expr[],
     readonly target?: Expr
   ) {
-    super(id, ExprKind.Call);
+    super(id);
   }
 
   override accept(
@@ -254,7 +269,7 @@ export class ListExpr extends BaseExpr {
     readonly elements: readonly Expr[],
     readonly optionalIndices: readonly number[]
   ) {
-    super(id, ExprKind.List);
+    super(id);
   }
 
   override accept(
@@ -281,18 +296,11 @@ export class ListExpr extends BaseExpr {
 /**
  * Entry expression kinds.
  */
-export enum EntryExprKind {
-  Unspecified,
-  MapEntry,
-  StructField,
-}
-
 /**
  * Base entry expression interface (for map entries and struct fields).
  */
 export interface EntryExpr {
   readonly id: ExprId;
-  readonly entryKind: EntryExprKind;
 
   accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
 }
@@ -301,7 +309,7 @@ export interface EntryExpr {
  * Base class providing shared behavior for entries.
  */
 export abstract class BaseEntry implements EntryExpr {
-  constructor(readonly id: ExprId, readonly entryKind: EntryExprKind) { }
+  constructor(readonly id: ExprId) { }
 
   abstract accept(
     visitor: Visitor,
@@ -311,11 +319,11 @@ export abstract class BaseEntry implements EntryExpr {
   ): void;
 
   static isMapEntry(entry: EntryExpr): entry is MapEntry {
-    return entry.entryKind === EntryExprKind.MapEntry;
+    return entry instanceof MapEntry;
   }
 
   static isStructField(entry: EntryExpr): entry is StructField {
-    return entry.entryKind === EntryExprKind.StructField;
+    return entry instanceof StructField;
   }
 }
 
@@ -330,7 +338,7 @@ export class MapEntry extends BaseEntry {
     readonly value: Expr,
     readonly optional: boolean
   ) {
-    super(id, EntryExprKind.MapEntry);
+    super(id);
   }
 
   override accept(
@@ -358,7 +366,7 @@ export class MapEntry extends BaseEntry {
  */
 export class MapExpr extends BaseExpr {
   constructor(id: ExprId, readonly entries: readonly MapEntry[]) {
-    super(id, ExprKind.Map);
+    super(id);
   }
 
   override accept(
@@ -393,7 +401,7 @@ export class StructField extends BaseEntry {
     readonly value: Expr,
     readonly optional: boolean
   ) {
-    super(id, EntryExprKind.StructField);
+    super(id);
   }
 
   override accept(
@@ -424,7 +432,7 @@ export class StructExpr extends BaseExpr {
     readonly typeName: string,
     readonly fields: readonly StructField[]
   ) {
-    super(id, ExprKind.Struct);
+    super(id);
   }
 
   override accept(
@@ -472,7 +480,7 @@ export class ComprehensionExpr extends BaseExpr {
     /** Second iteration variable name (optional) */
     readonly iterVar2?: string
   ) {
-    super(id, ExprKind.Comprehension);
+    super(id);
   }
 
   override accept(
@@ -548,7 +556,7 @@ export interface ReferenceInfo {
  */
 export class IdentReference implements ReferenceInfo {
   readonly overloadIds: string[] = [];
-  constructor(readonly name: string, readonly value?: unknown) {}
+  constructor(readonly name: string, readonly value?: unknown) { }
 }
 
 /**

@@ -1,7 +1,7 @@
 {
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": ["src/index.ts"],
-  "out": "docs/api",
+  "out": "doc/api",
   "name": "cel-ts",
   "readme": "README.md",
   "includeVersion": true,

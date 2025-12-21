@@ -2,7 +2,7 @@
 // Function call dispatcher
 // Implementation based on cel-go's interpret/dispatcher.go
 
-import { ErrorValue, type Value, ValueUtil } from "./values";
+import { ErrorValue, type Value, ValueUtil } from "./value";
 
 /**
  * Overload represents a single function overload.
@@ -38,14 +38,14 @@ export interface Overload {
  * Represents a unary dispatcher overload.
  */
 export class UnaryDispatcherOverload implements Overload {
-  constructor(readonly id: string, readonly unary: UnaryOp) {}
+  constructor(readonly id: string, readonly unary: UnaryOp) { }
 }
 
 /**
  * Represents a binary dispatcher overload.
  */
 export class BinaryDispatcherOverload implements Overload {
-  constructor(readonly id: string, readonly binary: BinaryOp) {}
+  constructor(readonly id: string, readonly binary: BinaryOp) { }
 }
 
 /**
@@ -190,7 +190,7 @@ export interface FunctionCall {
  * Resolved function call implementation.
  */
 export class ResolvedCall implements FunctionCall {
-  constructor(private readonly overload: Overload) {}
+  constructor(private readonly overload: Overload) { }
 
   invoke(args: Value[]): Value {
     const result = invokeOverload(this.overload, args);
@@ -215,7 +215,7 @@ export class ResolvedCall implements FunctionCall {
  * Try all overloads until one succeeds.
  */
 export class TryAllResolvedCall implements FunctionCall {
-  constructor(private readonly overloads: Overload[]) {}
+  constructor(private readonly overloads: Overload[]) { }
 
   invoke(args: Value[]): Value {
     let lastError: Value | undefined;
@@ -253,7 +253,7 @@ export class TryAllResolvedCall implements FunctionCall {
  * Function resolver for matching arguments to overloads.
  */
 export class FunctionResolver {
-  constructor(private readonly dispatcher: Dispatcher) {}
+  constructor(private readonly dispatcher: Dispatcher) { }
 
   /**
    * Resolve a function call by name and arguments.

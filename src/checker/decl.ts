@@ -1,13 +1,43 @@
 // CEL Declarations
 // Variable and function declarations for type checking
 
-import type { Type } from "./types";
+import { StructType, Type } from "./type";
 
 /**
  * Represents a variable declaration with a name and type
  */
 export class VariableDecl {
-  constructor(readonly name: string, readonly type: Type) {}
+  constructor(readonly name: string, readonly type: Type) { }
+}
+
+/**
+ * Represents a struct field declaration
+ */
+export class StructFieldDecl {
+  constructor(readonly name: string, readonly type: Type) { }
+}
+
+/**
+ * Represents a struct type declaration with named fields
+ */
+export class StructDecl {
+  readonly fields: readonly StructFieldDecl[];
+  readonly type: StructType;
+  private readonly fieldMap: Map<string, Type>;
+
+  constructor(readonly name: string, fields: StructFieldDecl[]) {
+    this.fields = Object.freeze([...fields]);
+    this.type = new StructType(name);
+    this.fieldMap = new Map(this.fields.map((field) => [field.name, field.type]));
+  }
+
+  fieldType(fieldName: string): Type | undefined {
+    return this.fieldMap.get(fieldName);
+  }
+
+  fieldNames(): string[] {
+    return [...this.fieldMap.keys()];
+  }
 }
 
 /**
@@ -51,7 +81,7 @@ export class FunctionDecl {
   private readonly overloadOrder: string[] = [];
   private disabledOverloads: Set<string> = new Set();
 
-  constructor(readonly name: string) {}
+  constructor(readonly name: string) { }
 
   /**
    * Add an overload to this function

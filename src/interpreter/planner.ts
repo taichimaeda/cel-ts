@@ -4,21 +4,21 @@
 
 import {
   type AST,
-  type CallExpr,
-  type ComprehensionExpr,
+  CallExpr,
+  ComprehensionExpr,
   type Expr,
   ExprId,
-  ExprKind,
-  type IdentExpr,
-  type ListExpr,
-  type LiteralExpr,
-  type MapExpr,
+  IdentExpr,
+  ListExpr,
+  LiteralExpr,
+  MapExpr,
+  Operators,
   type ReferenceInfo,
-  type SelectExpr,
-  type StructExpr,
+  SelectExpr,
+  StructExpr,
 } from "../common/ast";
+import { DefaultAttributeFactory } from "./attribute";
 import { DefaultDispatcher, type Dispatcher, FunctionResolver } from "./dispatcher";
-import { DefaultAttributeFactory } from "./attributes";
 import {
   AndValue,
   AttrValue,
@@ -47,7 +47,7 @@ import {
   NullValue,
   StringValue,
   UintValue,
-} from "./values";
+} from "./value";
 
 /**
  * Planner options for controlling interpretable generation.
@@ -85,26 +85,31 @@ export class Planner {
    * Plan an expression.
    */
   private planExpr(e: Expr): Interpretable {
-    switch (e.kind) {
-      case ExprKind.Literal:
-        return this.planLiteral(e as LiteralExpr);
-      case ExprKind.Ident:
-        return this.planIdent(e as IdentExpr);
-      case ExprKind.Select:
-        return this.planSelect(e as SelectExpr);
-      case ExprKind.Call:
-        return this.planCall(e as CallExpr);
-      case ExprKind.List:
-        return this.planCreateList(e as ListExpr);
-      case ExprKind.Map:
-        return this.planCreateMap(e as MapExpr);
-      case ExprKind.Struct:
-        return this.planCreateStruct(e as StructExpr);
-      case ExprKind.Comprehension:
-        return this.planComprehension(e as ComprehensionExpr);
-      default:
-        return this.errorNode(e.id, "unknown expression kind");
+    if (e instanceof LiteralExpr) {
+      return this.planLiteral(e);
     }
+    if (e instanceof IdentExpr) {
+      return this.planIdent(e);
+    }
+    if (e instanceof SelectExpr) {
+      return this.planSelect(e);
+    }
+    if (e instanceof CallExpr) {
+      return this.planCall(e);
+    }
+    if (e instanceof ListExpr) {
+      return this.planCreateList(e);
+    }
+    if (e instanceof MapExpr) {
+      return this.planCreateMap(e);
+    }
+    if (e instanceof StructExpr) {
+      return this.planCreateStruct(e);
+    }
+    if (e instanceof ComprehensionExpr) {
+      return this.planComprehension(e);
+    }
+    return this.errorNode(e.id, "unknown expression kind");
   }
 
   /**
@@ -165,32 +170,32 @@ export class Planner {
 
     // Handle built-in operators
     switch (fnName) {
-      case "_&&_":
+      case Operators.LogicalAnd:
         return this.planLogicalAnd(e);
-      case "_||_":
+      case Operators.LogicalOr:
         return this.planLogicalOr(e);
-      case "_?_:_":
+      case Operators.Conditional:
         return this.planConditional(e);
-      case "!_":
+      case Operators.LogicalNot:
         return this.planLogicalNot(e);
-      case "-_":
+      case Operators.Negate:
         return this.planNegate(e);
-      case "_==_":
-      case "_!=_":
-      case "_<_":
-      case "_<=_":
-      case "_>_":
-      case "_>=_":
-      case "_+_":
-      case "_-_":
-      case "_*_":
-      case "_/_":
-      case "_%_":
-      case "_in_":
+      case Operators.Equals:
+      case Operators.NotEquals:
+      case Operators.Less:
+      case Operators.LessEquals:
+      case Operators.Greater:
+      case Operators.GreaterEquals:
+      case Operators.Add:
+      case Operators.Subtract:
+      case Operators.Multiply:
+      case Operators.Divide:
+      case Operators.Modulo:
+      case Operators.In:
         return this.planBinaryOp(e, fnName);
-      case "_[_]":
+      case Operators.Index:
         return this.planIndex(e);
-      case "@not_strictly_false":
+      case Operators.NotStrictlyFalse:
         return this.planNotStrictlyFalse(e);
     }
 
@@ -264,18 +269,18 @@ export class Planner {
 
     // Convert internal operator names to external
     const opMap: Record<string, string> = {
-      "_==_": "==",
-      "_!=_": "!=",
-      "_<_": "<",
-      "_<=_": "<=",
-      "_>_": ">",
-      "_>=_": ">=",
-      "_+_": "+",
-      "_-_": "-",
-      "_*_": "*",
-      "_/_": "/",
-      "_%_": "%",
-      _in_: "in",
+      [Operators.Equals]: "==",
+      [Operators.NotEquals]: "!=",
+      [Operators.Less]: "<",
+      [Operators.LessEquals]: "<=",
+      [Operators.Greater]: ">",
+      [Operators.GreaterEquals]: ">=",
+      [Operators.Add]: "+",
+      [Operators.Subtract]: "-",
+      [Operators.Multiply]: "*",
+      [Operators.Divide]: "/",
+      [Operators.Modulo]: "%",
+      [Operators.In]: "in",
     };
 
     return new BinaryValue(e.id, opMap[op] ?? op, left, right);
@@ -289,8 +294,8 @@ export class Planner {
     const indexExpr = e.args[1]!;
     const attr = this.ensureAttribute(operand);
 
-    if (indexExpr.kind === ExprKind.Literal) {
-      const value = this.literalValue(indexExpr as LiteralExpr);
+    if (indexExpr instanceof LiteralExpr) {
+      const value = this.literalValue(indexExpr);
       const qualifier = this.attributeFactory.newQualifier(e.id, value, false);
       return attr.addQualifier(qualifier);
     }

@@ -41,7 +41,7 @@ cel-ts/
 │       ├── values.ts         # Runtime value types
 │       └── index.ts
 ├── test/                     # Test files
-├── docs/                     # Documentation
+├── doc/                      # Documentation
 │   ├── api/                  # TypeDoc generated API docs
 │   └── *.md                  # Architecture docs
 └── dist/                     # Build output
@@ -171,7 +171,7 @@ Type Kinds:
 ├── Temporal: Timestamp, Duration
 ├── Collections: List, Map
 ├── Special: Dyn, Error, Type, TypeParam
-└── Structured: Message (future)
+└── Structured: Struct (user-declared message types)
 ```
 
 **Key Features**:
@@ -182,6 +182,7 @@ Type Kinds:
 ### 5. Type Checker (`/src/checker/checker.ts`)
 
 - **Purpose**: Validate expression types and build type annotations
+- **Struct types**: Resolved via `StructTypeProvider` in `CheckerEnv` for field checks and struct literals.
 - **Process**:
   1. Traverse AST from root to leaves
   2. Infer types based on operators and operands

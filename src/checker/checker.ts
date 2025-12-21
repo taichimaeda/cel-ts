@@ -5,24 +5,24 @@
 import type { ExprId } from "../common/ast";
 import {
   type AST,
-  type CallExpr,
-  type ComprehensionExpr,
+  CallExpr,
+  ComprehensionExpr,
   type Expr,
-  ExprKind,
   FunctionReference,
-  type IdentExpr,
+  IdentExpr,
   IdentReference,
-  type ListExpr,
-  type LiteralExpr,
-  type MapExpr,
+  ListExpr,
+  LiteralExpr,
+  MapExpr,
+  Operators,
   type ReferenceInfo,
-  type SelectExpr,
-  type StructExpr,
+  SelectExpr,
+  StructExpr,
 } from "../common/ast";
 import type { SourceInfo } from "../common/source";
-import { type OverloadDecl, VariableDecl } from "./decls";
+import { type OverloadDecl, VariableDecl } from "./decl";
 import type { CheckerEnv } from "./env";
-import { CheckerErrors, type Location } from "./errors";
+import { CheckerErrors, type Location } from "./error";
 import { TypeMapping } from "./mapping";
 import {
   BoolType,
@@ -41,7 +41,7 @@ import {
   UintType,
   isAssignable,
   joinTypes,
-} from "./types";
+} from "./type";
 
 /**
  * Result of type checking
@@ -88,34 +88,39 @@ export class Checker {
    * Check an expression node
    */
   private checkExpr(expr: Expr): void {
-    switch (expr.kind) {
-      case ExprKind.Literal:
-        this.checkLiteral(expr as LiteralExpr);
-        break;
-      case ExprKind.Ident:
-        this.checkIdent(expr as IdentExpr);
-        break;
-      case ExprKind.Select:
-        this.checkSelect(expr as SelectExpr);
-        break;
-      case ExprKind.Call:
-        this.checkCall(expr as CallExpr);
-        break;
-      case ExprKind.List:
-        this.checkList(expr as ListExpr);
-        break;
-      case ExprKind.Map:
-        this.checkMap(expr as MapExpr);
-        break;
-      case ExprKind.Struct:
-        this.checkStruct(expr as StructExpr);
-        break;
-      case ExprKind.Comprehension:
-        this.checkComprehension(expr as ComprehensionExpr);
-        break;
-      default:
-        this.setType(expr.id, DynType);
+    if (expr instanceof LiteralExpr) {
+      this.checkLiteral(expr);
+      return;
     }
+    if (expr instanceof IdentExpr) {
+      this.checkIdent(expr);
+      return;
+    }
+    if (expr instanceof SelectExpr) {
+      this.checkSelect(expr);
+      return;
+    }
+    if (expr instanceof CallExpr) {
+      this.checkCall(expr);
+      return;
+    }
+    if (expr instanceof ListExpr) {
+      this.checkList(expr);
+      return;
+    }
+    if (expr instanceof MapExpr) {
+      this.checkMap(expr);
+      return;
+    }
+    if (expr instanceof StructExpr) {
+      this.checkStruct(expr);
+      return;
+    }
+    if (expr instanceof ComprehensionExpr) {
+      this.checkComprehension(expr);
+      return;
+    }
+    this.setType(expr.id, DynType);
   }
 
   /**
@@ -268,7 +273,7 @@ export class Checker {
 
     // Special-case the conditional (ternary) operator.
     // Join differing branch types with joinTypes.
-    if (fnName === "_?_:_" && expr.args.length === 3) {
+    if (fnName === Operators.Conditional && expr.args.length === 3) {
       this.checkConditional(expr);
       return;
     }
@@ -433,7 +438,7 @@ export class Checker {
     const typeName = expr.typeName;
 
     // Look up struct type
-    const structType = this.env.provider?.findStructType(typeName);
+    const structType = this.env.lookupStructType(typeName);
     if (!structType) {
       this.errors.reportNotAMessageType(expr.id, typeName, this.getLocation(expr.id));
       this.setType(expr.id, DynType);
@@ -671,21 +676,18 @@ export class Checker {
    * Try to convert an expression to a qualified name
    */
   private resolveQualifiedName(expr: Expr): string | null {
-    switch (expr.kind) {
-      case ExprKind.Ident:
-        return (expr as IdentExpr).name;
-      case ExprKind.Select: {
-        const select = expr as SelectExpr;
-        if (select.testOnly) return null;
-        const prefix = this.resolveQualifiedName(select.operand);
-        if (prefix) {
-          return `${prefix}.${select.field}`;
-        }
-        return null;
-      }
-      default:
-        return null;
+    if (expr instanceof IdentExpr) {
+      return expr.name;
     }
+    if (expr instanceof SelectExpr) {
+      if (expr.testOnly) return null;
+      const prefix = this.resolveQualifiedName(expr.operand);
+      if (prefix) {
+        return `${prefix}.${expr.field}`;
+      }
+      return null;
+    }
+    return null;
   }
 
   // ============================================================================

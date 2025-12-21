@@ -8,7 +8,7 @@ import {
   type TypeAdapter,
   UnknownValue,
   type Value,
-} from "./values";
+} from "./value";
 
 /**
  * Activation provides variable bindings for expression evaluation.
@@ -30,7 +30,7 @@ export interface Activation {
  * Empty activation that resolves no variables
  */
 export class EmptyActivation implements Activation {
-  constructor() {}
+  constructor() { }
 
   resolve(_name: string): Value | undefined {
     return undefined;
@@ -48,7 +48,7 @@ export class MapActivation implements Activation {
   constructor(
     private readonly bindings: Map<string, Value>,
     private readonly parentActivation?: Activation
-  ) {}
+  ) { }
 
   resolve(name: string): Value | undefined {
     const value = this.bindings.get(name);
@@ -114,7 +114,7 @@ export class HierarchicalActivation implements Activation {
   constructor(
     private readonly parentActivation: Activation,
     private readonly child: Activation
-  ) {}
+  ) { }
 
   resolve(name: string): Value | undefined {
     const value = this.child.resolve(name);
@@ -218,7 +218,7 @@ export class MutableActivation implements Activation {
  * Activation that provides error values for undefined variables
  */
 export class StrictActivation implements Activation {
-  constructor(private readonly delegate: Activation) {}
+  constructor(private readonly delegate: Activation) { }
 
   resolve(name: string): Value | undefined {
     const value = this.delegate.resolve(name);

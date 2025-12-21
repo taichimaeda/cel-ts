@@ -2,7 +2,8 @@
 // Standard library declarations for the type checker
 // Implemented based on checker/decls.go from cel-go
 
-import { FunctionDecl, OverloadDecl } from "./decls";
+import { Operators } from "../common/ast";
+import { FunctionDecl, OverloadDecl } from "./decl";
 import {
   BoolType,
   BytesType,
@@ -17,7 +18,7 @@ import {
   TypeParamType,
   TypeTypeWithParam,
   UintType,
-} from "./types";
+} from "./type";
 
 /**
  * Get all standard library function declarations.
@@ -337,7 +338,7 @@ export class StandardLibrary {
    * in operator function
    */
   private static inFunction(): FunctionDecl {
-    const fn = new FunctionDecl("_in_");
+    const fn = new FunctionDecl(Operators.In);
 
     // T in list<T> -> bool
     fn.addOverload(
@@ -369,7 +370,7 @@ export class StandardLibrary {
    * Index access operator (`_[_]`) providing list and map indexing.
    */
   private static indexFunction(): FunctionDecl {
-    const fn = new FunctionDecl("_[_]");
+    const fn = new FunctionDecl(Operators.Index);
 
     // list<T>[int] -> T
     fn.addOverload(
@@ -402,12 +403,12 @@ export class StandardLibrary {
    */
   private static comparisonFunctions(): FunctionDecl[] {
     const operators = [
-      { name: "_==_", id: "equals" },
-      { name: "_!=_", id: "not_equals" },
-      { name: "_<_", id: "less" },
-      { name: "_<=_", id: "less_equals" },
-      { name: "_>_", id: "greater" },
-      { name: "_>=_", id: "greater_equals" },
+      { name: Operators.Equals, id: "equals" },
+      { name: Operators.NotEquals, id: "not_equals" },
+      { name: Operators.Less, id: "less" },
+      { name: Operators.LessEquals, id: "less_equals" },
+      { name: Operators.Greater, id: "greater" },
+      { name: Operators.GreaterEquals, id: "greater_equals" },
     ];
 
     const types = [
@@ -442,11 +443,11 @@ export class StandardLibrary {
    */
   private static arithmeticFunctions(): FunctionDecl[] {
     const operators = [
-      { name: "_+_", id: "add" },
-      { name: "_-_", id: "subtract" },
-      { name: "_*_", id: "multiply" },
-      { name: "_/_", id: "divide" },
-      { name: "_%_", id: "modulo" },
+      { name: Operators.Add, id: "add" },
+      { name: Operators.Subtract, id: "subtract" },
+      { name: Operators.Multiply, id: "multiply" },
+      { name: Operators.Divide, id: "divide" },
+      { name: Operators.Modulo, id: "modulo" },
     ];
 
     const numericTypes = [IntType, UintType, DoubleType];
@@ -463,7 +464,7 @@ export class StandardLibrary {
       }
 
       // String concatenation (+)
-      if (op.name === "_+_") {
+      if (op.name === Operators.Add) {
         fn.addOverload(new OverloadDecl("add_string", [StringType, StringType], StringType));
 
         // Bytes concatenation
@@ -499,7 +500,7 @@ export class StandardLibrary {
       }
 
       // duration - duration
-      if (op.name === "_-_") {
+      if (op.name === Operators.Subtract) {
         fn.addOverload(
           new OverloadDecl(
             "subtract_duration_duration",
@@ -531,7 +532,7 @@ export class StandardLibrary {
     }
 
     // Unary negation
-    const negFn = new FunctionDecl("-_");
+    const negFn = new FunctionDecl(Operators.Negate);
     for (const t of numericTypes) {
       const typeName = t.toString().toLowerCase();
       negFn.addOverload(new OverloadDecl(`negate_${typeName}`, [t], t));
@@ -548,22 +549,22 @@ export class StandardLibrary {
     const fns: FunctionDecl[] = [];
 
     // Logical NOT
-    const notFn = new FunctionDecl("!_");
+    const notFn = new FunctionDecl(Operators.LogicalNot);
     notFn.addOverload(new OverloadDecl("logical_not", [BoolType], BoolType));
     fns.push(notFn);
 
     // Logical AND (short-circuit)
-    const andFn = new FunctionDecl("_&&_");
+    const andFn = new FunctionDecl(Operators.LogicalAnd);
     andFn.addOverload(new OverloadDecl("logical_and", [BoolType, BoolType], BoolType));
     fns.push(andFn);
 
     // Logical OR (short-circuit)
-    const orFn = new FunctionDecl("_||_");
+    const orFn = new FunctionDecl(Operators.LogicalOr);
     orFn.addOverload(new OverloadDecl("logical_or", [BoolType, BoolType], BoolType));
     fns.push(orFn);
 
     // Conditional (ternary)
-    const condFn = new FunctionDecl("_?_:_");
+    const condFn = new FunctionDecl(Operators.Conditional);
     condFn.addOverload(
       new OverloadDecl(
         "conditional",
@@ -576,7 +577,7 @@ export class StandardLibrary {
 
     // @not_strictly_false - internal helper used in comprehension loop conditions.
     // Accepts a bool and only returns false for strict false (errors count as true).
-    const notStrictlyFalseFn = new FunctionDecl("@not_strictly_false");
+    const notStrictlyFalseFn = new FunctionDecl(Operators.NotStrictlyFalse);
     notStrictlyFalseFn.addOverload(
       new OverloadDecl("not_strictly_false_bool", [BoolType], BoolType)
     );

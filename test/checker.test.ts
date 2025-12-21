@@ -17,6 +17,9 @@ import {
   NullType,
   OverloadDecl,
   StringType,
+  StructDecl,
+  StructFieldDecl,
+  StructTypeProvider,
   Type,
   TypeKind,
   TimestampType,
@@ -388,6 +391,51 @@ describe("Checker - Map Expressions", () => {
     const result = parseAndCheck('map["key"]', env);
     expect(result.errors.hasErrors()).toBe(false);
     expect(result.type.kind).toBe(TypeKind.Int);
+  });
+});
+
+describe("Checker - Structs", () => {
+  const createStructEnv = () => {
+    const provider = new StructTypeProvider([
+      new StructDecl("pkg.Person", [
+        new StructFieldDecl("name", StringType),
+        new StructFieldDecl("age", IntType),
+      ]),
+    ]);
+    const env = new CheckerEnv(new Container("pkg"), provider);
+    for (const fn of StandardLibrary.functions()) {
+      env.addFunctions(fn);
+    }
+    const personType = provider.findStructType("pkg.Person") ?? DynType;
+    env.addVariables(new VariableDecl("person", personType));
+    return env;
+  };
+
+  test("should type check struct literal", () => {
+    const env = createStructEnv();
+    const result = parseAndCheck('Person{ name: "Alice", age: 30 }', env);
+    expect(result.errors.hasErrors()).toBe(false);
+    expect(result.type.kind).toBe(TypeKind.Struct);
+    expect(result.type.runtimeTypeName).toBe("pkg.Person");
+  });
+
+  test("should type check struct field selection", () => {
+    const env = createStructEnv();
+    const result = parseAndCheck("person.name", env);
+    expect(result.errors.hasErrors()).toBe(false);
+    expect(result.type.kind).toBe(TypeKind.String);
+  });
+
+  test("should report unknown struct field", () => {
+    const env = createStructEnv();
+    const result = parseAndCheck("Person{ missing: 1 }", env);
+    expect(result.errors.hasErrors()).toBe(true);
+  });
+
+  test("should report struct field type mismatch", () => {
+    const env = createStructEnv();
+    const result = parseAndCheck('Person{ age: "nope" }', env);
+    expect(result.errors.hasErrors()).toBe(true);
   });
 });
 

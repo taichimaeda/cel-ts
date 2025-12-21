@@ -13,7 +13,7 @@ import {
   VariableDecl,
 } from "../src/checker";
 import { Env, type EvalResult } from "../src/interpreter";
-import { ErrorValue } from "../src/interpreter/values";
+import { ErrorValue } from "../src/interpreter/value";
 
 function inferType(value: unknown): Type {
   if (value === null) {

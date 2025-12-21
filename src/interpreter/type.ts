@@ -1,11 +1,11 @@
-import { DynType, ListType, MapType, Type } from "../checker/types";
+import { DynType, ListType, MapType, Type } from "../checker/type";
 
 /**
  * Lightweight runtime-only type markers for interpreter values that
  * don't correspond to declared CEL types.
  */
 export class RuntimeType {
-  constructor(private readonly name: string) {}
+  constructor(private readonly name: string) { }
 
   toString(): string {
     return this.name;

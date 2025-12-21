@@ -1,7 +1,7 @@
 // CEL Type Mapping
 // Type parameter bindings for type unification and substitution
 
-import { DynType, ListType, MapType, OpaqueType, Type, TypeKind, TypeTypeWithParam } from "./types";
+import { DynType, ListType, MapType, OpaqueType, Type, TypeKind, TypeTypeWithParam } from "./type";
 
 /**
  * Type parameter mapping for tracking substitutions during type inference

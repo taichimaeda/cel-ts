@@ -55,8 +55,8 @@ import {
   UintContext,
   type UnaryContext
 } from "./gen/CELParser.js";
-import { AllMacros, type Macro, MacroError, MacroRegistry } from "./macros";
-import { Operators } from "./operators";
+import { AllMacros, type Macro, MacroError, MacroRegistry } from "./macro";
+import { Operators } from "./operator";
 
 /**
  * Options for the parser helper.

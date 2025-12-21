@@ -10,7 +10,7 @@ import {
   type Token,
 } from "antlr4";
 import { type CheckResult, Checker } from "../checker/checker";
-import { type FunctionDecl, VariableDecl } from "../checker/decls";
+import { type FunctionDecl, VariableDecl } from "../checker/decl";
 import { CheckerEnv, Container } from "../checker/env";
 import { StandardLibrary } from "../checker/stdlib";
 import type { SourceInfo } from "../common/source";
@@ -19,10 +19,10 @@ import CELParser, { type StartContext } from "../parser/gen/CELParser.js";
 import { ParserHelper } from "../parser/helper";
 import { type Activation, EmptyActivation, LazyActivation, MapActivation } from "./activation";
 import { DefaultDispatcher, type Dispatcher } from "./dispatcher";
-import { standardFunctions } from "./functions";
+import { standardFunctions } from "./function";
 import type { Interpretable } from "./interpretable";
 import { Planner } from "./planner";
-import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, ValueUtil } from "./values";
+import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, ValueUtil } from "./value";
 
 /**
  * Program input types for evaluation.
@@ -253,7 +253,7 @@ export class Program {
     private readonly checkResultValue: CheckResult | undefined,
     private readonly adapter: TypeAdapter,
     private readonly sourceInfo: SourceInfo
-  ) {}
+  ) { }
 
   eval(vars?: ProgramInput): EvalResult {
     // Prepare activation

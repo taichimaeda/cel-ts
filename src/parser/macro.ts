@@ -5,12 +5,11 @@
 import {
   AccumulatorName,
   type Expr,
-  ExprKind,
-  type IdentExpr,
-  type SelectExpr,
+  IdentExpr,
+  SelectExpr,
 } from "../common/ast";
 import type { ParserHelper } from "./helper";
-import { Operators } from "./operators";
+import { Operators } from "./operator";
 
 // Re-export AccumulatorName
 export { AccumulatorName } from "../common/ast";
@@ -122,8 +121,8 @@ export class ReceiverVarArgMacro extends BaseMacro {
  * Extract identifier name from an expression.
  */
 function extractIdent(e: Expr): string | null {
-  if (e.kind === ExprKind.Ident) {
-    return (e as IdentExpr).name;
+  if (e instanceof IdentExpr) {
+    return e.name;
   }
   return null;
 }
@@ -322,8 +321,8 @@ export const makeHas: MacroExpander = (
   args
 ) => {
   const arg = args[0]!;
-  if (arg.kind === ExprKind.Select) {
-    const select = arg as SelectExpr;
+  if (arg instanceof SelectExpr) {
+    const select = arg;
     return helper.createPresenceTest(select.operand, select.field);
   }
   throw new MacroError("invalid argument to has() macro");

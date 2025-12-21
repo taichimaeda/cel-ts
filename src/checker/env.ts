@@ -1,8 +1,8 @@
 // CEL Checker Environment
 // Manages scopes, declarations, and lookups for type checking
 
-import type { FunctionDecl, VariableDecl } from "./decls";
-import { Type, TypeTypeWithParam } from "./types";
+import type { FunctionDecl, StructDecl, VariableDecl } from "./decl";
+import { Type, TypeTypeWithParam } from "./type";
 
 /**
  * A single scope level containing declarations
@@ -51,7 +51,7 @@ class Scope {
 class Scopes {
   private readonly scope: Scope = new Scope();
 
-  constructor(private readonly parent: Scopes | null = null) {}
+  constructor(private readonly parent: Scopes | null = null) { }
 
   /**
    * Add a variable declaration to the current scope
@@ -128,12 +128,45 @@ export interface TypeProvider {
 }
 
 /**
+ * Struct type provider backed by declared struct definitions.
+ */
+export class StructTypeProvider implements TypeProvider {
+  private readonly structs: Map<string, StructDecl>;
+
+  constructor(structs: readonly StructDecl[] = []) {
+    this.structs = new Map(structs.map((decl) => [decl.name, decl]));
+  }
+
+  addStructs(...structs: StructDecl[]): void {
+    for (const decl of structs) {
+      this.structs.set(decl.name, decl);
+    }
+  }
+
+  structDecls(): StructDecl[] {
+    return [...this.structs.values()];
+  }
+
+  findStructType(typeName: string): Type | undefined {
+    return this.structs.get(typeName)?.type;
+  }
+
+  findStructFieldType(typeName: string, fieldName: string): Type | undefined {
+    return this.structs.get(typeName)?.fieldType(fieldName);
+  }
+
+  structFieldNames(typeName: string): string[] {
+    return this.structs.get(typeName)?.fieldNames() ?? [];
+  }
+}
+
+/**
  * Container for namespace resolution
  */
 export class Container {
   private readonly aliases: Map<string, string> = new Map();
 
-  constructor(readonly name = "") {}
+  constructor(readonly name = "") { }
 
   /**
    * Add a type alias
@@ -197,7 +230,7 @@ export class CheckerEnv {
   constructor(
     readonly container: Container = new Container(),
     readonly provider: TypeProvider | undefined = undefined,
-  ) {}
+  ) { }
 
   /**
    * Add variable declarations to the environment
@@ -278,6 +311,20 @@ export class CheckerEnv {
       }
     }
 
+    return undefined;
+  }
+
+  /**
+   * Look up a struct type by name with container resolution
+   */
+  lookupStructType(name: string): Type | undefined {
+    const candidates = this.container.resolveCandidateNames(name);
+    for (const candidate of candidates) {
+      const structType = this.provider?.findStructType(candidate);
+      if (structType) {
+        return structType;
+      }
+    }
     return undefined;
   }
 

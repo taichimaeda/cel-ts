@@ -10,7 +10,7 @@ export { ParserHelper } from "./helper";
 export type { ParserHelperOptions } from "./helper";
 
 // Operator constants shared between parser helper and macros
-export { Operators } from "./operators";
+export { Operators } from "./operator";
 
 // Macros
 export {
@@ -25,5 +25,5 @@ export {
   // Macro types
   type Macro,
   type MacroExpander
-} from "./macros";
+} from "./macro";
 

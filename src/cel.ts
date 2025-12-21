@@ -4,9 +4,19 @@
 
 import { StandardLibrary } from "./checker";
 import { Checker } from "./checker/checker";
-import { FunctionDecl, OverloadDecl, VariableDecl } from "./checker/decls";
-import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
-import type { CheckerError } from "./checker/errors";
+import {
+  FunctionDecl,
+  OverloadDecl,
+  StructDecl,
+  StructFieldDecl,
+  VariableDecl
+} from "./checker/decl";
+import {
+  Container as CheckerContainer,
+  CheckerEnv,
+  StructTypeProvider,
+} from "./checker/env";
+import type { CheckerError } from "./checker/error";
 import {
   AnyType as CheckerAnyType,
   BoolType as CheckerBoolType,
@@ -22,9 +32,10 @@ import {
   UintType as CheckerUintType,
   ListType,
   MapType,
+  StructType,
   Type,
   TypeTypeWithParam,
-} from "./checker/types";
+} from "./checker/type";
 import type { AST as CommonAST } from "./common/ast";
 import type { SourceInfo } from "./common/source";
 import { standardFunctions } from "./interpreter";
@@ -46,7 +57,7 @@ import {
   type TypeAdapter,
   type Value,
   ValueUtil,
-} from "./interpreter/values";
+} from "./interpreter/value";
 import { Parser, ParserHelper } from "./parser";
 
 // ============================================================================
@@ -151,9 +162,8 @@ export class TypeBuilder {
   /**
    * Create an Object type (message type).
    */
-  object(_typeName: string): Type {
-    // TODO: Full Object type implementation needed
-    return new MapType(StringType, DynType);
+  object(typeName: string): Type {
+    return new StructType(typeName);
   }
 }
 
@@ -170,7 +180,7 @@ export const Types = new TypeBuilder();
  * Issues represents a collection of errors and warnings from parsing or type-checking.
  */
 export class Issues {
-  constructor(readonly errors: readonly CheckerError[] = [], _source = "") {}
+  constructor(readonly errors: readonly CheckerError[] = [], _source = "") { }
 
   /**
    * Returns true if there are any errors.
@@ -213,7 +223,7 @@ export class Ast {
     readonly ast: CommonAST,
     readonly source: string,
     private checked: boolean = false
-  ) {}
+  ) { }
 
   /**
    * Returns true if the AST has been type-checked.
@@ -252,7 +262,7 @@ export class Program {
     private readonly interpretable: ReturnType<Planner["plan"]>,
     private readonly adapter: TypeAdapter,
     private readonly sourceInfo: SourceInfo
-  ) {}
+  ) { }
 
   eval(vars?: ProgramInput): Value {
     let activation: Activation;
@@ -313,6 +323,8 @@ export interface EnvOptions {
   constants?: readonly EnvConstantOption[];
   /** Functions (with overloads) to register */
   functions?: readonly EnvFunctionOption[];
+  /** Struct types to declare in the environment */
+  structs?: readonly EnvStructOption[];
   /** Container name for identifier resolution */
   container?: string;
   /** Custom type adapter */
@@ -376,6 +388,43 @@ export class EnvFunctionOption {
       const existing = config.functionOverloads.get(this.name) ?? [];
       config.functionOverloads.set(this.name, [...existing, ...runtimeOverloads]);
     }
+  }
+}
+
+/**
+ * Helper class for declaring struct fields within EnvOptions.
+ */
+export class EnvStructFieldOption {
+  constructor(
+    readonly name: string,
+    readonly type: Type
+  ) { }
+}
+
+/**
+ * Helper class for declaring struct types within EnvOptions.
+ */
+export class EnvStructOption {
+  readonly fields: readonly EnvStructFieldOption[];
+
+  constructor(
+    readonly name: string,
+    fields: readonly EnvStructFieldOption[] | Record<string, Type>
+  ) {
+    if (Array.isArray(fields)) {
+      this.fields = fields;
+    } else {
+      this.fields = Object.entries(fields).map(
+        ([fieldName, fieldType]) => new EnvStructFieldOption(fieldName, fieldType)
+      );
+    }
+  }
+
+  register(config: EnvConfig): void {
+    const declFields = this.fields.map(
+      (field) => new StructFieldDecl(field.name, field.type)
+    );
+    config.structProvider.addStructs(new StructDecl(this.name, declFields));
   }
 }
 
@@ -480,10 +529,9 @@ class MemberFunctionOverloadOption extends FunctionOverloadOption {
 
 export {
   EnvConstantOption as Constant,
-  EnvFunctionOption as Function,
-  MemberFunctionOverloadOption as MemberOverload,
-  GlobalFunctionOverloadOption as Overload,
-  EnvVariableOption as Variable
+  EnvFunctionOption as Function, MemberFunctionOverloadOption as MemberOverload,
+  GlobalFunctionOverloadOption as Overload, EnvStructOption as Struct,
+  EnvStructFieldOption as StructField, EnvVariableOption as Variable
 };
 export type { EnvOptions as Options };
 
@@ -508,17 +556,20 @@ export class Env {
 
   private initialize(config: EnvConfig): void {
     this.config = config;
-    this.checkerEnv = new CheckerEnv(new CheckerContainer(config.container));
+    this.checkerEnv = new CheckerEnv(
+      new CheckerContainer(config.container),
+      config.structProvider
+    );
     this.dispatcher = new DefaultDispatcher();
     this.parser = new Parser();
 
     if (!config.disableStandardLibrary) {
-    for (const fn of StandardLibrary.functions()) {
-      this.checkerEnv.addFunctions(fn);
-    }
-    for (const overload of standardFunctions) {
-      this.dispatcher.add(overload);
-    }
+      for (const fn of StandardLibrary.functions()) {
+        this.checkerEnv.addFunctions(fn);
+      }
+      for (const overload of standardFunctions) {
+        this.dispatcher.add(overload);
+      }
     }
 
     for (const v of config.variables) {
@@ -635,6 +686,7 @@ class EnvConfig {
   variables: VariableDecl[] = [];
   functions: FunctionDecl[] = [];
   functionOverloads = new Map<string, DispatcherOverload[]>();
+  structProvider: StructTypeProvider = new StructTypeProvider();
   adapter: TypeAdapter = new DefaultTypeAdapter();
   disableStandardLibrary = false;
   disableTypeChecking = false;
@@ -647,6 +699,7 @@ class EnvConfig {
     clone.functionOverloads = new Map(
       [...this.functionOverloads.entries()].map(([name, overloads]) => [name, [...overloads]])
     );
+    clone.structProvider = new StructTypeProvider(this.structProvider.structDecls());
     clone.adapter = this.adapter;
     clone.disableStandardLibrary = this.disableStandardLibrary;
     clone.disableTypeChecking = this.disableTypeChecking;
@@ -664,6 +717,10 @@ class EnvConfig {
 
     for (const fnOption of options.functions ?? []) {
       fnOption.register(this);
+    }
+
+    for (const structOption of options.structs ?? []) {
+      structOption.register(this);
     }
 
     if (options.container !== undefined) {
@@ -688,7 +745,7 @@ class EnvConfig {
 // Re-exports
 // ============================================================================
 
-export { Type } from "./checker/types";
+export { StructType, Type } from "./checker/type";
 export {
   EmptyActivation,
   HierarchicalActivation,
@@ -714,5 +771,6 @@ export {
   TypeValue,
   UintValue,
   ValueUtil
-} from "./interpreter/values";
-export type { Value } from "./interpreter/values";
+} from "./interpreter/value";
+export type { Value } from "./interpreter/value";
+

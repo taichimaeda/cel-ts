@@ -107,6 +107,25 @@ const extendedEnv = env.extend({
 });
 ```
 
+### Struct Types
+
+Declare struct types to enable message-style literals and field type checking:
+
+```typescript
+import { Env, Struct, StringType, IntType } from "cel-ts";
+
+const env = new Env({
+  structs: [
+    new Struct("acme.Person", {
+      name: StringType,
+      age: IntType,
+    }),
+  ],
+});
+
+const ast = env.compile('acme.Person{ name: "Ada", age: 37 }');
+```
+
 ### Environment Options
 
 `Env` accepts a single options object:
@@ -192,6 +211,22 @@ const ast = helper.parse(result.tree);
 
 const formatter = new Formatter({ maxLineLength: 40 });
 console.log(formatter.format(ast));
+```
+
+### Conformance
+
+Conformance suites from `cel.dev/expr` live under `test/conformance/` and can be run via:
+
+```bash
+pnpm conformance
+```
+
+### Benchmarking
+
+Run the lightweight benchmark suite and write results to `test/benchmark/results.json`:
+
+```bash
+pnpm benchmark
 ```
 
 ### Error Handling
@@ -337,7 +372,7 @@ console.log(program.eval().value()); // "ababab - olleh"
 
 ## Architecture
 
-See [docs/cel-ts-architecture.md](docs/cel-ts-architecture.md) for detailed architecture documentation.
+See [doc/cel-ts-architecture.md](doc/cel-ts-architecture.md) for detailed architecture documentation.
 
 ```
 Expression → Parse → AST → Check → Plan → Eval → Result

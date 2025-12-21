@@ -1,15 +1,14 @@
-import type {
-  AST,
+import {
+  type AST,
   CallExpr,
-  Expr,
+  type Expr,
   ListExpr,
   MapExpr,
   SelectExpr,
   StructExpr,
 } from "../common/ast";
-import { ExprKind } from "../common/ast";
 import { Emitter } from "../common/emitter";
-import { Operators } from "../parser/operators";
+import { Operators } from "../parser/operator";
 
 export interface FormatterOptions {
   /** Maximum line length before formatting switches to multiline. */
@@ -68,8 +67,8 @@ export class Formatter {
     const resolvedExpr = this.resolveMacroCall(expr, sourceInfo);
     const inline = this.emitter.emitExpr(resolvedExpr, sourceInfo);
 
-    if (resolvedExpr.kind === ExprKind.Call) {
-      const call = resolvedExpr as CallExpr;
+    if (resolvedExpr instanceof CallExpr) {
+      const call = resolvedExpr;
       const op = this.operatorFromName(call.funcName, call.args.length);
       if (op?.kind === "ternary") {
         return this.formatTernary(call, sourceInfo, indent);
@@ -89,23 +88,23 @@ export class Formatter {
       return this.formatCall(call, sourceInfo, indent);
     }
 
-    if (resolvedExpr.kind === ExprKind.Select) {
+    if (resolvedExpr instanceof SelectExpr) {
       const chain = this.collectChain(resolvedExpr);
       if (chain) {
         return this.formatChain(chain, sourceInfo, indent);
       }
     }
 
-    if (resolvedExpr.kind === ExprKind.List) {
-      return this.formatList(resolvedExpr as ListExpr, sourceInfo, indent);
+    if (resolvedExpr instanceof ListExpr) {
+      return this.formatList(resolvedExpr, sourceInfo, indent);
     }
 
-    if (resolvedExpr.kind === ExprKind.Map) {
-      return this.formatMap(resolvedExpr as MapExpr, sourceInfo, indent);
+    if (resolvedExpr instanceof MapExpr) {
+      return this.formatMap(resolvedExpr, sourceInfo, indent);
     }
 
-    if (resolvedExpr.kind === ExprKind.Struct) {
-      return this.formatStruct(resolvedExpr as StructExpr, sourceInfo, indent);
+    if (resolvedExpr instanceof StructExpr) {
+      return this.formatStruct(resolvedExpr, sourceInfo, indent);
     }
 
     return inline;
@@ -357,8 +356,8 @@ export class Formatter {
     let current: Expr = expr;
 
     while (true) {
-      if (current.kind === ExprKind.Select) {
-        const select = current as SelectExpr;
+      if (current instanceof SelectExpr) {
+        const select = current;
         if (select.testOnly) {
           break;
         }
@@ -367,8 +366,8 @@ export class Formatter {
         continue;
       }
 
-      if (current.kind === ExprKind.Call) {
-        const call = current as CallExpr;
+      if (current instanceof CallExpr) {
+        const call = current;
         const op = this.operatorFromName(call.funcName, call.args.length);
         if (op?.kind === "index") {
           segments.unshift({ kind: "index", index: call.args[1]! });
