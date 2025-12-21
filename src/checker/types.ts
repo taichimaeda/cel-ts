@@ -276,12 +276,71 @@ export function isAssignable(target: Type, source: Type): boolean {
  * Used for inferring element types in collections
  */
 export function joinTypes(typ1: Type, typ2: Type): Type {
+  const normalized1 = wellKnownTypeToNative(typ1) ?? typ1;
+  const normalized2 = wellKnownTypeToNative(typ2) ?? typ2;
+  if (normalized1 !== typ1 || normalized2 !== typ2) {
+    return joinTypes(normalized1, normalized2);
+  }
+
+  if (typ1.isOptionalType() && typ2.kind === TypeKind.Null) {
+    return typ1;
+  }
+  if (typ2.isOptionalType() && typ1.kind === TypeKind.Null) {
+    return typ2;
+  }
+  if (typ1.isOptionalType() || typ2.isOptionalType()) {
+    const inner1 = typ1.isOptionalType() ? typ1.parameters[0] ?? DynType : typ1;
+    const inner2 = typ2.isOptionalType() ? typ2.parameters[0] ?? DynType : typ2;
+    return new OptionalType(joinTypes(inner1, inner2));
+  }
+
   // If either is Dyn or Error, result is Dyn
   if (typ1.kind === TypeKind.Dyn || typ1.kind === TypeKind.Error) {
     return DynType;
   }
   if (typ2.kind === TypeKind.Dyn || typ2.kind === TypeKind.Error) {
     return DynType;
+  }
+
+  if (typ1.kind === TypeKind.Null && isLegacyNullableTarget(typ2)) {
+    return typ2;
+  }
+  if (typ2.kind === TypeKind.Null && isLegacyNullableTarget(typ1)) {
+    return typ1;
+  }
+
+  if (typ1.kind === TypeKind.TypeParam) {
+    return typ2;
+  }
+  if (typ2.kind === TypeKind.TypeParam) {
+    return typ1;
+  }
+
+  const wrapper1 = wrapperTypeToPrimitive(typ1);
+  const wrapper2 = wrapperTypeToPrimitive(typ2);
+  if (wrapper1 || wrapper2) {
+    const base1 = wrapper1 ?? typ1;
+    const base2 = wrapper2 ?? typ2;
+    if (base1.kind === TypeKind.Null || base2.kind === TypeKind.Null) {
+      return wrapper1 ? typ1 : typ2;
+    }
+    if (base1.isEquivalentType(base2)) {
+      return wrapper1 ? typ1 : typ2;
+    }
+  }
+
+  if (typ1.kind === TypeKind.List && typ2.kind === TypeKind.List) {
+    const elem1 = typ1.parameters[0] ?? DynType;
+    const elem2 = typ2.parameters[0] ?? DynType;
+    return new ListType(joinTypes(elem1, elem2));
+  }
+
+  if (typ1.kind === TypeKind.Map && typ2.kind === TypeKind.Map) {
+    const key1 = typ1.parameters[0] ?? DynType;
+    const key2 = typ2.parameters[0] ?? DynType;
+    const val1 = typ1.parameters[1] ?? DynType;
+    const val2 = typ2.parameters[1] ?? DynType;
+    return new MapType(joinTypes(key1, key2), joinTypes(val1, val2));
   }
 
   // If types are equivalent, return one of them
@@ -291,4 +350,55 @@ export function joinTypes(typ1: Type, typ2: Type): Type {
 
   // Otherwise, fall back to Dyn
   return DynType;
+}
+
+function isLegacyNullableTarget(type: Type): boolean {
+  switch (type.kind) {
+    case TypeKind.Struct:
+    case TypeKind.Opaque:
+    case TypeKind.Duration:
+    case TypeKind.Timestamp:
+      return true;
+    default:
+      return false;
+  }
+}
+
+const wrapperTypeMap = new Map<string, Type>([
+  ["google.protobuf.BoolValue", BoolType],
+  ["google.protobuf.BytesValue", BytesType],
+  ["google.protobuf.DoubleValue", DoubleType],
+  ["google.protobuf.FloatValue", DoubleType],
+  ["google.protobuf.Int32Value", IntType],
+  ["google.protobuf.Int64Value", IntType],
+  ["google.protobuf.UInt32Value", UintType],
+  ["google.protobuf.UInt64Value", UintType],
+  ["google.protobuf.StringValue", StringType],
+]);
+
+const wellKnownTypeMap = new Map<string, Type>([
+  ["google.protobuf.Value", DynType],
+  ["google.protobuf.Any", DynType],
+  ["google.protobuf.Struct", new MapType(StringType, DynType)],
+  ["google.protobuf.ListValue", new ListType(DynType)],
+]);
+
+export function wrapperTypeToPrimitive(type: Type): Type | null {
+  if (type.kind !== TypeKind.Struct) {
+    return null;
+  }
+  const name = type.runtimeTypeName.startsWith(".")
+    ? type.runtimeTypeName.slice(1)
+    : type.runtimeTypeName;
+  return wrapperTypeMap.get(name) ?? null;
+}
+
+export function wellKnownTypeToNative(type: Type): Type | null {
+  if (type.kind !== TypeKind.Struct) {
+    return null;
+  }
+  const name = type.runtimeTypeName.startsWith(".")
+    ? type.runtimeTypeName.slice(1)
+    : type.runtimeTypeName;
+  return wellKnownTypeMap.get(name) ?? null;
 }

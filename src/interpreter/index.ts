@@ -2,24 +2,24 @@
 // Interpreter module exports
 
 // Interpreter runtime type helpers
-export { OptionalType, RuntimeType, UnknownType } from "./type";
+export { OptionalType, RuntimeType, UnknownType } from "./types";
 
 // Values - Runtime values
 export {
-  BoolValue, BytesValue, DefaultTypeAdapter, DoubleValue, DurationValue, ErrorValue, IntValue, ListValue,
-  MapValue, NullValue, OptionalValue, StringValue, TimestampValue, TypeValue, UintValue, UnknownValue, ValueUtil
-} from "./value";
-export type { MapEntry, TypeAdapter, Value, ValueType } from "./value";
+  BoolValue, BytesValue, DefaultTypeAdapter, DoubleValue, DurationValue, EnumValue, ErrorValue, IntValue, ListValue,
+  MapValue, NullValue, OptionalValue, StringValue, StructValue, TimestampValue, TypeValue, UintValue, UnknownValue, ValueUtil
+} from "./values";
+export type { MapEntry, TypeAdapter, Value, ValueType } from "./values";
 
 // Activation - Variable resolution
 export {
   EmptyActivation, HierarchicalActivation, LazyActivation, MapActivation, MutableActivation, PartialActivation, StrictActivation, type Activation
-} from "./activation";
+} from "./activations";
 
 // Attributes - Attributes/qualifiers
 export {
   AbsoluteAttribute, ComputedQualifier, ConditionalAttribute, DefaultAttributeFactory, IndexQualifier, MaybeAttribute, RelativeAttribute, StringQualifier, type Attribute, type AttributeFactory, type Qualifier
-} from "./attribute";
+} from "./attributes";
 
 // Dispatcher - Function dispatcher
 export {
@@ -60,5 +60,4 @@ export {
   stringFunctions,
   timeFunctions,
   typeConversionFunctions
-} from "./function";
-
+} from "./functions";

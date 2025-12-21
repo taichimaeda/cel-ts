@@ -1,6 +1,7 @@
 // CEL Runtime Values
 // TypeScript-native implementation of CEL runtime value types
 
+import type { TypeProvider } from "../checker/provider";
 import {
   BoolType as CheckerBoolType,
   BytesType as CheckerBytesType,
@@ -9,13 +10,25 @@ import {
   ErrorType as CheckerErrorType,
   IntType as CheckerIntType,
   NullType as CheckerNullType,
+  OptionalType as CheckerOptionalType,
   StringType as CheckerStringType,
+  StructType as CheckerStructType,
   TimestampType as CheckerTimestampType,
+  TypeKind as CheckerTypeKind,
   TypeType as CheckerTypeType,
   UintType as CheckerUintType,
-} from "../checker/type";
+  DynType,
+  OpaqueType,
+  type Type as CheckerType,
+} from "../checker/types";
 import type { ExprId } from "../common/ast";
-import { GenericListType, GenericMapType, OptionalType, UnknownType, type ValueType } from "./type";
+import {
+  GenericListType,
+  GenericMapType,
+  OptionalType as RuntimeOptionalType,
+  UnknownType,
+  type ValueType,
+} from "./types";
 
 /**
  * Base interface for all CEL runtime values
@@ -39,6 +52,18 @@ export interface Value {
  */
 export interface TypeAdapter {
   nativeToValue(value: unknown): Value;
+}
+
+export type AnyResolver = (typeUrl: string, bytes: Uint8Array) => Value | null;
+
+let anyResolver: AnyResolver | null = null;
+
+export function setAnyResolver(resolver: AnyResolver | null): void {
+  anyResolver = resolver;
+}
+
+export function resolveAnyValue(typeUrl: string, bytes: Uint8Array): Value | null {
+  return anyResolver ? anyResolver(typeUrl, bytes) : null;
 }
 
 /**
@@ -119,6 +144,9 @@ export class IntValue implements Value {
   equal(other: Value): Value {
     if (other instanceof IntValue) {
       return BoolValue.of(this.val === other.val);
+    }
+    if (other instanceof EnumValue) {
+      return BoolValue.of(this.val === other.value());
     }
     if (other instanceof UintValue) {
       return BoolValue.of(this.val >= 0n && this.val === other.value());
@@ -253,6 +281,53 @@ export class UintValue implements Value {
     if (this.val < other.val) return -1;
     if (this.val > other.val) return 1;
     return 0;
+  }
+}
+
+/**
+ * Enum value backed by a numeric value with a specific enum type.
+ */
+export class EnumValue implements Value {
+  private readonly enumType: CheckerType;
+  private readonly val: bigint;
+
+  constructor(typeName: string, val: bigint | number) {
+    this.enumType = new OpaqueType(typeName);
+    this.val = typeof val === "number" ? BigInt(Math.trunc(val)) : val;
+  }
+
+  type(): ValueType {
+    return this.enumType;
+  }
+
+  typeName(): string {
+    return this.enumType.runtimeTypeName;
+  }
+
+  toString(): string {
+    return this.val.toString();
+  }
+
+  equal(other: Value): Value {
+    if (other instanceof EnumValue) {
+      return BoolValue.of(
+        this.enumType.runtimeTypeName === other.enumType.runtimeTypeName && this.val === other.val
+      );
+    }
+    if (other instanceof IntValue) {
+      return BoolValue.of(this.val === other.value());
+    }
+    if (other instanceof UintValue) {
+      return BoolValue.of(this.val >= 0n && this.val === other.value());
+    }
+    if (other instanceof DoubleValue) {
+      return BoolValue.of(Number(this.val) === other.value());
+    }
+    return BoolValue.False;
+  }
+
+  value(): bigint {
+    return this.val;
   }
 }
 
@@ -628,6 +703,19 @@ export class MapValue implements Value {
   }
 
   private keyToString(key: Value): string {
+    if (key instanceof IntValue) {
+      return `num:${key.value().toString()}`;
+    }
+    if (key instanceof UintValue) {
+      return `num:${key.value().toString()}`;
+    }
+    if (key instanceof DoubleValue) {
+      const value = key.value();
+      if (Number.isFinite(value) && Number.isInteger(value)) {
+        return `num:${value}`;
+      }
+      return `double:${value}`;
+    }
     // Create a unique string representation for the key
     return `${key.type()}:${key.value()}`;
   }
@@ -693,6 +781,158 @@ export class MapValue implements Value {
 }
 
 /**
+ * Struct value for protobuf/message-like objects with field presence info.
+ */
+export class StructValue implements Value {
+  private readonly values: Map<string, Value>;
+  private readonly presentFields: Set<string>;
+  private readonly fieldTypes: Map<string, CheckerType>;
+  private readonly typeProvider: TypeProvider | undefined;
+
+  constructor(
+    private readonly typeName: string,
+    values: Map<string, Value>,
+    presentFields: Set<string>,
+    fieldTypes: Map<string, CheckerType> = new Map(),
+    typeProvider?: TypeProvider
+  ) {
+    this.values = new Map(values);
+    this.presentFields = new Set(presentFields);
+    this.fieldTypes = new Map(fieldTypes);
+    this.typeProvider = typeProvider;
+  }
+
+  type(): ValueType {
+    return new CheckerStructType(this.typeName);
+  }
+
+  toString(): string {
+    const entries = [...this.values.entries()].map(
+      ([key, value]) => `${key}: ${value.toString()}`
+    );
+    return `${this.typeName}{${entries.join(", ")}}`;
+  }
+
+  equal(other: Value): Value {
+    if (!(other instanceof StructValue)) {
+      return BoolValue.False;
+    }
+    if (this.typeName !== other.typeName) {
+      return BoolValue.False;
+    }
+
+    const fieldNames = new Set<string>([
+      ...this.presentFields,
+      ...other.presentFields,
+      ...this.values.keys(),
+      ...other.values.keys(),
+    ]);
+
+    for (const name of fieldNames) {
+      const left = this.getField(name);
+      if (left instanceof ErrorValue) {
+        return left;
+      }
+      const right = other.getField(name);
+      if (right instanceof ErrorValue) {
+        return right;
+      }
+      const eq = left.equal(right);
+      if (eq instanceof BoolValue && !eq.value()) {
+        return BoolValue.False;
+      }
+      if (eq instanceof ErrorValue) {
+        return eq;
+      }
+    }
+
+    return BoolValue.True;
+  }
+
+  value(): Record<string, Value> {
+    const result: Record<string, Value> = {};
+    for (const [name, value] of this.values) {
+      result[name] = value;
+    }
+    return result;
+  }
+
+  hasField(name: string): boolean {
+    return this.presentFields.has(name);
+  }
+
+  getField(name: string): Value {
+    const value = this.values.get(name);
+    if (value !== undefined) {
+      return value;
+    }
+    const fieldType = this.fieldTypes.get(name);
+    if (!fieldType) {
+      return ErrorValue.noSuchField(name);
+    }
+    if (
+      fieldType.kind === CheckerTypeKind.Struct &&
+      wrapperKindFromTypeName(fieldType.runtimeTypeName) !== null
+    ) {
+      return NullValue.Instance;
+    }
+    if (fieldType.kind === CheckerTypeKind.Struct && this.typeProvider) {
+      const nestedFields = new Map<string, CheckerType>();
+      const nestedNames = this.typeProvider.structFieldNames(fieldType.runtimeTypeName);
+      for (const fieldName of nestedNames) {
+        const nestedType = this.typeProvider.findStructFieldType(
+          fieldType.runtimeTypeName,
+          fieldName
+        );
+        if (nestedType) {
+          nestedFields.set(fieldName, nestedType);
+        }
+      }
+      return new StructValue(
+        fieldType.runtimeTypeName,
+        new Map(),
+        new Set(),
+        nestedFields,
+        this.typeProvider
+      );
+    }
+    if (fieldType.kind === CheckerTypeKind.Opaque && this.typeProvider) {
+      const enumType = this.typeProvider.findEnumType(fieldType.runtimeTypeName);
+      if (enumType) {
+        return new EnumValue(enumType.runtimeTypeName, 0n);
+      }
+    }
+    return defaultValueForType(fieldType);
+  }
+}
+
+function wrapperKindFromTypeName(
+  typeName: string
+): "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string" | null {
+  const normalized = typeName.startsWith(".") ? typeName.slice(1) : typeName;
+  switch (normalized) {
+    case "google.protobuf.BoolValue":
+      return "bool";
+    case "google.protobuf.BytesValue":
+      return "bytes";
+    case "google.protobuf.DoubleValue":
+      return "double";
+    case "google.protobuf.FloatValue":
+      return "float";
+    case "google.protobuf.Int32Value":
+    case "google.protobuf.Int64Value":
+      return "int";
+    case "google.protobuf.UInt32Value":
+    case "google.protobuf.UInt64Value":
+      return "uint";
+    case "google.protobuf.StringValue":
+      return "string";
+    default:
+      return null;
+  }
+}
+
+/**
  * Type value - represents a type itself as a value
  */
 export class TypeValue implements Value {
@@ -721,7 +961,10 @@ export class TypeValue implements Value {
 
   equal(other: Value): Value {
     if (other instanceof TypeValue) {
-      return BoolValue.of(this.typeName.toString() === other.typeName.toString());
+      if (this.typeName.toString() === other.typeName.toString()) {
+        return BoolValue.True;
+      }
+      return BoolValue.False;
     }
     return BoolValue.False;
   }
@@ -731,7 +974,7 @@ export class TypeValue implements Value {
   }
 }
 
-export type { ValueType } from "./type";
+export type { ValueType } from "./types";
 
 export class ValueUtil {
   static toTypeValue(type: ValueType): TypeValue {
@@ -747,6 +990,9 @@ export class ValueUtil {
     if (type === CheckerTypeType) return TypeValue.TypeType;
     if (type === CheckerDurationType) return TypeValue.DurationType;
     if (type === CheckerTimestampType) return TypeValue.TimestampType;
+    if (type === RuntimeOptionalType) {
+      return new TypeValue(new CheckerOptionalType(DynType));
+    }
     return new TypeValue(type);
   }
 
@@ -827,11 +1073,11 @@ export class DurationValue implements Value {
   }
 
   getMinutes(): IntValue {
-    return IntValue.of((this.nanos / 60_000_000_000n) % 60n);
+    return IntValue.of(this.nanos / 60_000_000_000n);
   }
 
   getSeconds(): IntValue {
-    return IntValue.of((this.nanos / 1_000_000_000n) % 60n);
+    return IntValue.of(this.nanos / 1_000_000_000n);
   }
 
   getMilliseconds(): IntValue {
@@ -866,8 +1112,7 @@ export class TimestampValue implements Value {
   }
 
   toString(): string {
-    const date = new Date(Number(this.nanos / 1_000_000n));
-    return date.toISOString();
+    return formatTimestamp(this.nanos);
   }
 
   equal(other: Value): Value {
@@ -903,57 +1148,215 @@ export class TimestampValue implements Value {
   }
 
   getFullYear(tz?: string): IntValue {
-    const date = this.toDateWithTz(tz);
-    return IntValue.of(date.getUTCFullYear());
+    const parts = this.getZonedParts(tz);
+    return IntValue.of(parts.year);
   }
 
   getMonth(tz?: string): IntValue {
-    const date = this.toDateWithTz(tz);
-    return IntValue.of(date.getUTCMonth()); // 0-indexed
+    const parts = this.getZonedParts(tz);
+    return IntValue.of(parts.month - 1);
+  }
+
+  getDate(tz?: string): IntValue {
+    const parts = this.getZonedParts(tz);
+    return IntValue.of(parts.day);
   }
 
   getDayOfMonth(tz?: string): IntValue {
-    const date = this.toDateWithTz(tz);
-    return IntValue.of(date.getUTCDate());
+    const parts = this.getZonedParts(tz);
+    return IntValue.of(parts.day - 1);
   }
 
   getDayOfWeek(tz?: string): IntValue {
-    const date = this.toDateWithTz(tz);
-    return IntValue.of(date.getUTCDay());
+    const parts = this.getZonedParts(tz);
+    return IntValue.of(parts.dayOfWeek);
   }
 
   getDayOfYear(tz?: string): IntValue {
-    const date = this.toDateWithTz(tz);
-    const start = new Date(Date.UTC(date.getUTCFullYear(), 0, 0));
+    const parts = this.getZonedParts(tz);
+    const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+    const start = new Date(Date.UTC(parts.year, 0, 1));
     const diff = date.getTime() - start.getTime();
     const oneDay = 1000 * 60 * 60 * 24;
     return IntValue.of(Math.floor(diff / oneDay));
   }
 
   getHours(tz?: string): IntValue {
-    const date = this.toDateWithTz(tz);
-    return IntValue.of(date.getUTCHours());
+    const parts = this.getZonedParts(tz);
+    return IntValue.of(parts.hour);
   }
 
   getMinutes(tz?: string): IntValue {
-    const date = this.toDateWithTz(tz);
-    return IntValue.of(date.getUTCMinutes());
+    const parts = this.getZonedParts(tz);
+    return IntValue.of(parts.minute);
   }
 
   getSeconds(tz?: string): IntValue {
-    const date = this.toDateWithTz(tz);
-    return IntValue.of(date.getUTCSeconds());
+    const parts = this.getZonedParts(tz);
+    return IntValue.of(parts.second);
   }
 
   getMilliseconds(tz?: string): IntValue {
-    const date = this.toDateWithTz(tz);
-    return IntValue.of(date.getUTCMilliseconds());
+    const date = this.toDate();
+    if (tz) {
+      const offsetMinutes = parseTimeZoneOffset(tz);
+      if (offsetMinutes !== null) {
+        const shifted = new Date(date.getTime() + offsetMinutes * 60_000);
+        return IntValue.of(shifted.getUTCMilliseconds());
+      }
+    }
+    const millis = date.getUTCMilliseconds();
+    return IntValue.of(millis);
   }
 
-  private toDateWithTz(_tz?: string): Date {
-    // Note: Full timezone support would require additional library
-    // For now, we use UTC
-    return this.toDate();
+  private getZonedParts(tz?: string): {
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+    second: number;
+    dayOfWeek: number;
+  } {
+    const date = this.toDate();
+    if (!tz) {
+      return {
+        year: date.getUTCFullYear(),
+        month: date.getUTCMonth() + 1,
+        day: date.getUTCDate(),
+        hour: date.getUTCHours(),
+        minute: date.getUTCMinutes(),
+        second: date.getUTCSeconds(),
+        dayOfWeek: date.getUTCDay(),
+      };
+    }
+
+    const offsetMinutes = parseTimeZoneOffset(tz);
+    if (offsetMinutes !== null) {
+      const shifted = new Date(date.getTime() + offsetMinutes * 60_000);
+      return {
+        year: shifted.getUTCFullYear(),
+        month: shifted.getUTCMonth() + 1,
+        day: shifted.getUTCDate(),
+        hour: shifted.getUTCHours(),
+        minute: shifted.getUTCMinutes(),
+        second: shifted.getUTCSeconds(),
+        dayOfWeek: shifted.getUTCDay(),
+      };
+    }
+
+    try {
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        weekday: "short",
+        hour12: false,
+      });
+      const parts = formatter.formatToParts(date);
+      const lookup = (type: string): string | undefined =>
+        parts.find((part) => part.type === type)?.value;
+      const year = Number(lookup("year"));
+      const month = Number(lookup("month"));
+      const day = Number(lookup("day"));
+      const hour = Number(lookup("hour"));
+      const minute = Number(lookup("minute"));
+      const second = Number(lookup("second"));
+      const weekday = lookup("weekday") ?? "Sun";
+      return {
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        dayOfWeek: weekdayToNumber(weekday),
+      };
+    } catch {
+      return {
+        year: date.getUTCFullYear(),
+        month: date.getUTCMonth() + 1,
+        day: date.getUTCDate(),
+        hour: date.getUTCHours(),
+        minute: date.getUTCMinutes(),
+        second: date.getUTCSeconds(),
+        dayOfWeek: date.getUTCDay(),
+      };
+    }
+  }
+}
+
+function formatTimestamp(nanos: bigint): string {
+  let seconds = nanos / 1_000_000_000n;
+  let nanosRem = nanos % 1_000_000_000n;
+  if (nanosRem < 0n) {
+    nanosRem += 1_000_000_000n;
+    seconds -= 1n;
+  }
+  const date = new Date(Number(seconds) * 1000);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  const hour = date.getUTCHours();
+  const minute = date.getUTCMinutes();
+  const second = date.getUTCSeconds();
+  let result =
+    `${pad4(year)}-${pad2(month)}-${pad2(day)}T${pad2(hour)}:${pad2(minute)}:${pad2(second)}`;
+  if (nanosRem !== 0n) {
+    let fraction = nanosRem.toString().padStart(9, "0");
+    fraction = fraction.replace(/0+$/, "");
+    result += `.${fraction}`;
+  }
+  return `${result}Z`;
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function pad4(value: number): string {
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  return `${sign}${String(abs).padStart(4, "0")}`;
+}
+
+function parseTimeZoneOffset(tz: string): number | null {
+  const normalized = tz.trim();
+  if (normalized === "UTC" || normalized === "Z") {
+    return 0;
+  }
+  const match = /^([+-]?)(\d{2}):(\d{2})$/.exec(normalized);
+  if (!match) {
+    return null;
+  }
+  const sign = match[1] === "-" ? -1 : 1;
+  const hours = Number(match[2]);
+  const minutes = Number(match[3]);
+  return sign * (hours * 60 + minutes);
+}
+
+function weekdayToNumber(weekday: string): number {
+  switch (weekday.slice(0, 3)) {
+    case "Sun":
+      return 0;
+    case "Mon":
+      return 1;
+    case "Tue":
+      return 2;
+    case "Wed":
+      return 3;
+    case "Thu":
+      return 4;
+    case "Fri":
+      return 5;
+    case "Sat":
+      return 6;
+    default:
+      return 0;
   }
 }
 
@@ -1079,7 +1482,7 @@ export class OptionalValue implements Value {
   }
 
   type(): ValueType {
-    return OptionalType;
+    return RuntimeOptionalType;
   }
 
   toString(): string {
@@ -1112,6 +1515,49 @@ export class OptionalValue implements Value {
 
   getOrElse(defaultValue: Value): Value {
     return this.inner ?? defaultValue;
+  }
+}
+
+function defaultValueForType(type: CheckerType): Value {
+  if (type.isOptionalType()) {
+    return OptionalValue.none();
+  }
+
+  switch (type.kind) {
+    case CheckerTypeKind.Bool:
+      return BoolValue.False;
+    case CheckerTypeKind.Int:
+      return IntValue.of(0);
+    case CheckerTypeKind.Uint:
+      return UintValue.of(0);
+    case CheckerTypeKind.Double:
+      return DoubleValue.of(0);
+    case CheckerTypeKind.String:
+      return StringValue.of("");
+    case CheckerTypeKind.Bytes:
+      return BytesValue.of(new Uint8Array());
+    case CheckerTypeKind.Duration:
+      return DurationValue.Zero;
+    case CheckerTypeKind.Timestamp:
+      return TimestampValue.of(0n);
+    case CheckerTypeKind.List:
+      return ListValue.of([]);
+    case CheckerTypeKind.Map:
+      return MapValue.of([]);
+    case CheckerTypeKind.Struct:
+      return NullValue.Instance;
+    case CheckerTypeKind.Null:
+      return NullValue.Instance;
+    case CheckerTypeKind.Type:
+      return TypeValue.TypeType;
+    case CheckerTypeKind.Dyn:
+    case CheckerTypeKind.Error:
+    case CheckerTypeKind.TypeParam:
+    case CheckerTypeKind.Any:
+    case CheckerTypeKind.Opaque:
+      return NullValue.Instance;
+    default:
+      return NullValue.Instance;
   }
 }
 

@@ -1,10 +1,10 @@
 import type { AST } from "../common/ast";
 import type { SourceInfo } from "../common/source";
 import { ExprVisitor, VisitOrder } from "../common/visitor";
-import { defaultRules } from "./rule";
-import type { LintContext, LintDiagnostic, LintLocation, LintRule } from "./type";
+import { defaultRules } from "./rules";
+import type { LintContext, LintDiagnostic, LintLocation, LintRule } from "./types";
 
-export type { LintContext, LintDiagnostic, LintFix, LintRule, LintSeverity } from "./type";
+export type { LintContext, LintDiagnostic, LintFix, LintRule, LintSeverity } from "./types";
 
 export class Linter {
   constructor(private readonly rules: readonly LintRule[] = defaultRules) { }

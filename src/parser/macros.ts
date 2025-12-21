@@ -2,6 +2,7 @@
 // Parse-time expansion of macro calls to comprehension expressions
 // Ported from cel-go/parser/macro.go
 
+import { Operators } from "../common";
 import {
   AccumulatorName,
   type Expr,
@@ -9,7 +10,6 @@ import {
   SelectExpr,
 } from "../common/ast";
 import type { ParserHelper } from "./helper";
-import { Operators } from "./operator";
 
 // Re-export AccumulatorName
 export { AccumulatorName } from "../common/ast";

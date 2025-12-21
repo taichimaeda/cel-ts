@@ -1,7 +1,17 @@
 // CEL Type Mapping
 // Type parameter bindings for type unification and substitution
 
-import { DynType, ListType, MapType, OpaqueType, Type, TypeKind, TypeTypeWithParam } from "./type";
+import {
+  DynType,
+  ListType,
+  MapType,
+  OpaqueType,
+  Type,
+  TypeKind,
+  TypeTypeWithParam,
+  wellKnownTypeToNative,
+  wrapperTypeToPrimitive,
+} from "./types";
 
 /**
  * Type parameter mapping for tracking substitutions during type inference
@@ -67,10 +77,29 @@ export class TypeMapping {
       return typeParamResult;
     }
 
+    const targetWrapper = wrapperTypeToPrimitive(target);
+    const sourceWrapper = wrapperTypeToPrimitive(source);
+    if (targetWrapper || sourceWrapper) {
+      return this.isAssignable(targetWrapper ?? target, sourceWrapper ?? source);
+    }
+
+    const targetWellKnown = wellKnownTypeToNative(target);
+    const sourceWellKnown = wellKnownTypeToNative(source);
+    if (targetWellKnown || sourceWellKnown) {
+      return this.isAssignable(targetWellKnown ?? target, sourceWellKnown ?? source);
+    }
+
+    if (target.kind === TypeKind.Int && isEnumType(source)) {
+      return true;
+    }
+
     if (isWildcardType(target) || isWildcardType(source)) {
       return true;
     }
     if (isNullAssignableToOptional(target, source)) {
+      return true;
+    }
+    if (isNullAssignableToReference(target, source)) {
       return true;
     }
     if (!haveCompatibleKinds(target, source)) {
@@ -108,6 +137,9 @@ export class TypeMapping {
     if (existing) {
       return this.isAssignable(existing, source);
     }
+    if (source.kind === TypeKind.TypeParam && source.typeKey() === target.typeKey()) {
+      return true;
+    }
     if (occursIn(target, source)) {
       return false;
     }
@@ -119,6 +151,9 @@ export class TypeMapping {
     const existing = this.find(source);
     if (existing) {
       return this.isAssignable(target, existing);
+    }
+    if (target.kind === TypeKind.TypeParam && target.typeKey() === source.typeKey()) {
+      return true;
     }
     if (occursIn(source, target)) {
       return false;
@@ -217,6 +252,28 @@ function isWildcardType(type: Type): boolean {
 
 function isNullAssignableToOptional(target: Type, source: Type): boolean {
   return source.kind === TypeKind.Null && target.isOptionalType();
+}
+
+function isNullAssignableToReference(target: Type, source: Type): boolean {
+  if (source.kind !== TypeKind.Null) {
+    return false;
+  }
+  switch (target.kind) {
+    case TypeKind.Struct:
+    case TypeKind.Duration:
+    case TypeKind.Timestamp:
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isEnumType(type: Type): boolean {
+  return (
+    type.kind === TypeKind.Opaque &&
+    type.runtimeTypeName !== "optional_type" &&
+    type.parameters.length === 0
+  );
 }
 
 function haveCompatibleKinds(target: Type, source: Type): boolean {

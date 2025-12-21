@@ -2,26 +2,34 @@
 // Interpretable interface and implementations for expression evaluation
 // Implemented with reference to cel-go's interpret/interpretable.go
 
+import type { TypeProvider } from "../checker/provider";
+import { TypeKind as CheckerTypeKind, type Type as CheckerType } from "../checker/types";
 import type { ExprId } from "../common/ast";
-import { type Activation, MutableActivation } from "./activation";
-import type { Attribute, Qualifier } from "./attribute";
+import { MutableActivation, type Activation } from "./activations";
+import type { Attribute, Qualifier } from "./attributes";
 import type { FunctionResolver } from "./dispatcher";
 import {
   BoolValue,
   BytesValue,
   DoubleValue,
+  DurationValue,
+  EnumValue,
   ErrorValue,
   IntValue,
   ListValue,
-  type MapEntry,
   MapValue,
+  NullValue,
   OptionalValue,
   StringValue,
+  StructValue,
+  TimestampValue,
   UintValue,
+  ValueUtil,
+  resolveAnyValue,
+  type MapEntry,
   type UnknownValue,
   type Value,
-  ValueUtil,
-} from "./value";
+} from "./values";
 
 /**
  * Interpretable represents an evaluatable expression.
@@ -443,8 +451,10 @@ export class BinaryValue implements Interpretable {
   }
 
   private add(lhs: Value, rhs: Value): Value {
-    if (lhs instanceof IntValue && rhs instanceof IntValue) {
-      return lhs.add(rhs);
+    const leftInt = this.asIntValue(lhs);
+    const rightInt = this.asIntValue(rhs);
+    if (leftInt && rightInt) {
+      return leftInt.add(rightInt);
     }
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
       return lhs.add(rhs);
@@ -461,17 +471,37 @@ export class BinaryValue implements Interpretable {
     if (lhs instanceof ListValue && rhs instanceof ListValue) {
       return lhs.add(rhs);
     }
+    if (lhs instanceof DurationValue && rhs instanceof DurationValue) {
+      return lhs.add(rhs);
+    }
+    if (lhs instanceof TimestampValue && rhs instanceof DurationValue) {
+      return lhs.add(rhs);
+    }
+    if (lhs instanceof DurationValue && rhs instanceof TimestampValue) {
+      return rhs.add(lhs);
+    }
     return ErrorValue.create(`cannot add ${lhs.type()} and ${rhs.type()}`, this.exprId);
   }
 
   private subtract(lhs: Value, rhs: Value): Value {
-    if (lhs instanceof IntValue && rhs instanceof IntValue) {
-      return lhs.subtract(rhs);
+    const leftInt = this.asIntValue(lhs);
+    const rightInt = this.asIntValue(rhs);
+    if (leftInt && rightInt) {
+      return leftInt.subtract(rightInt);
     }
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
       return lhs.subtract(rhs);
     }
     if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
+      return lhs.subtract(rhs);
+    }
+    if (lhs instanceof DurationValue && rhs instanceof DurationValue) {
+      return lhs.subtract(rhs);
+    }
+    if (lhs instanceof TimestampValue && rhs instanceof DurationValue) {
+      return lhs.subtract(rhs);
+    }
+    if (lhs instanceof TimestampValue && rhs instanceof TimestampValue) {
       return lhs.subtract(rhs);
     }
     return ErrorValue.create(
@@ -481,8 +511,10 @@ export class BinaryValue implements Interpretable {
   }
 
   private multiply(lhs: Value, rhs: Value): Value {
-    if (lhs instanceof IntValue && rhs instanceof IntValue) {
-      return lhs.multiply(rhs);
+    const leftInt = this.asIntValue(lhs);
+    const rightInt = this.asIntValue(rhs);
+    if (leftInt && rightInt) {
+      return leftInt.multiply(rightInt);
     }
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
       return lhs.multiply(rhs);
@@ -494,8 +526,10 @@ export class BinaryValue implements Interpretable {
   }
 
   private divide(lhs: Value, rhs: Value): Value {
-    if (lhs instanceof IntValue && rhs instanceof IntValue) {
-      return lhs.divide(rhs);
+    const leftInt = this.asIntValue(lhs);
+    const rightInt = this.asIntValue(rhs);
+    if (leftInt && rightInt) {
+      return leftInt.divide(rightInt);
     }
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
       return lhs.divide(rhs);
@@ -507,8 +541,10 @@ export class BinaryValue implements Interpretable {
   }
 
   private modulo(lhs: Value, rhs: Value): Value {
-    if (lhs instanceof IntValue && rhs instanceof IntValue) {
-      return lhs.modulo(rhs);
+    const leftInt = this.asIntValue(lhs);
+    const rightInt = this.asIntValue(rhs);
+    if (leftInt && rightInt) {
+      return leftInt.modulo(rightInt);
     }
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
       return lhs.modulo(rhs);
@@ -517,6 +553,11 @@ export class BinaryValue implements Interpretable {
   }
 
   private compare(lhs: Value, rhs: Value, predicate: (cmp: number) => boolean): Value {
+    const leftInt = this.asIntValue(lhs);
+    const rightInt = this.asIntValue(rhs);
+    if (leftInt && rightInt) {
+      return BoolValue.of(predicate(leftInt.compare(rightInt)));
+    }
     if (lhs instanceof IntValue && rhs instanceof IntValue) {
       return BoolValue.of(predicate(lhs.compare(rhs)));
     }
@@ -531,6 +572,16 @@ export class BinaryValue implements Interpretable {
       return BoolValue.of(predicate(cmp));
     }
     if (lhs instanceof StringValue && rhs instanceof StringValue) {
+      return BoolValue.of(predicate(lhs.compare(rhs)));
+    }
+    if (lhs instanceof BoolValue && rhs instanceof BoolValue) {
+      const cmp = lhs.value() === rhs.value() ? 0 : lhs.value() ? 1 : -1;
+      return BoolValue.of(predicate(cmp));
+    }
+    if (lhs instanceof DurationValue && rhs instanceof DurationValue) {
+      return BoolValue.of(predicate(lhs.compare(rhs)));
+    }
+    if (lhs instanceof TimestampValue && rhs instanceof TimestampValue) {
       return BoolValue.of(predicate(lhs.compare(rhs)));
     }
     if (lhs instanceof BytesValue && rhs instanceof BytesValue) {
@@ -560,6 +611,16 @@ export class BinaryValue implements Interpretable {
       return BoolValue.of(predicate(cmp));
     }
     return ErrorValue.create(`cannot compare ${lhs.type()} and ${rhs.type()}`, this.exprId);
+  }
+
+  private asIntValue(val: Value): IntValue | null {
+    if (val instanceof IntValue) {
+      return val;
+    }
+    if (val instanceof EnumValue) {
+      return IntValue.of(val.value());
+    }
+    return null;
   }
 
   private toNumber(val: Value): number {
@@ -610,6 +671,36 @@ export class CallValue implements Interpretable {
   }
 
   eval(activation: Activation): Value {
+    if (this.functionName === "or" && this.overloadId === "optional_or_optional") {
+      const lhs = this.args[0]!.eval(activation);
+      if (ValueUtil.isErrorOrUnknown(lhs)) {
+        return lhs;
+      }
+      if (lhs instanceof OptionalValue && lhs.hasValue()) {
+        return lhs;
+      }
+      const rhs = this.args[1]!.eval(activation);
+      if (ValueUtil.isErrorOrUnknown(rhs)) {
+        return rhs;
+      }
+      return rhs;
+    }
+
+    if (this.functionName === "orValue" && this.overloadId === "optional_orValue_value") {
+      const lhs = this.args[0]!.eval(activation);
+      if (ValueUtil.isErrorOrUnknown(lhs)) {
+        return lhs;
+      }
+      if (lhs instanceof OptionalValue && lhs.hasValue()) {
+        return lhs.value() ?? NullValue.Instance;
+      }
+      const rhs = this.args[1]!.eval(activation);
+      if (ValueUtil.isErrorOrUnknown(rhs)) {
+        return rhs;
+      }
+      return rhs;
+    }
+
     // Evaluate arguments
     const argValues: Value[] = [];
     for (const arg of this.args) {
@@ -764,37 +855,452 @@ export class CreateMapValue implements Interpretable {
  * Struct creation interpretable (for proto messages, etc.).
  */
 export class CreateStructValue implements Interpretable {
+  private readonly optionalFields: Set<number>;
 
   constructor(
     private readonly exprId: ExprId,
     readonly typeName: string,
     private readonly fields: string[],
-    private readonly values: Interpretable[]
-  ) { }
+    private readonly values: Interpretable[],
+    private readonly fieldTypes: Map<string, CheckerType> = new Map(),
+    optionalFieldIndices: number[] = [],
+    private readonly typeProvider?: TypeProvider
+  ) {
+    this.optionalFields = new Set(optionalFieldIndices);
+  }
 
   id(): ExprId {
     return this.exprId;
   }
 
   eval(activation: Activation): Value {
-    // Represent struct as a MapValue
     const entries: MapEntry[] = [];
+    const presentFields = new Set<string>();
+    const valueMap = new Map<string, Value>();
 
     for (let i = 0; i < this.fields.length; i++) {
       const key = StringValue.of(this.fields[i]!);
-      const val = this.values[i]!.eval(activation);
+      let val = this.values[i]!.eval(activation);
       if (ValueUtil.isErrorOrUnknown(val)) {
         return val;
       }
+      const fieldType = this.fieldTypes.get(this.fields[i]!);
+      const protoFieldType = this.typeProvider?.fieldProtoType(this.typeName, this.fields[i]!);
+      if (val instanceof NullValue) {
+        if (fieldType && !isNullAssignableField(fieldType)) {
+          return ErrorValue.create("unsupported field type", this.exprId);
+        }
+        continue;
+      }
+      if (fieldType?.kind === CheckerTypeKind.Struct) {
+        const wrapperKind = wrapperKindFromTypeName(fieldType.runtimeTypeName);
+        if (wrapperKind) {
+          const coerced = coerceWrapperValue(wrapperKind, val);
+          if (coerced instanceof ErrorValue) {
+            return coerced;
+          }
+          val = coerced;
+        }
+      }
+      if (fieldType?.kind === CheckerTypeKind.Double && protoFieldType === "float") {
+        val = coerceFloatValue(val);
+      }
+      if (protoFieldType === "google.protobuf.Value") {
+        val = coerceGoogleValue(val);
+      }
+      if (this.optionalFields.has(i)) {
+        if (val instanceof OptionalValue) {
+          if (val.hasValue()) {
+            const inner = val.value()!;
+            entries.push({ key, value: inner });
+            valueMap.set(this.fields[i]!, inner);
+            presentFields.add(this.fields[i]!);
+          }
+          continue;
+        }
+      }
+      const isOneofField = this.typeProvider?.fieldIsOneof(this.typeName, this.fields[i]!) ?? false;
+      if (!isOneofField && fieldType && isDefaultFieldValue(fieldType, val)) {
+        continue;
+      }
       entries.push({ key, value: val });
+      valueMap.set(this.fields[i]!, val);
+      presentFields.add(this.fields[i]!);
     }
 
-    return MapValue.of(entries);
+    const wrapperValue = wrapperValueFromStruct(this.typeName, valueMap);
+    if (wrapperValue) {
+      return wrapperValue;
+    }
+
+    const normalizedType = normalizeTypeName(this.typeName);
+    if (normalizedType === "google.protobuf.Value") {
+      return valueFromGoogleValue(valueMap);
+    }
+    if (normalizedType === "google.protobuf.Struct") {
+      return valueFromGoogleStruct(valueMap);
+    }
+    if (normalizedType === "google.protobuf.ListValue") {
+      return valueFromGoogleList(valueMap);
+    }
+    if (normalizedType === "google.protobuf.Any") {
+      const anyValue = valueFromGoogleAny(valueMap);
+      if (anyValue) {
+        return anyValue;
+      }
+    }
+
+    return new StructValue(
+      this.typeName,
+      valueMap,
+      presentFields,
+      this.fieldTypes,
+      this.typeProvider
+    );
   }
 
   cost(): number {
     return 1 + this.values.reduce((sum, val) => sum + val.cost(), 0);
   }
+}
+
+function wrapperValueFromStruct(typeName: string, values: Map<string, Value>): Value | null {
+  const kind = wrapperKindFromTypeName(typeName);
+  if (!kind) {
+    return null;
+  }
+  let value = values.get("value");
+  if (value instanceof OptionalValue) {
+    value = value.hasValue() ? value.value() ?? NullValue.Instance : undefined;
+  }
+  if (value instanceof NullValue) {
+    return NullValue.Instance;
+  }
+  if (!value) {
+    return wrapperDefaultValue(kind);
+  }
+  return coerceWrapperValue(kind, value);
+}
+
+function normalizeTypeName(typeName: string): string {
+  return typeName.startsWith(".") ? typeName.slice(1) : typeName;
+}
+
+function valueFromGoogleValue(values: Map<string, Value>): Value {
+  if (values.has("null_value")) {
+    return NullValue.Instance;
+  }
+  const numberValue = unwrapOptional(values.get("number_value"));
+  if (numberValue instanceof DoubleValue) {
+    return numberValue;
+  }
+  if (numberValue instanceof IntValue || numberValue instanceof UintValue) {
+    return DoubleValue.of(Number(numberValue.value()));
+  }
+  const stringValue = unwrapOptional(values.get("string_value"));
+  if (stringValue instanceof StringValue) {
+    return stringValue;
+  }
+  const boolValue = unwrapOptional(values.get("bool_value"));
+  if (boolValue instanceof BoolValue) {
+    return boolValue;
+  }
+  const structValue = unwrapOptional(values.get("struct_value"));
+  if (structValue instanceof MapValue) {
+    return structValue;
+  }
+  if (structValue instanceof StructValue) {
+    return mapFromStructValue(structValue);
+  }
+  const listValue = unwrapOptional(values.get("list_value"));
+  if (listValue instanceof ListValue) {
+    return listValue;
+  }
+  return NullValue.Instance;
+}
+
+function valueFromGoogleStruct(values: Map<string, Value>): Value {
+  const fieldsValue = unwrapOptional(values.get("fields"));
+  if (!fieldsValue || fieldsValue instanceof NullValue) {
+    return MapValue.of([]);
+  }
+  if (fieldsValue instanceof MapValue) {
+    return fieldsValue;
+  }
+  if (fieldsValue instanceof StructValue) {
+    return mapFromStructValue(fieldsValue);
+  }
+  return ErrorValue.typeMismatch("map", fieldsValue);
+}
+
+function valueFromGoogleList(values: Map<string, Value>): Value {
+  const valuesValue = unwrapOptional(values.get("values"));
+  if (!valuesValue || valuesValue instanceof NullValue) {
+    return ListValue.of([]);
+  }
+  if (valuesValue instanceof ListValue) {
+    return valuesValue;
+  }
+  return ErrorValue.typeMismatch("list", valuesValue);
+}
+
+function valueFromGoogleAny(values: Map<string, Value>): Value | null {
+  const typeUrl = unwrapOptional(values.get("type_url"));
+  const bytesValue = unwrapOptional(values.get("value"));
+  if (!(typeUrl instanceof StringValue) || !(bytesValue instanceof BytesValue)) {
+    return null;
+  }
+  return resolveAnyValue(typeUrl.value(), bytesValue.value());
+}
+
+function unwrapOptional(value: Value | undefined): Value | undefined {
+  if (value instanceof OptionalValue) {
+    return value.hasValue() ? value.value() ?? NullValue.Instance : NullValue.Instance;
+  }
+  return value;
+}
+
+function mapFromStructValue(structValue: StructValue): MapValue {
+  const entries: MapEntry[] = [];
+  for (const [key, value] of Object.entries(structValue.value())) {
+    entries.push({ key: StringValue.of(key), value });
+  }
+  return MapValue.of(entries);
+}
+
+function wrapperKindFromTypeName(
+  typeName: string
+): "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string" | null {
+  const normalized = typeName.startsWith(".") ? typeName.slice(1) : typeName;
+  switch (normalized) {
+    case "google.protobuf.BoolValue":
+      return "bool";
+    case "google.protobuf.BytesValue":
+      return "bytes";
+    case "google.protobuf.DoubleValue":
+      return "double";
+    case "google.protobuf.FloatValue":
+      return "float";
+    case "google.protobuf.Int32Value":
+    case "google.protobuf.Int64Value":
+      return "int";
+    case "google.protobuf.UInt32Value":
+    case "google.protobuf.UInt64Value":
+      return "uint";
+    case "google.protobuf.StringValue":
+      return "string";
+    default:
+      return null;
+  }
+}
+
+function wrapperDefaultValue(
+  kind: "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string"
+): Value {
+  switch (kind) {
+    case "bool":
+      return BoolValue.False;
+    case "bytes":
+      return BytesValue.of(new Uint8Array());
+    case "double":
+      return DoubleValue.of(0);
+    case "float":
+      return DoubleValue.of(0);
+    case "int":
+      return IntValue.of(0);
+    case "uint":
+      return UintValue.of(0);
+    case "string":
+      return StringValue.of("");
+  }
+}
+
+function coerceWrapperValue(
+  kind: "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string",
+  value: Value
+): Value {
+  if (kind === "float") {
+    const numeric = extractNumericValue(value);
+    if (numeric instanceof ErrorValue) {
+      return numeric;
+    }
+    return DoubleValue.of(fround(numeric));
+  }
+  return value;
+}
+
+function coerceFloatValue(value: Value): Value {
+  if (value instanceof DoubleValue) {
+    return DoubleValue.of(fround(value.value()));
+  }
+  if (value instanceof IntValue) {
+    return DoubleValue.of(fround(Number(value.value())));
+  }
+  if (value instanceof UintValue) {
+    return DoubleValue.of(fround(Number(value.value())));
+  }
+  return value;
+}
+
+function isNullAssignableField(fieldType: CheckerType): boolean {
+  if (fieldType.isOptionalType()) {
+    return true;
+  }
+  switch (fieldType.kind) {
+    case CheckerTypeKind.Struct:
+    case CheckerTypeKind.Duration:
+    case CheckerTypeKind.Timestamp:
+    case CheckerTypeKind.Dyn:
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isDefaultFieldValue(fieldType: CheckerType, value: Value): boolean {
+  switch (fieldType.kind) {
+    case CheckerTypeKind.Bool:
+      return value instanceof BoolValue && !value.value();
+    case CheckerTypeKind.Int:
+      return value instanceof IntValue && value.value() === 0n;
+    case CheckerTypeKind.Uint:
+      return value instanceof UintValue && value.value() === 0n;
+    case CheckerTypeKind.Double:
+      return value instanceof DoubleValue && value.value() === 0;
+    case CheckerTypeKind.String:
+      return value instanceof StringValue && value.value() === "";
+    case CheckerTypeKind.Bytes:
+      return value instanceof BytesValue && value.value().length === 0;
+    case CheckerTypeKind.List:
+      return value instanceof ListValue && value.value().length === 0;
+    case CheckerTypeKind.Map:
+      return value instanceof MapValue && value.value().length === 0;
+    case CheckerTypeKind.Opaque: {
+      if (value instanceof EnumValue) {
+        return value.value() === 0n;
+      }
+      if (value instanceof IntValue) {
+        return value.value() === 0n;
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+function coerceGoogleValue(value: Value): Value {
+  if (value instanceof NullValue) {
+    return value;
+  }
+  if (value instanceof BoolValue) {
+    return value;
+  }
+  if (value instanceof DoubleValue) {
+    return value;
+  }
+  if (value instanceof IntValue) {
+    return intToJsonValue(value.value());
+  }
+  if (value instanceof UintValue) {
+    return uintToJsonValue(value.value());
+  }
+  if (value instanceof EnumValue) {
+    return intToJsonValue(value.value());
+  }
+  if (value instanceof StringValue) {
+    return value;
+  }
+  if (value instanceof BytesValue) {
+    return StringValue.of(encodeBase64(value.value()));
+  }
+  if (value instanceof DurationValue) {
+    return StringValue.of(value.toString());
+  }
+  if (value instanceof TimestampValue) {
+    return StringValue.of(value.toString());
+  }
+  if (value instanceof ListValue) {
+    return value;
+  }
+  if (value instanceof MapValue) {
+    return value;
+  }
+  if (value instanceof StructValue) {
+    const typeName = (value.type() as CheckerType).runtimeTypeName;
+    if (typeName === "google.protobuf.Empty") {
+      return MapValue.of([]);
+    }
+    if (typeName === "google.protobuf.FieldMask") {
+      const paths = value.getField("paths");
+      if (paths instanceof ListValue) {
+        const parts: string[] = [];
+        for (const entry of paths.value()) {
+          if (entry instanceof StringValue) {
+            parts.push(entry.value());
+          }
+        }
+        return StringValue.of(parts.join(","));
+      }
+    }
+    if (typeName === "google.protobuf.Struct") {
+      return mapFromStructValue(value);
+    }
+    if (typeName === "google.protobuf.Value") {
+      return valueFromGoogleValue(new Map(Object.entries(value.value())));
+    }
+  }
+  return value;
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  if (typeof btoa !== "undefined") {
+    let binary = "";
+    for (const byte of bytes) {
+      binary += String.fromCharCode(byte);
+    }
+    return btoa(binary);
+  }
+  throw new Error("base64 encoding not supported");
+}
+
+const maxSafeInteger = BigInt(Number.MAX_SAFE_INTEGER);
+
+function intToJsonValue(value: bigint): Value {
+  if (value > maxSafeInteger || value < -maxSafeInteger) {
+    return StringValue.of(value.toString());
+  }
+  return DoubleValue.of(Number(value));
+}
+
+function uintToJsonValue(value: bigint): Value {
+  if (value > maxSafeInteger) {
+    return StringValue.of(value.toString());
+  }
+  return DoubleValue.of(Number(value));
+}
+
+function extractNumericValue(value: Value): number | ErrorValue {
+  if (value instanceof DoubleValue) {
+    return value.value();
+  }
+  if (value instanceof IntValue || value instanceof UintValue) {
+    return Number(value.value());
+  }
+  return ErrorValue.typeMismatch("numeric", value);
+}
+
+function fround(value: number): number {
+  const buffer = new Float32Array(1);
+  buffer[0] = value;
+  return buffer[0]!;
+}
+
+function isEnumInt32Range(value: bigint): boolean {
+  return value >= -2147483648n && value <= 2147483647n;
 }
 
 /**
@@ -826,11 +1332,11 @@ export class IndexValue implements Interpretable {
 
     // List access
     if (obj instanceof ListValue) {
-      if (idx instanceof IntValue || idx instanceof UintValue) {
-        const i = idx instanceof IntValue ? idx : IntValue.of(Number(idx.value()));
-        return obj.get(i);
+      const normalized = normalizeIndexValue(idx);
+      if (normalized instanceof ErrorValue) {
+        return normalized;
       }
-      return ErrorValue.typeMismatch("int or uint", idx, this.index.id());
+      return obj.get(normalized);
     }
 
     // Map access
@@ -846,13 +1352,21 @@ export class IndexValue implements Interpretable {
     }
 
     // String access
-    if (obj instanceof StringValue && idx instanceof IntValue) {
-      return obj.charAt(idx);
+    if (obj instanceof StringValue) {
+      const normalized = normalizeIndexValue(idx);
+      if (normalized instanceof ErrorValue) {
+        return normalized;
+      }
+      return obj.charAt(normalized);
     }
 
     // Byte access
-    if (obj instanceof BytesValue && idx instanceof IntValue) {
-      return obj.byteAt(idx);
+    if (obj instanceof BytesValue) {
+      const normalized = normalizeIndexValue(idx);
+      if (normalized instanceof ErrorValue) {
+        return normalized;
+      }
+      return obj.byteAt(normalized);
     }
 
     return ErrorValue.create(`type '${obj.type()}' does not support indexing`, this.exprId);
@@ -861,6 +1375,23 @@ export class IndexValue implements Interpretable {
   cost(): number {
     return 1 + this.operand.cost() + this.index.cost();
   }
+}
+
+function normalizeIndexValue(value: Value): IntValue | ErrorValue {
+  if (value instanceof IntValue) {
+    return value;
+  }
+  if (value instanceof UintValue) {
+    return IntValue.of(value.value());
+  }
+  if (value instanceof DoubleValue) {
+    const num = value.value();
+    if (Number.isFinite(num) && Number.isInteger(num)) {
+      return IntValue.of(num);
+    }
+    return ErrorValue.create("invalid_argument");
+  }
+  return ErrorValue.typeMismatch("int or uint", value);
 }
 
 /**
@@ -923,15 +1454,25 @@ export class HasFieldValue implements Interpretable {
   }
 
   eval(activation: Activation): Value {
-    const obj = this.operand.eval(activation);
+    let obj = this.operand.eval(activation);
     if (ValueUtil.isErrorOrUnknown(obj)) {
       return obj;
+    }
+    if (obj instanceof OptionalValue) {
+      if (!obj.hasValue()) {
+        return BoolValue.False;
+      }
+      obj = obj.value()!;
     }
 
     // Map presence test
     if (obj instanceof MapValue) {
       const key = StringValue.of(this.field);
       return obj.contains(key);
+    }
+
+    if (obj instanceof StructValue) {
+      return BoolValue.of(obj.hasField(this.field));
     }
 
     // For other types, field doesn't exist
@@ -999,7 +1540,7 @@ export class ComprehensionValue implements Interpretable {
           }
 
           accu = this.loopStep.eval(loopActivation);
-          if (ValueUtil.isErrorOrUnknown(accu)) {
+          if (ValueUtil.isUnknown(accu)) {
             return accu;
           }
         }
@@ -1017,7 +1558,7 @@ export class ComprehensionValue implements Interpretable {
           }
 
           accu = this.loopStep.eval(loopActivation);
-          if (ValueUtil.isErrorOrUnknown(accu)) {
+          if (ValueUtil.isUnknown(accu)) {
             return accu;
           }
         }
@@ -1038,7 +1579,7 @@ export class ComprehensionValue implements Interpretable {
           }
 
           accu = this.loopStep.eval(loopActivation);
-          if (ValueUtil.isErrorOrUnknown(accu)) {
+          if (ValueUtil.isUnknown(accu)) {
             return accu;
           }
         }
@@ -1056,7 +1597,7 @@ export class ComprehensionValue implements Interpretable {
           }
 
           accu = this.loopStep.eval(loopActivation);
-          if (ValueUtil.isErrorOrUnknown(accu)) {
+          if (ValueUtil.isUnknown(accu)) {
             return accu;
           }
         }
@@ -1090,7 +1631,8 @@ export class TypeConversionValue implements Interpretable {
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
-    private readonly targetType: string
+    private readonly targetType: string,
+    private readonly typeProvider?: TypeProvider
   ) { }
 
   id(): ExprId {
@@ -1121,7 +1663,7 @@ export class TypeConversionValue implements Interpretable {
       case "dyn":
         return val;
       default:
-        return ErrorValue.create(`unknown type conversion: ${this.targetType}`, this.exprId);
+        return this.convertEnum(val);
     }
   }
 
@@ -1132,6 +1674,9 @@ export class TypeConversionValue implements Interpretable {
   private toInt(val: Value): Value {
     if (val instanceof IntValue) {
       return val;
+    }
+    if (val instanceof EnumValue) {
+      return IntValue.of(val.value());
     }
     if (val instanceof UintValue) {
       return IntValue.of(val.value());
@@ -1151,12 +1696,22 @@ export class TypeConversionValue implements Interpretable {
         return ErrorValue.create(`cannot parse '${val.value()}' as int`, this.exprId);
       }
     }
+    if (val instanceof TimestampValue) {
+      return IntValue.of(val.value() / 1_000_000_000n);
+    }
     return ErrorValue.create(`cannot convert ${val.type()} to int`, this.exprId);
   }
 
   private toUint(val: Value): Value {
     if (val instanceof UintValue) {
       return val;
+    }
+    if (val instanceof EnumValue) {
+      const n = val.value();
+      if (n < 0n) {
+        return ErrorValue.create("cannot convert negative enum to uint", this.exprId);
+      }
+      return UintValue.of(n);
     }
     if (val instanceof IntValue) {
       const n = val.value();
@@ -1190,6 +1745,9 @@ export class TypeConversionValue implements Interpretable {
     if (val instanceof DoubleValue) {
       return val;
     }
+    if (val instanceof EnumValue) {
+      return DoubleValue.of(Number(val.value()));
+    }
     if (val instanceof IntValue) {
       return DoubleValue.of(Number(val.value()));
     }
@@ -1197,9 +1755,10 @@ export class TypeConversionValue implements Interpretable {
       return DoubleValue.of(Number(val.value()));
     }
     if (val instanceof StringValue) {
-      const d = Number.parseFloat(val.value());
-      if (Number.isNaN(d)) {
-        return ErrorValue.create(`cannot parse '${val.value()}' as double`, this.exprId);
+      const text = val.value();
+      const d = Number.parseFloat(text);
+      if (Number.isNaN(d) && text !== "NaN") {
+        return ErrorValue.create(`cannot parse '${text}' as double`, this.exprId);
       }
       return DoubleValue.of(d);
     }
@@ -1209,6 +1768,9 @@ export class TypeConversionValue implements Interpretable {
   private toString(val: Value): Value {
     if (val instanceof StringValue) {
       return val;
+    }
+    if (val instanceof EnumValue) {
+      return StringValue.of(val.toString());
     }
     if (val instanceof IntValue) {
       return StringValue.of(val.value().toString());
@@ -1230,6 +1792,12 @@ export class TypeConversionValue implements Interpretable {
     if (val instanceof BoolValue) {
       return StringValue.of(val.value() ? "true" : "false");
     }
+    if (val instanceof TimestampValue) {
+      return StringValue.of(val.toString());
+    }
+    if (val instanceof DurationValue) {
+      return StringValue.of(val.toString());
+    }
     return ErrorValue.create(`cannot convert ${val.type()} to string`, this.exprId);
   }
 
@@ -1249,15 +1817,64 @@ export class TypeConversionValue implements Interpretable {
     }
     if (val instanceof StringValue) {
       const s = val.value().toLowerCase();
-      if (s === "true") {
+      if (s === "true" || s === "t" || s === "1") {
         return BoolValue.True;
       }
-      if (s === "false") {
+      if (s === "false" || s === "f" || s === "0") {
         return BoolValue.False;
       }
       return ErrorValue.create(`cannot parse '${val.value()}' as bool`, this.exprId);
     }
     return ErrorValue.create(`cannot convert ${val.type()} to bool`, this.exprId);
+  }
+
+  private convertEnum(val: Value): Value {
+    if (!this.typeProvider) {
+      return ErrorValue.create(`unknown type conversion: ${this.targetType}`, this.exprId);
+    }
+    const enumType = this.typeProvider.findEnumType(this.targetType);
+    if (!enumType) {
+      return ErrorValue.create(`unknown type conversion: ${this.targetType}`, this.exprId);
+    }
+    if (val instanceof EnumValue && val.typeName() === enumType.runtimeTypeName) {
+      return val;
+    }
+    const numeric = this.enumNumericValue(val);
+    if (numeric === null) {
+      if (val instanceof StringValue) {
+        const name = val.value();
+        const enumValue = this.typeProvider.findEnumValue(enumType.runtimeTypeName, name);
+        if (enumValue === undefined) {
+          return ErrorValue.create("invalid enum value", this.exprId);
+        }
+        return new EnumValue(enumType.runtimeTypeName, BigInt(enumValue));
+      }
+      return ErrorValue.create("invalid enum value", this.exprId);
+    }
+    if (!isEnumInt32Range(numeric)) {
+      return ErrorValue.create("enum value out of range", this.exprId);
+    }
+    return new EnumValue(enumType.runtimeTypeName, numeric);
+  }
+
+  private enumNumericValue(val: Value): bigint | null {
+    if (val instanceof IntValue) {
+      return val.value();
+    }
+    if (val instanceof UintValue) {
+      return val.value();
+    }
+    if (val instanceof DoubleValue) {
+      const num = val.value();
+      if (!Number.isFinite(num) || !Number.isInteger(num)) {
+        return null;
+      }
+      return BigInt(num);
+    }
+    if (val instanceof EnumValue) {
+      return val.value();
+    }
+    return null;
   }
 
   private getType(val: Value): Value {

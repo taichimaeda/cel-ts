@@ -10,19 +10,19 @@ import {
   type Token,
 } from "antlr4";
 import { type CheckResult, Checker } from "../checker/checker";
-import { type FunctionDecl, VariableDecl } from "../checker/decl";
+import { type FunctionDecl, VariableDecl } from "../checker/decls";
 import { CheckerEnv, Container } from "../checker/env";
 import { StandardLibrary } from "../checker/stdlib";
 import type { SourceInfo } from "../common/source";
 import CELLexer from "../parser/gen/CELLexer.js";
 import CELParser, { type StartContext } from "../parser/gen/CELParser.js";
 import { ParserHelper } from "../parser/helper";
-import { type Activation, EmptyActivation, LazyActivation, MapActivation } from "./activation";
+import { type Activation, EmptyActivation, LazyActivation, MapActivation } from "./activations";
 import { DefaultDispatcher, type Dispatcher } from "./dispatcher";
-import { standardFunctions } from "./function";
+import { standardFunctions } from "./functions";
 import type { Interpretable } from "./interpretable";
 import { Planner } from "./planner";
-import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, ValueUtil } from "./value";
+import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, ValueUtil } from "./values";
 
 /**
  * Program input types for evaluation.
@@ -60,6 +60,8 @@ export interface EnvOptions {
   disableTypeChecking?: boolean;
   /** Container name for type resolution */
   container?: string;
+  /** Treat enum values as ints (legacy semantics) */
+  enumValuesAsInt?: boolean;
 }
 
 /**
@@ -76,7 +78,11 @@ export class Env {
   constructor(options: EnvOptions = {}) {
     this.containerName = options.container ?? "";
     this.declarationsList = options.declarations ?? [];
-    this.checkerEnv = new CheckerEnv(new Container(this.containerName));
+    this.checkerEnv = new CheckerEnv(
+      new Container(this.containerName),
+      undefined,
+      options.enumValuesAsInt ?? false
+    );
 
     // Add standard library functions
     for (const fn of StandardLibrary.functions()) {

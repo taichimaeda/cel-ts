@@ -1,7 +1,7 @@
 // CEL Declarations
 // Variable and function declarations for type checking
 
-import { StructType, Type } from "./type";
+import { StructType, Type } from "./types";
 
 /**
  * Represents a variable declaration with a name and type

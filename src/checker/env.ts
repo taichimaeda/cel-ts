@@ -1,9 +1,27 @@
 // CEL Checker Environment
 // Manages scopes, declarations, and lookups for type checking
 
-import type { FunctionDecl, VariableDecl } from "./decl";
+import type { FunctionDecl, VariableDecl } from "./decls";
 import type { TypeProvider } from "./provider";
-import { Type, TypeTypeWithParam } from "./type";
+import {
+  BoolType,
+  BytesType,
+  DoubleType,
+  DurationType,
+  DynType,
+  IntType,
+  ListType,
+  MapType,
+  NullType,
+  OptionalType,
+  StringType,
+  TimestampType,
+  Type,
+  TypeKind,
+  TypeType,
+  TypeTypeWithParam,
+  UintType,
+} from "./types";
 
 /**
  * A single scope level containing declarations
@@ -134,9 +152,19 @@ export class Container {
       return [aliased];
     }
 
-    // If already qualified (contains dot), return as-is
+    // If already qualified (contains dot), return as-is when it already matches the container.
     if (name.includes(".")) {
-      return [name];
+      if (!this.name || name.startsWith(`${this.name}.`)) {
+        return [name];
+      }
+      const candidates: string[] = [];
+      const parts = this.name.split(".");
+      for (let i = parts.length; i >= 0; i--) {
+        const prefix = parts.slice(0, i).join(".");
+        const candidate = prefix ? `${prefix}.${name}` : name;
+        candidates.push(candidate);
+      }
+      return candidates;
     }
 
     // If no container, return as-is
@@ -178,6 +206,7 @@ export class CheckerEnv {
   constructor(
     readonly container: Container = new Container(),
     readonly provider: TypeProvider | undefined = undefined,
+    private readonly enumValuesAsInt: boolean = false,
   ) { }
 
   /**
@@ -232,6 +261,16 @@ export class CheckerEnv {
         };
       }
 
+      // Check built-in type identifiers
+      const builtinType = builtinTypeForName(candidate);
+      if (builtinType) {
+        return {
+          name: candidate,
+          type: new TypeTypeWithParam(builtinType),
+          kind: "type",
+        };
+      }
+
       // Check for type names (struct types)
       const structType = this.provider?.findStructType(candidate);
       if (structType) {
@@ -240,6 +279,33 @@ export class CheckerEnv {
           type: new TypeTypeWithParam(structType),
           kind: "type",
         };
+      }
+
+      const enumType = this.provider?.findEnumType(candidate);
+      if (enumType) {
+        const resolved = this.enumValuesAsInt ? IntType : enumType;
+        return {
+          name: candidate,
+          type: new TypeTypeWithParam(resolved),
+          kind: "type",
+        };
+      }
+
+      // Check for enum values
+      const enumParts = splitEnumValue(candidate);
+      if (enumParts && this.provider) {
+        const enumValue = this.provider.findEnumValue(enumParts.enumName, enumParts.valueName);
+        if (enumValue !== undefined) {
+          const resolvedEnumType = this.enumValuesAsInt
+            ? IntType
+            : this.provider.findEnumType(enumParts.enumName) ?? IntType;
+          return {
+            name: candidate,
+            type: resolvedEnumType,
+            kind: "enum",
+            value: enumValue,
+          };
+        }
       }
     }
 
@@ -280,17 +346,46 @@ export class CheckerEnv {
    * Look up a struct field type
    */
   lookupFieldType(structType: Type, fieldName: string): Type | undefined {
-    if (structType.kind !== "struct") {
+    if (structType.kind !== TypeKind.Struct) {
       return undefined;
     }
-    return this.provider?.findStructFieldType(structType.runtimeTypeName, fieldName);
+    const fieldType = this.provider?.findStructFieldType(structType.runtimeTypeName, fieldName);
+    if (fieldType && this.enumValuesAsInt) {
+      return this.coerceEnumToInt(fieldType);
+    }
+    return fieldType;
+  }
+
+  private coerceEnumToInt(type: Type): Type {
+    if (type.kind === TypeKind.Opaque && this.provider?.findEnumType(type.runtimeTypeName)) {
+      return IntType;
+    }
+    if (type.kind === TypeKind.List) {
+      const elem = type.parameters[0];
+      if (!elem) {
+        return type;
+      }
+      const newElem = this.coerceEnumToInt(elem);
+      return newElem === elem ? type : new ListType(newElem);
+    }
+    if (type.kind === TypeKind.Map) {
+      const key = type.parameters[0];
+      const val = type.parameters[1];
+      if (!(key && val)) {
+        return type;
+      }
+      const newKey = this.coerceEnumToInt(key);
+      const newVal = this.coerceEnumToInt(val);
+      return newKey === key && newVal === val ? type : new MapType(newKey, newVal);
+    }
+    return type;
   }
 
   /**
    * Enter a new nested scope (for comprehensions, etc.)
    */
   enterScope(): CheckerEnv {
-    const env = new CheckerEnv(this.container, this.provider);
+    const env = new CheckerEnv(this.container, this.provider, this.enumValuesAsInt);
     env.scopes = this.scopes.push();
     return env;
   }
@@ -303,9 +398,56 @@ export class CheckerEnv {
     if (!parent) {
       return this;
     }
-    const env = new CheckerEnv(this.container, this.provider);
+    const env = new CheckerEnv(this.container, this.provider, this.enumValuesAsInt);
     env.scopes = parent;
     return env;
+  }
+}
+
+const listDynType = new ListType(DynType);
+const mapDynType = new MapType(DynType, DynType);
+
+function splitEnumValue(name: string): { enumName: string; valueName: string } | null {
+  const idx = name.lastIndexOf(".");
+  if (idx === -1 || idx === name.length - 1) {
+    return null;
+  }
+  return {
+    enumName: name.slice(0, idx),
+    valueName: name.slice(idx + 1),
+  };
+}
+
+function builtinTypeForName(name: string): Type | undefined {
+  switch (name) {
+    case "bool":
+      return BoolType;
+    case "int":
+      return IntType;
+    case "uint":
+      return UintType;
+    case "double":
+      return DoubleType;
+    case "string":
+      return StringType;
+    case "bytes":
+      return BytesType;
+    case "null_type":
+      return NullType;
+    case "list":
+      return listDynType;
+    case "map":
+      return mapDynType;
+    case "type":
+      return TypeType;
+    case "optional_type":
+      return new OptionalType(DynType);
+    case "google.protobuf.Timestamp":
+      return TimestampType;
+    case "google.protobuf.Duration":
+      return DurationType;
+    default:
+      return undefined;
   }
 }
 
@@ -316,4 +458,5 @@ export interface LookupResult {
   name: string;
   type: Type;
   kind: "variable" | "type" | "enum";
+  value?: number;
 }

@@ -1,4 +1,3 @@
-import { Operators } from "../parser/operator";
 import {
   AST,
   CallExpr,
@@ -8,6 +7,7 @@ import {
   ListExpr,
   LiteralExpr,
   MapExpr,
+  Operators,
   SelectExpr,
   StructExpr,
   UnspecifiedExpr,
@@ -104,13 +104,22 @@ export class Emitter {
 
   private emitSelect(expr: SelectExpr, sourceInfo?: AST["sourceInfo"]): string {
     if (expr.testOnly && this.options.printPresenceTestAsHas) {
-      return `has(${this.emitExprInner(expr.operand, sourceInfo)}.${this.escapeIdent(expr.field)})`;
+      const operator = expr.optional ? "?." : ".";
+      return `has(${this.emitExprInner(expr.operand, sourceInfo)}${operator}${this.escapeIdent(
+        expr.field
+      )})`;
     }
-    return `${this.emitExprInner(expr.operand, sourceInfo)}.${this.escapeIdent(expr.field)}`;
+    const operator = expr.optional ? "?." : ".";
+    return `${this.emitExprInner(expr.operand, sourceInfo)}${operator}${this.escapeIdent(expr.field)}`;
   }
 
   private emitCall(expr: CallExpr, sourceInfo?: AST["sourceInfo"]): string {
     const op = this.operatorFromName(expr.funcName, expr.args.length);
+    if (expr.funcName === Operators.OptIndex && expr.args.length === 2) {
+      const target = this.emitExprInner(expr.args[0]!, sourceInfo);
+      const index = this.emitExprInner(expr.args[1]!, sourceInfo);
+      return `${this.maybeWrap(target, expr.args[0]!, op!)}[?${index}]`;
+    }
     if (op?.kind === "index") {
       const target = this.emitExprInner(expr.args[0]!, sourceInfo);
       const index = this.emitExprInner(expr.args[1]!, sourceInfo);
@@ -195,7 +204,7 @@ export class Emitter {
     if (name === Operators.LogicalNot && argCount === 1) {
       return { kind: "unary", symbol: "!", precedence: 7, associative: true };
     }
-    if (name === Operators.Index && argCount === 2) {
+    if ((name === Operators.Index || name === Operators.OptIndex) && argCount === 2) {
       return { kind: "index", symbol: "[]", precedence: 9, associative: true };
     }
     if (name === Operators.Conditional && argCount === 3) {

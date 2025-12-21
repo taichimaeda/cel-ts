@@ -22,7 +22,7 @@ import {
   UintValue,
   type Value,
   ValueUtil,
-} from "./value";
+} from "./values";
 
 export const sizeFunctions: Overload[] = [
   // size(string) -> int
@@ -294,10 +294,10 @@ export const typeConversionFunctions: Overload[] = [
     }
     if (val instanceof StringValue) {
       const s = val.value().toLowerCase();
-      if (s === "true") {
+      if (s === "true" || s === "t" || s === "1") {
         return BoolValue.True;
       }
-      if (s === "false") {
+      if (s === "false" || s === "f" || s === "0") {
         return BoolValue.False;
       }
       return ErrorValue.create(`cannot parse '${val.value()}' as bool`);
@@ -349,11 +349,11 @@ export const timeFunctions: Overload[] = [
   // timestamp(string) -> timestamp
   new UnaryDispatcherOverload("timestamp_string", (val: Value): Value => {
     if (val instanceof StringValue) {
-      const date = new Date(val.value());
-      if (isNaN(date.getTime())) {
-        return ErrorValue.create(`cannot parse '${val.value()}' as timestamp`);
+      const parsed = parseTimestamp(val.value());
+      if (ValueUtil.isError(parsed)) {
+        return parsed;
       }
-      return TimestampValue.fromDate(date);
+      return parsed;
     }
     return ErrorValue.typeMismatch("string", val);
   }),
@@ -364,6 +364,13 @@ export const timeFunctions: Overload[] = [
       return TimestampValue.fromSeconds(Number(val.value()));
     }
     return ErrorValue.typeMismatch("int", val);
+  }),
+  // timestamp(timestamp) -> timestamp
+  new UnaryDispatcherOverload("timestamp_timestamp", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val;
+    }
+    return ErrorValue.typeMismatch("timestamp", val);
   }),
 
   // duration(string) -> duration
@@ -377,6 +384,13 @@ export const timeFunctions: Overload[] = [
     }
     return ErrorValue.typeMismatch("string", val);
   }),
+  // duration(duration) -> duration
+  new UnaryDispatcherOverload("duration_duration", (val: Value): Value => {
+    if (val instanceof DurationValue) {
+      return val;
+    }
+    return ErrorValue.typeMismatch("duration", val);
+  }),
 
   // timestamp.getFullYear() -> int
   new UnaryDispatcherOverload("getFullYear", (val: Value): Value => {
@@ -384,6 +398,12 @@ export const timeFunctions: Overload[] = [
       return val.getFullYear();
     }
     return ErrorValue.typeMismatch("timestamp", val);
+  }),
+  new BinaryDispatcherOverload("getFullYear_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+      return lhs.getFullYear(rhs.value());
+    }
+    return ErrorValue.typeMismatch("timestamp, string", lhs);
   }),
 
   // timestamp.getMonth() -> int
@@ -393,6 +413,25 @@ export const timeFunctions: Overload[] = [
     }
     return ErrorValue.typeMismatch("timestamp", val);
   }),
+  new BinaryDispatcherOverload("getMonth_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+      return lhs.getMonth(rhs.value());
+    }
+    return ErrorValue.typeMismatch("timestamp, string", lhs);
+  }),
+  // timestamp.getDate() -> int
+  new UnaryDispatcherOverload("getDate", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val.getDate();
+    }
+    return ErrorValue.typeMismatch("timestamp", val);
+  }),
+  new BinaryDispatcherOverload("getDate_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+      return lhs.getDate(rhs.value());
+    }
+    return ErrorValue.typeMismatch("timestamp, string", lhs);
+  }),
 
   // timestamp.getDayOfMonth() -> int
   new UnaryDispatcherOverload("getDayOfMonth", (val: Value): Value => {
@@ -401,6 +440,12 @@ export const timeFunctions: Overload[] = [
     }
     return ErrorValue.typeMismatch("timestamp", val);
   }),
+  new BinaryDispatcherOverload("getDayOfMonth_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+      return lhs.getDayOfMonth(rhs.value());
+    }
+    return ErrorValue.typeMismatch("timestamp, string", lhs);
+  }),
 
   // timestamp.getDayOfWeek() -> int
   new UnaryDispatcherOverload("getDayOfWeek", (val: Value): Value => {
@@ -408,6 +453,25 @@ export const timeFunctions: Overload[] = [
       return val.getDayOfWeek();
     }
     return ErrorValue.typeMismatch("timestamp", val);
+  }),
+  new BinaryDispatcherOverload("getDayOfWeek_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+      return lhs.getDayOfWeek(rhs.value());
+    }
+    return ErrorValue.typeMismatch("timestamp, string", lhs);
+  }),
+  // timestamp.getDayOfYear() -> int
+  new UnaryDispatcherOverload("getDayOfYear", (val: Value): Value => {
+    if (val instanceof TimestampValue) {
+      return val.getDayOfYear();
+    }
+    return ErrorValue.typeMismatch("timestamp", val);
+  }),
+  new BinaryDispatcherOverload("getDayOfYear_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+      return lhs.getDayOfYear(rhs.value());
+    }
+    return ErrorValue.typeMismatch("timestamp, string", lhs);
   }),
 
   // timestamp.getHours() -> int
@@ -420,6 +484,12 @@ export const timeFunctions: Overload[] = [
     }
     return ErrorValue.typeMismatch("timestamp or duration", val);
   }),
+  new BinaryDispatcherOverload("getHours_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+      return lhs.getHours(rhs.value());
+    }
+    return ErrorValue.typeMismatch("timestamp, string", lhs);
+  }),
 
   // timestamp.getMinutes() -> int
   new UnaryDispatcherOverload("getMinutes", (val: Value): Value => {
@@ -430,6 +500,12 @@ export const timeFunctions: Overload[] = [
       return val.getMinutes();
     }
     return ErrorValue.typeMismatch("timestamp or duration", val);
+  }),
+  new BinaryDispatcherOverload("getMinutes_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+      return lhs.getMinutes(rhs.value());
+    }
+    return ErrorValue.typeMismatch("timestamp, string", lhs);
   }),
 
   // timestamp.getSeconds() -> int
@@ -442,6 +518,12 @@ export const timeFunctions: Overload[] = [
     }
     return ErrorValue.typeMismatch("timestamp or duration", val);
   }),
+  new BinaryDispatcherOverload("getSeconds_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+      return lhs.getSeconds(rhs.value());
+    }
+    return ErrorValue.typeMismatch("timestamp, string", lhs);
+  }),
 
   // timestamp.getMilliseconds() -> int
   new UnaryDispatcherOverload("getMilliseconds", (val: Value): Value => {
@@ -452,6 +534,12 @@ export const timeFunctions: Overload[] = [
       return val.getMilliseconds();
     }
     return ErrorValue.typeMismatch("timestamp or duration", val);
+  }),
+  new BinaryDispatcherOverload("getMilliseconds_string", (lhs: Value, rhs: Value): Value => {
+    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+      return lhs.getMilliseconds(rhs.value());
+    }
+    return ErrorValue.typeMismatch("timestamp, string", lhs);
   }),
 ];
 
@@ -473,6 +561,87 @@ export const standardFunctions: Overload[] = [
   ...timeFunctions,
   ...miscFunctions,
 ];
+
+function parseTimestamp(value: string): TimestampValue | ErrorValue {
+  const match =
+    /^(\d{4,})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?(Z|[+-]?\d{2}:\d{2})$/.exec(
+      value
+    );
+  if (!match) {
+    return ErrorValue.create(`cannot parse '${value}' as timestamp`);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const fraction = match[7];
+  const tz = match[8] ?? "Z";
+
+  if (year < 1 || year > 9999) {
+    return ErrorValue.create("timestamp out of range");
+  }
+
+  const offsetMinutes = parseTimestampOffset(tz);
+  if (offsetMinutes === null) {
+    return ErrorValue.create(`cannot parse '${value}' as timestamp`);
+  }
+
+  const baseMillis = utcMillisForDate(year, month, day, hour, minute, second);
+  if (Number.isNaN(baseMillis)) {
+    return ErrorValue.create(`cannot parse '${value}' as timestamp`);
+  }
+  const date = new Date(baseMillis);
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day ||
+    date.getUTCHours() !== hour ||
+    date.getUTCMinutes() !== minute ||
+    date.getUTCSeconds() !== second
+  ) {
+    return ErrorValue.create(`cannot parse '${value}' as timestamp`);
+  }
+  const utcMillis = baseMillis - offsetMinutes * 60_000;
+
+  let nanos = 0n;
+  if (fraction) {
+    const digits = fraction.slice(1);
+    nanos = BigInt(digits.padEnd(9, "0"));
+  }
+
+  return TimestampValue.of(BigInt(utcMillis) * 1_000_000n + nanos);
+}
+
+function parseTimestampOffset(tz: string): number | null {
+  const normalized = tz.trim();
+  if (normalized === "Z" || normalized === "UTC") {
+    return 0;
+  }
+  const match = /^([+-]?)(\d{2}):(\d{2})$/.exec(normalized);
+  if (!match) {
+    return null;
+  }
+  const sign = match[1] === "-" ? -1 : 1;
+  const hours = Number(match[2]);
+  const minutes = Number(match[3]);
+  return sign * (hours * 60 + minutes);
+}
+
+function utcMillisForDate(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number
+): number {
+  const date = new Date(Date.UTC(0, month - 1, day, hour, minute, second));
+  date.setUTCFullYear(year);
+  return date.getTime();
+}
 
 /**
  * Parse a duration string.

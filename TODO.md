@@ -29,8 +29,8 @@
 - similarly the current impl doesn't support protobuf types as user input struct types - which i think cel-go supports. add relevant impl. this might be rather complicated, so add a new folder under checker like /src/checker/protobuf if thats the case, but other wise making a new protobuf.ts file is fine. (DONE)
 - also experiment with the idea of linter for CEL. add new source code under src/linter. not sure if there's much linting rules for CEL because it only has expressions, but i think expressions like `true || a` for example should be redundant (it can be replaced by `a`). come up with more creative but actually useful linting rules if any. and this should be designed with care so its modular and open to adding new rules. (DONE)
 - also investigate what extensions are supported by cel-go (possibly under cel-go/ext). make the same extensions available in this cel-ts port, placing code under src/extension (DONE)
+- also run the conformance tests and check what are missing or wrongly implemented in this cel-ts port. fix all the issues until all conformance tests pass. block_ext and similar test cases can be ignored for now, as we do not have optimiser implemented yet
 - also rewrite the existing tests using the official test cases from cel-go and do equivalent tests using this cel-ts impl. some of them might be redudantn because of how re-architected cel-ts, but some core tests like parser, type checker, planner and interpreter should be availale imo. keep the proptest which ive added to cel-ts because it isn't available in cel-go
-- also run the conformance tests and check what are missing or wrongly implemented in this cel-ts port. fix all the issues until all conformance tests pass.
 
 ## Tasks (by Agent)
 

@@ -2,6 +2,8 @@
 // Converts AST to Interpretable expressions
 // Ported from cel-go/interpreter/planner.go
 
+import type { TypeProvider } from "../checker/provider";
+import { type Type as CheckerType, IntType, ListType, MapType, TypeKind } from "../checker/types";
 import {
   type AST,
   CallExpr,
@@ -17,7 +19,7 @@ import {
   SelectExpr,
   StructExpr,
 } from "../common/ast";
-import { DefaultAttributeFactory } from "./attribute";
+import { type Attribute, DefaultAttributeFactory, MaybeAttribute } from "./attributes";
 import { DefaultDispatcher, type Dispatcher, FunctionResolver } from "./dispatcher";
 import {
   AndValue,
@@ -41,13 +43,12 @@ import {
 import {
   BoolValue,
   BytesValue,
-  DoubleValue,
-  ErrorValue,
-  IntValue,
+  DoubleValue, EnumValue, ErrorValue, IntValue,
   NullValue,
   StringValue,
   UintValue,
-} from "./value";
+  type Value, ValueUtil
+} from "./values";
 
 /**
  * Planner options for controlling interpretable generation.
@@ -57,6 +58,14 @@ export interface PlannerOptions {
   dispatcher?: Dispatcher | undefined;
   /** Reference map from checker result */
   refMap?: Map<ExprId, ReferenceInfo> | undefined;
+  /** Type provider for struct defaults */
+  typeProvider?: TypeProvider | undefined;
+  /** Type map from checker result */
+  typeMap?: Map<ExprId, CheckerType> | undefined;
+  /** Container name for qualified resolution in unchecked mode */
+  container?: string | undefined;
+  /** Treat enum values as ints (legacy semantics) */
+  enumValuesAsInt?: boolean;
 }
 
 /**
@@ -65,13 +74,25 @@ export interface PlannerOptions {
 export class Planner {
   private readonly refMap: Map<ExprId, ReferenceInfo>;
   private readonly resolver: FunctionResolver;
+  private readonly dispatcher: Dispatcher;
   private readonly attributeFactory: DefaultAttributeFactory;
+  private readonly typeProvider: TypeProvider | undefined;
+  private readonly typeMap: Map<ExprId, CheckerType> | undefined;
+  private readonly containerName: string;
+  private readonly hasRefMap: boolean;
+  private readonly enumValuesAsInt: boolean;
 
   constructor(options: PlannerOptions = {}) {
     const dispatcher = options.dispatcher ?? new DefaultDispatcher();
+    this.dispatcher = dispatcher;
     this.resolver = new FunctionResolver(dispatcher);
     this.refMap = options.refMap ?? new Map();
+    this.hasRefMap = options.refMap !== undefined;
     this.attributeFactory = new DefaultAttributeFactory();
+    this.typeProvider = options.typeProvider;
+    this.typeMap = options.typeMap;
+    this.containerName = options.container ?? "";
+    this.enumValuesAsInt = options.enumValuesAsInt ?? false;
   }
 
   /**
@@ -141,7 +162,22 @@ export class Planner {
    * Plan an identifier expression.
    */
   private planIdent(e: IdentExpr): Interpretable {
-    const attr = this.attributeFactory.absoluteAttribute(e.id, [e.name]);
+    const ref = this.refMap.get(e.id);
+    if (ref?.value !== undefined) {
+      return new ConstValue(e.id, this.enumValueToValue(ref, e.id));
+    }
+    if (ref?.name && ref.name !== e.name) {
+      const attr = this.attributeForName(e.id, ref.name);
+      return new AttrValue(attr);
+    }
+    const identType = this.typeMap?.get(e.id);
+    if (identType?.kind === TypeKind.Type) {
+      const targetType = identType.parameters[0] ?? null;
+      if (targetType) {
+        return new ConstValue(e.id, ValueUtil.toTypeValue(targetType));
+      }
+    }
+    const attr = this.attributeForName(e.id, e.name);
     return new AttrValue(attr);
   }
 
@@ -149,6 +185,30 @@ export class Planner {
    * Plan a select expression.
    */
   private planSelect(e: SelectExpr): Interpretable {
+    const ref = this.refMap.get(e.id);
+    if (ref?.value !== undefined) {
+      return new ConstValue(e.id, this.enumValueToValue(ref, e.id));
+    }
+    const selectType = this.typeMap?.get(e.id);
+    if (selectType?.kind === TypeKind.Type) {
+      const targetType = selectType.parameters[0] ?? null;
+      if (targetType) {
+        return new ConstValue(e.id, ValueUtil.toTypeValue(targetType));
+      }
+    }
+    if (!e.testOnly && !e.optional) {
+      if (ref?.name) {
+        const attr = this.attributeForName(e.id, ref.name);
+        return new AttrValue(attr);
+      }
+      if (!this.hasRefMap) {
+        const qualified = this.resolveQualifiedName(e);
+        if (qualified) {
+          const attr = this.attributeForName(e.id, qualified.join("."));
+          return new AttrValue(attr);
+        }
+      }
+    }
     const operand = this.planExpr(e.operand);
 
     // Presence test (has() macro expansion)
@@ -158,8 +218,61 @@ export class Planner {
     }
 
     const attr = this.ensureAttribute(operand);
-    const qualifier = this.attributeFactory.newQualifier(e.id, StringValue.of(e.field), false);
+    const qualifier = this.attributeFactory.newQualifier(e.id, StringValue.of(e.field), e.optional);
     return attr.addQualifier(qualifier);
+  }
+
+  private attributeForName(exprId: ExprId, name: string): Attribute {
+    const candidates = this.candidateNamePaths(name);
+    if (candidates.length === 1) {
+      return this.attributeFactory.absoluteAttribute(exprId, candidates[0]!);
+    }
+    const attrs = candidates.map((path) => this.attributeFactory.absoluteAttribute(exprId, path));
+    return new MaybeAttribute(exprId, attrs);
+  }
+
+  private candidateNamePaths(name: string): string[][] {
+    if (name.includes(".")) {
+      const parts = name.split(".");
+      if (!this.containerName) {
+        return [parts];
+      }
+      const candidates: string[][] = [];
+      const containerParts = this.containerName.split(".");
+      for (let i = containerParts.length; i >= 0; i--) {
+        const prefix = containerParts.slice(0, i);
+        candidates.push(prefix.length ? [...prefix, ...parts] : parts);
+      }
+      return candidates;
+    }
+    if (!this.containerName) {
+      return [[name]];
+    }
+    const candidates: string[][] = [];
+    const parts = this.containerName.split(".");
+    for (let i = parts.length; i >= 0; i--) {
+      const prefix = parts.slice(0, i);
+      candidates.push(prefix.length ? [...prefix, name] : [name]);
+    }
+    return candidates;
+  }
+
+
+  private resolveQualifiedName(expr: Expr): string[] | null {
+    if (expr instanceof IdentExpr) {
+      return [expr.name];
+    }
+    if (expr instanceof SelectExpr) {
+      if (expr.testOnly || expr.optional) {
+        return null;
+      }
+      const prefix = this.resolveQualifiedName(expr.operand);
+      if (!prefix) {
+        return null;
+      }
+      return [...prefix, expr.field];
+    }
+    return null;
   }
 
   /**
@@ -194,7 +307,9 @@ export class Planner {
       case Operators.In:
         return this.planBinaryOp(e, fnName);
       case Operators.Index:
-        return this.planIndex(e);
+        return this.planIndex(e, false);
+      case Operators.OptIndex:
+        return this.planIndex(e, true);
       case Operators.NotStrictlyFalse:
         return this.planNotStrictlyFalse(e);
     }
@@ -289,19 +404,19 @@ export class Planner {
   /**
    * Plan index access.
    */
-  private planIndex(e: CallExpr): Interpretable {
+  private planIndex(e: CallExpr, optional: boolean): Interpretable {
     const operand = this.planExpr(e.args[0]!);
     const indexExpr = e.args[1]!;
     const attr = this.ensureAttribute(operand);
 
     if (indexExpr instanceof LiteralExpr) {
       const value = this.literalValue(indexExpr);
-      const qualifier = this.attributeFactory.newQualifier(e.id, value, false);
+      const qualifier = this.attributeFactory.newQualifier(e.id, value, optional);
       return attr.addQualifier(qualifier);
     }
 
     const index = this.planExpr(indexExpr);
-    const qualifier = this.attributeFactory.newQualifier(e.id, index, false);
+    const qualifier = this.attributeFactory.newQualifier(e.id, index, optional);
     return attr.addQualifier(qualifier);
   }
 
@@ -309,6 +424,33 @@ export class Planner {
    * Plan a member function call.
    */
   private planMemberCall(e: CallExpr): Interpretable {
+    const ref = this.refMap.get(e.id);
+    if (ref?.name && ref.overloadIds.length === 0 && e.args.length === 1) {
+      const arg = this.planExpr(e.args[0]!);
+      return new TypeConversionValue(e.id, arg, ref.name, this.typeProvider);
+    }
+    if (ref?.name) {
+      const args: Interpretable[] = [];
+      for (const arg of e.args) {
+        args.push(this.planExpr(arg));
+      }
+      const overloadId = ref.overloadIds[0] ?? `${ref.name}_${args.length}`;
+      return new CallValue(e.id, ref.name, overloadId, args, this.resolver);
+    }
+
+    const targetName = this.resolveQualifiedName(e.target!);
+    if (targetName) {
+      const qualified = `${targetName.join(".")}.${e.funcName}`;
+      if (this.dispatcher.findOverloads(qualified).length > 0) {
+        const args: Interpretable[] = [];
+        for (const arg of e.args) {
+          args.push(this.planExpr(arg));
+        }
+        const overloadId = this.refMap.get(e.id)?.overloadIds[0] ?? `${qualified}_${args.length}`;
+        return new CallValue(e.id, qualified, overloadId, args, this.resolver);
+      }
+    }
+
     const target = this.planExpr(e.target!);
     const args: Interpretable[] = [target];
 
@@ -316,8 +458,8 @@ export class Planner {
       args.push(this.planExpr(arg));
     }
 
-    const ref = this.refMap.get(e.id);
-    const overloadId = ref?.overloadIds[0] ?? `${e.funcName}_${args.length}`;
+    const memberRef = this.refMap.get(e.id);
+    const overloadId = memberRef?.overloadIds[0] ?? `${e.funcName}_${args.length}`;
 
     return new CallValue(e.id, e.funcName, overloadId, args, this.resolver);
   }
@@ -334,10 +476,14 @@ export class Planner {
 
     // Check for type conversion function
     if (this.isTypeConversion(e.funcName) && args.length === 1) {
-      return new TypeConversionValue(e.id, args[0]!, e.funcName);
+      return new TypeConversionValue(e.id, args[0]!, e.funcName, this.typeProvider);
     }
 
     const ref = this.refMap.get(e.id);
+    if (ref?.name && ref.overloadIds.length === 0 && args.length === 1) {
+      return new TypeConversionValue(e.id, args[0]!, ref.name, this.typeProvider);
+    }
+
     const overloadId = ref?.overloadIds[0] ?? `${e.funcName}_${args.length}`;
 
     return new CallValue(e.id, e.funcName, overloadId, args, this.resolver);
@@ -384,15 +530,70 @@ export class Planner {
    * Plan struct creation.
    */
   private planCreateStruct(e: StructExpr): Interpretable {
+    const resolvedType = this.typeMap?.get(e.id);
+    const resolvedName =
+      resolvedType?.kind === TypeKind.Struct ? resolvedType.runtimeTypeName : e.typeName;
     const fieldNames: string[] = [];
     const fieldValues: Interpretable[] = [];
+    const optionalFieldIndices: number[] = [];
+    const fieldTypes: Map<string, CheckerType> = new Map();
 
-    for (const field of e.fields) {
-      fieldNames.push(field.name);
-      fieldValues.push(this.planExpr(field.value));
+    if (this.typeProvider) {
+      const fieldNamesForType = this.typeProvider.structFieldNames(resolvedName);
+      for (const name of fieldNamesForType) {
+        const fieldType = this.typeProvider.findStructFieldType(resolvedName, name);
+        if (fieldType) {
+          fieldTypes.set(name, this.coerceEnumToInt(fieldType));
+        }
+      }
     }
 
-    return new CreateStructValue(e.id, e.typeName, fieldNames, fieldValues);
+    for (let i = 0; i < e.fields.length; i++) {
+      const field = e.fields[i]!;
+      fieldNames.push(field.name);
+      fieldValues.push(this.planExpr(field.value));
+      if (field.optional) {
+        optionalFieldIndices.push(i);
+      }
+    }
+
+    return new CreateStructValue(
+      e.id,
+      resolvedName,
+      fieldNames,
+      fieldValues,
+      fieldTypes,
+      optionalFieldIndices,
+      this.typeProvider
+    );
+  }
+
+  private coerceEnumToInt(type: CheckerType): CheckerType {
+    if (!this.enumValuesAsInt) {
+      return type;
+    }
+    if (type.kind === TypeKind.Opaque && this.typeProvider?.findEnumType(type.runtimeTypeName)) {
+      return IntType;
+    }
+    if (type.kind === TypeKind.List) {
+      const elem = type.parameters[0];
+      if (!elem) {
+        return type;
+      }
+      const coerced = this.coerceEnumToInt(elem);
+      return coerced === elem ? type : new ListType(coerced);
+    }
+    if (type.kind === TypeKind.Map) {
+      const key = type.parameters[0];
+      const val = type.parameters[1];
+      if (!(key && val)) {
+        return type;
+      }
+      const newKey = this.coerceEnumToInt(key);
+      const newVal = this.coerceEnumToInt(val);
+      return newKey === key && newVal === val ? type : new MapType(newKey, newVal);
+    }
+    return type;
   }
 
   /**
@@ -453,6 +654,46 @@ export class Planner {
       default:
         return ErrorValue.create("unknown literal kind", e.id);
     }
+  }
+
+  private enumValueToValue(ref: ReferenceInfo, exprId: ExprId): Value {
+    const value = ref.value;
+    const numeric = this.enumNumericValue(value);
+    if (numeric === null) {
+      return ErrorValue.create("invalid enum value", exprId);
+    }
+    const exprType = this.typeMap?.get(exprId);
+    if (exprType?.kind === TypeKind.Int || exprType?.kind === TypeKind.Uint) {
+      return IntValue.of(numeric);
+    }
+    const enumType = exprType?.kind === TypeKind.Opaque ? exprType.runtimeTypeName : null;
+    const inferredType = enumType ?? this.enumTypeFromRef(ref);
+    if (inferredType) {
+      return new EnumValue(inferredType, numeric);
+    }
+    return IntValue.of(numeric);
+  }
+
+  private enumNumericValue(value: unknown): bigint | null {
+    if (typeof value === "number") {
+      return BigInt(value);
+    }
+    if (typeof value === "bigint") {
+      return value;
+    }
+    return null;
+  }
+
+  private enumTypeFromRef(ref: ReferenceInfo): string | null {
+    const refName = ref.name;
+    if (!refName) {
+      return null;
+    }
+    const lastDot = refName.lastIndexOf(".");
+    if (lastDot === -1) {
+      return null;
+    }
+    return refName.slice(0, lastDot);
   }
 
   /**

@@ -3,21 +3,25 @@
 // Implementation based on cel-go's interpret/attribute.go
 
 import type { ExprId } from "../common/ast";
-import type { Activation } from "./activation";
+import type { Activation } from "./activations";
 import {
   BoolValue,
+  BytesValue,
   DefaultTypeAdapter,
+  DoubleValue,
   ErrorValue,
   IntValue,
   ListValue,
   MapValue,
+  OptionalValue,
   StringValue,
+  StructValue,
   type TypeAdapter,
   UintValue,
   type UnknownValue,
   type Value,
   ValueUtil,
-} from "./value";
+} from "./values";
 
 /**
  * Attribute represents a qualified variable reference.
@@ -128,15 +132,39 @@ export class StringQualifier implements Qualifier {
       return obj;
     }
 
+    const optionalSelection = this.optional || obj instanceof OptionalValue;
+    if (obj instanceof OptionalValue) {
+      if (!obj.hasValue()) {
+        return OptionalValue.none();
+      }
+      obj = obj.value()!;
+    }
+
+    // Struct access
+    if (obj instanceof StructValue) {
+      if (optionalSelection && !obj.hasField(this.field)) {
+        return OptionalValue.none();
+      }
+      const value = obj.getField(this.field);
+      if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+        return OptionalValue.of(value);
+      }
+      return value;
+    }
+
     // Map access
     if (obj instanceof MapValue) {
       const key = StringValue.of(this.field);
       const hasKey = obj.contains(key);
       if (hasKey.value()) {
-        return obj.get(key);
+        const value = obj.get(key);
+        if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+          return OptionalValue.of(value);
+        }
+        return value;
       }
-      if (this.optional) {
-        return ErrorValue.noSuchKey(key, this.exprId);
+      if (optionalSelection) {
+        return OptionalValue.none();
       }
       return ErrorValue.noSuchKey(key, this.exprId);
     }
@@ -146,7 +174,14 @@ export class StringQualifier implements Qualifier {
     if (typeof nativeVal === "object" && nativeVal !== null) {
       const record = nativeVal as Record<string, unknown>;
       if (this.field in record) {
-        return this.adapter.nativeToValue(record[this.field]);
+        const value = this.adapter.nativeToValue(record[this.field]);
+        if (optionalSelection) {
+          return OptionalValue.of(value);
+        }
+        return value;
+      }
+      if (optionalSelection) {
+        return OptionalValue.none();
       }
     }
 
@@ -181,34 +216,75 @@ export class IndexQualifier implements Qualifier {
       return this.index;
     }
 
+    const optionalSelection = this.optional || obj instanceof OptionalValue;
+    if (obj instanceof OptionalValue) {
+      if (!obj.hasValue()) {
+        return OptionalValue.none();
+      }
+      obj = obj.value()!;
+    }
+
     // List access
     if (obj instanceof ListValue) {
-      if (this.index instanceof IntValue || this.index instanceof UintValue) {
-        const idx =
-          this.index instanceof IntValue ? this.index : IntValue.of(Number(this.index.value()));
-        return obj.get(idx);
+      const idx = normalizeIndexValue(this.index);
+      if (idx instanceof ErrorValue) {
+        return idx;
       }
-      return ErrorValue.typeMismatch("int or uint", this.index, this.exprId);
+      const value = obj.get(idx);
+      if (optionalSelection && value instanceof ErrorValue) {
+        return OptionalValue.none();
+      }
+      if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+        return OptionalValue.of(value);
+      }
+      return value;
     }
 
     // Map access
     if (obj instanceof MapValue) {
       const hasKey = obj.contains(this.index);
       if (hasKey.value()) {
-        return obj.get(this.index);
+        const value = obj.get(this.index);
+        if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+          return OptionalValue.of(value);
+        }
+        return value;
       }
-      if (this.optional) {
-        return ErrorValue.noSuchKey(this.index, this.exprId);
+      if (optionalSelection) {
+        return OptionalValue.none();
       }
       return ErrorValue.noSuchKey(this.index, this.exprId);
     }
 
     // String access
     if (obj instanceof StringValue) {
-      if (this.index instanceof IntValue) {
-        return obj.charAt(this.index);
+      const idx = normalizeIndexValue(this.index);
+      if (idx instanceof ErrorValue) {
+        return idx;
       }
-      return ErrorValue.typeMismatch("int", this.index, this.exprId);
+      const value = obj.charAt(idx);
+      if (optionalSelection && value instanceof ErrorValue) {
+        return OptionalValue.none();
+      }
+      if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+        return OptionalValue.of(value);
+      }
+      return value;
+    }
+
+    if (obj instanceof BytesValue) {
+      const idx = normalizeIndexValue(this.index);
+      if (idx instanceof ErrorValue) {
+        return idx;
+      }
+      const value = obj.byteAt(idx);
+      if (optionalSelection && value instanceof ErrorValue) {
+        return OptionalValue.none();
+      }
+      if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+        return OptionalValue.of(value);
+      }
+      return value;
     }
 
     return ErrorValue.create(`type '${obj.type()}' does not support indexing`, this.exprId);
@@ -217,6 +293,23 @@ export class IndexQualifier implements Qualifier {
   isConstant(): boolean {
     return true;
   }
+}
+
+function normalizeIndexValue(value: Value): IntValue | ErrorValue {
+  if (value instanceof IntValue) {
+    return value;
+  }
+  if (value instanceof UintValue) {
+    return IntValue.of(value.value() as bigint);
+  }
+  if (value instanceof DoubleValue) {
+    const num = value.value() as number;
+    if (Number.isFinite(num) && Number.isInteger(num)) {
+      return IntValue.of(num);
+    }
+    return ErrorValue.create("invalid_argument");
+  }
+  return ErrorValue.typeMismatch("int or uint", value);
 }
 
 /**

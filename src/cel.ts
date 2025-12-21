@@ -10,14 +10,14 @@ import {
   StructDecl,
   StructFieldDecl,
   VariableDecl
-} from "./checker/decl";
-import { CheckerEnv, Container as CheckerContainer } from "./checker/env";
+} from "./checker/decls";
+import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
+import type { CheckerError } from "./checker/error";
 import {
   CompositeTypeProvider,
   StructTypeProvider,
   type TypeProvider,
 } from "./checker/provider";
-import type { CheckerError } from "./checker/error";
 import {
   AnyType as CheckerAnyType,
   BoolType as CheckerBoolType,
@@ -33,19 +33,20 @@ import {
   UintType as CheckerUintType,
   ListType,
   MapType,
+  OptionalType,
   StructType,
   Type,
   TypeTypeWithParam,
-} from "./checker/type";
+} from "./checker/types";
 import type { AST as CommonAST } from "./common/ast";
 import type { SourceInfo } from "./common/source";
 import { standardFunctions } from "./interpreter";
 import {
   type Activation,
-  EmptyActivation,
+  HierarchicalActivation,
   LazyActivation,
   MapActivation,
-} from "./interpreter/activation";
+} from "./interpreter/activations";
 import {
   DefaultDispatcher,
   type Dispatcher,
@@ -56,9 +57,10 @@ import {
   DefaultTypeAdapter,
   type ErrorValue,
   type TypeAdapter,
+  TypeValue,
   type Value,
   ValueUtil,
-} from "./interpreter/value";
+} from "./interpreter/values";
 import { AllMacros, type Macro, Parser, ParserHelper } from "./parser";
 
 // ============================================================================
@@ -148,9 +150,8 @@ export class TypeBuilder {
   /**
    * Create an Optional type.
    */
-  optional(_type: Type): Type {
-    // TODO: Full Optional type implementation needed
-    return DynType;
+  optional(type: Type): Type {
+    return new OptionalType(type);
   }
 
   /**
@@ -267,14 +268,15 @@ export class Program {
 
   eval(vars?: ProgramInput): Value {
     let activation: Activation;
+    const typeActivation = new MapActivation(typeValueBindings());
     if (!vars) {
-      activation = new EmptyActivation();
+      activation = typeActivation;
     } else if (isActivation(vars)) {
-      activation = vars;
+      activation = new HierarchicalActivation(typeActivation, vars);
     } else if (vars instanceof Map) {
-      activation = new MapActivation(vars);
+      activation = new MapActivation(vars, typeActivation);
     } else {
-      activation = new LazyActivation(vars, this.adapter);
+      activation = new LazyActivation(vars, this.adapter, typeActivation);
     }
 
     const value = this.interpretable.eval(activation);
@@ -286,6 +288,24 @@ export class Program {
 
     return value;
   }
+}
+
+function typeValueBindings(): Map<string, Value> {
+  return new Map<string, Value>([
+    ["bool", TypeValue.BoolType],
+    ["int", TypeValue.IntType],
+    ["uint", TypeValue.UintType],
+    ["double", TypeValue.DoubleType],
+    ["string", TypeValue.StringType],
+    ["bytes", TypeValue.BytesType],
+    ["null_type", TypeValue.NullType],
+    ["list", TypeValue.ListType],
+    ["map", TypeValue.MapType],
+    ["type", TypeValue.TypeType],
+    ["optional_type", new TypeValue(new OptionalType(DynType))],
+    ["google.protobuf.Timestamp", TypeValue.TimestampType],
+    ["google.protobuf.Duration", TypeValue.DurationType],
+  ]);
 }
 
 function isActivation(value: unknown): value is Activation {
@@ -338,6 +358,8 @@ export interface EnvOptions {
   disableTypeChecking?: boolean;
   /** Additional macros to register for parsing */
   macros?: readonly Macro[];
+  /** Treat enum values as ints (legacy semantics) */
+  enumValuesAsInt?: boolean;
 }
 
 /**
@@ -564,7 +586,11 @@ export class Env {
     const provider = config.typeProvider
       ? new CompositeTypeProvider([config.structProvider, config.typeProvider])
       : config.structProvider;
-    this.checkerEnv = new CheckerEnv(new CheckerContainer(config.container), provider);
+    this.checkerEnv = new CheckerEnv(
+      new CheckerContainer(config.container),
+      provider,
+      config.enumValuesAsInt
+    );
     this.dispatcher = new DefaultDispatcher();
     this.parser = new Parser();
 
@@ -661,9 +687,16 @@ export class Env {
    * Create a Program from an Ast.
    */
   program(celAst: Ast): Program {
+    const provider = this.config.typeProvider
+      ? new CompositeTypeProvider([this.config.structProvider, this.config.typeProvider])
+      : this.config.structProvider;
     const planner = new Planner({
       dispatcher: this.dispatcher,
       refMap: celAst.isChecked ? celAst.ast.refMap : undefined,
+      typeProvider: provider,
+      typeMap: celAst.isChecked ? celAst.ast.typeMap : undefined,
+      container: this.config.container,
+      enumValuesAsInt: this.config.enumValuesAsInt,
     });
 
     const interpretable = planner.plan(celAst.ast);
@@ -697,6 +730,7 @@ class EnvConfig {
   disableStandardLibrary = false;
   disableTypeChecking = false;
   macros: Macro[] = [...AllMacros];
+  enumValuesAsInt = false;
 
   clone(): EnvConfig {
     const clone = new EnvConfig();
@@ -712,6 +746,7 @@ class EnvConfig {
     clone.disableStandardLibrary = this.disableStandardLibrary;
     clone.disableTypeChecking = this.disableTypeChecking;
     clone.macros = [...this.macros];
+    clone.enumValuesAsInt = this.enumValuesAsInt;
     return clone;
   }
 
@@ -755,6 +790,10 @@ class EnvConfig {
     if (options.macros) {
       this.macros = [...this.macros, ...options.macros];
     }
+
+    if (options.enumValuesAsInt !== undefined) {
+      this.enumValuesAsInt = options.enumValuesAsInt;
+    }
   }
 }
 
@@ -762,8 +801,8 @@ class EnvConfig {
 // Re-exports
 // ============================================================================
 
-export { StructType, Type } from "./checker/type";
 export { ProtobufTypeProvider } from "./checker/provider";
+export { StructType, Type } from "./checker/types";
 export {
   EmptyActivation,
   HierarchicalActivation,
@@ -772,15 +811,13 @@ export {
   MutableActivation,
   PartialActivation,
   StrictActivation
-} from "./interpreter/activation";
-export type { Activation } from "./interpreter/activation";
+} from "./interpreter/activations";
+export type { Activation } from "./interpreter/activations";
 export {
   BoolValue,
   BytesValue,
   DoubleValue,
-  DurationValue,
-  ErrorValue,
-  IntValue,
+  DurationValue, EnumValue, ErrorValue, IntValue,
   ListValue,
   MapValue,
   NullValue,
@@ -789,5 +826,6 @@ export {
   TypeValue,
   UintValue,
   ValueUtil
-} from "./interpreter/value";
-export type { Value } from "./interpreter/value";
+} from "./interpreter/values";
+export type { Value } from "./interpreter/values";
+

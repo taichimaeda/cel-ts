@@ -8,7 +8,7 @@ import {
   type TypeAdapter,
   UnknownValue,
   type Value,
-} from "./value";
+} from "./values";
 
 /**
  * Activation provides variable bindings for expression evaluation.

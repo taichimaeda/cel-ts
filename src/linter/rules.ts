@@ -1,6 +1,6 @@
 import { CallExpr, Operators, type Expr } from "../common/ast";
 import { isBoolLiteral, isLogicalNot } from "../common/util";
-import type { LintContext, LintRule } from "./type";
+import type { LintContext, LintRule } from "./types";
 
 function applyBoolShortCircuit(expr: Expr, ctx: LintContext): void {
   if (!(expr instanceof CallExpr)) return;

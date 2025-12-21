@@ -4,11 +4,11 @@ import {
   type Expr,
   ListExpr,
   MapExpr,
+  Operators,
   SelectExpr,
   StructExpr,
 } from "../common/ast";
 import { Emitter } from "../common/emitter";
-import { Operators } from "../parser/operator";
 
 export interface FormatterOptions {
   /** Maximum line length before formatting switches to multiline. */
@@ -298,7 +298,8 @@ export class Formatter {
 
     for (const segment of chain.segments) {
       if (segment.kind === "select") {
-        lines.push(`${this.indentText(`.${segment.field}`, segmentIndent)}`);
+        const op = segment.optional ? "?." : ".";
+        lines.push(`${this.indentText(`${op}${segment.field}`, segmentIndent)}`);
         continue;
       }
       if (segment.kind === "call") {
@@ -338,12 +339,14 @@ export class Formatter {
           segmentIndent + this.options.indentSize
         );
         const indexInline = this.emitter.emitExpr(segment.index, sourceInfo);
+        const prefix = segment.optional ? "[?" : "[";
+        const suffix = "]";
         if (indexInline.length <= this.options.maxLineLength) {
-          lines.push(`${this.indentText(`[${indexInline}]`, segmentIndent)}`);
+          lines.push(`${this.indentText(`${prefix}${indexInline}${suffix}`, segmentIndent)}`);
         } else {
-          lines.push(`${this.indentText("[", segmentIndent)}`);
+          lines.push(`${this.indentText(prefix, segmentIndent)}`);
           lines.push(`${this.indentText(indexText, segmentIndent + this.options.indentSize)}`);
-          lines.push(`${this.indentText("]", segmentIndent)}`);
+          lines.push(`${this.indentText(suffix, segmentIndent)}`);
         }
       }
     }
@@ -361,7 +364,7 @@ export class Formatter {
         if (select.testOnly) {
           break;
         }
-        segments.unshift({ kind: "select", field: select.field });
+        segments.unshift({ kind: "select", field: select.field, optional: select.optional });
         current = select.operand;
         continue;
       }
@@ -370,7 +373,11 @@ export class Formatter {
         const call = current;
         const op = this.operatorFromName(call.funcName, call.args.length);
         if (op?.kind === "index") {
-          segments.unshift({ kind: "index", index: call.args[1]! });
+          segments.unshift({
+            kind: "index",
+            index: call.args[1]!,
+            optional: call.funcName === Operators.OptIndex,
+          });
           current = call.args[0]!;
           continue;
         }
@@ -398,7 +405,7 @@ export class Formatter {
     if (name === Operators.LogicalNot && argCount === 1) {
       return { kind: "unary", symbol: "!", precedence: 7, associative: true, logical: false };
     }
-    if (name === Operators.Index && argCount === 2) {
+    if ((name === Operators.Index || name === Operators.OptIndex) && argCount === 2) {
       return { kind: "index", symbol: "[]", precedence: 9, associative: true, logical: false };
     }
     if (name === Operators.Conditional && argCount === 3) {
@@ -476,8 +483,8 @@ type OperatorSpec = {
 };
 
 type ChainSegment =
-  | { kind: "select"; field: string }
+  | { kind: "select"; field: string; optional: boolean }
   | { kind: "call"; expr: CallExpr }
-  | { kind: "index"; index: Expr };
+  | { kind: "index"; index: Expr; optional: boolean };
 
 type Chain = { base: Expr; segments: ChainSegment[]; original: Expr };

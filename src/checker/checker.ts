@@ -20,7 +20,7 @@ import {
   StructExpr,
 } from "../common/ast";
 import type { SourceInfo } from "../common/source";
-import { type OverloadDecl, VariableDecl } from "./decl";
+import { type OverloadDecl, VariableDecl } from "./decls";
 import type { CheckerEnv } from "./env";
 import { CheckerErrors, type Location } from "./error";
 import { TypeMapping } from "./mapping";
@@ -34,6 +34,7 @@ import {
   ListType,
   MapType,
   NullType,
+  OptionalType,
   StringType,
   Type,
   TypeKind,
@@ -41,7 +42,7 @@ import {
   UintType,
   isAssignable,
   joinTypes,
-} from "./type";
+} from "./types";
 
 /**
  * Result of type checking
@@ -63,7 +64,7 @@ export class Checker {
   private typeVarCounter = 0;
 
   constructor(
-    private readonly env: CheckerEnv,
+    private env: CheckerEnv,
     private readonly typeMap: Map<ExprId, Type>,
     private readonly refMap: Map<ExprId, ReferenceInfo>,
   ) { }
@@ -165,7 +166,7 @@ export class Checker {
     const ident = this.env.lookupIdent(identName);
     if (ident) {
       this.setType(expr.id, ident.type);
-      this.setRef(expr.id, new IdentReference(ident.name));
+      this.setRef(expr.id, new IdentReference(ident.name, ident.value));
       return;
     }
 
@@ -188,14 +189,19 @@ export class Checker {
       const ident = this.env.lookupIdent(name);
       if (ident) {
         this.setType(expr.id, ident.type);
-        this.setRef(expr.id, new IdentReference(ident.name));
+        this.setRef(expr.id, new IdentReference(ident.name, ident.value));
         return;
       }
     }
 
     // Check the operand first
     this.checkExpr(expr.operand);
-    const operandType = this.mapping.substitute(this.getType(expr.operand.id), false);
+    let operandType = this.mapping.substitute(this.getType(expr.operand.id), false);
+    let wrapOptional = expr.optional;
+    if (operandType.isOptionalType()) {
+      wrapOptional = true;
+      operandType = operandType.parameters[0] ?? DynType;
+    }
 
     // Check field selection
     let resultType = this.checkSelectField(expr.id, operandType, expr.field);
@@ -203,6 +209,8 @@ export class Checker {
     // Presence test returns bool
     if (expr.testOnly) {
       resultType = BoolType;
+    } else if (wrapOptional) {
+      resultType = new OptionalType(resultType);
     }
 
     this.setType(expr.id, this.mapping.substitute(resultType, false));
@@ -281,6 +289,25 @@ export class Checker {
     // Check function exists
     const fn = this.env.lookupFunction(fnName);
     if (!fn) {
+      const maybeType = this.env.lookupIdent(fnName);
+      if (maybeType?.kind === "type") {
+        if (expr.args.length !== 1) {
+          const argTypes = expr.args.map((arg) => this.getType(arg.id));
+          this.errors.reportNoMatchingOverload(
+            expr.id,
+            fnName,
+            argTypes,
+            false,
+            this.getLocation(expr.id)
+          );
+          this.setType(expr.id, ErrorType);
+          return;
+        }
+        const targetType = maybeType.type.parameters[0] ?? DynType;
+        this.setType(expr.id, targetType);
+        this.setRef(expr.id, { name: maybeType.name, overloadIds: [] });
+        return;
+      }
       this.errors.reportUndeclaredReference(
         expr.id,
         this.env.container.name,
@@ -333,9 +360,6 @@ export class Checker {
     const fnName = expr.funcName;
     const target = expr.target!;
 
-    // Check target first
-    this.checkExpr(target);
-
     // Try qualified name interpretation
     const name = this.resolveQualifiedName(target);
     if (name) {
@@ -344,10 +368,32 @@ export class Checker {
       if (fn) {
         const argTypes = expr.args.map((arg) => this.getType(arg.id));
         const overloads = fn.overloads().filter((o) => !o.isMemberFunction);
-        this.resolveOverloadOrError(expr, overloads, argTypes, false);
+        this.resolveOverloadOrError(expr, overloads, argTypes, false, maybeQualifiedName);
+        return;
+      }
+      const maybeType = this.env.lookupIdent(maybeQualifiedName);
+      if (maybeType?.kind === "type") {
+        if (expr.args.length !== 1) {
+          const argTypes = expr.args.map((arg) => this.getType(arg.id));
+          this.errors.reportNoMatchingOverload(
+            expr.id,
+            maybeQualifiedName,
+            argTypes,
+            false,
+            this.getLocation(expr.id)
+          );
+          this.setType(expr.id, ErrorType);
+          return;
+        }
+        const targetType = maybeType.type.parameters[0] ?? DynType;
+        this.setType(expr.id, targetType);
+        this.setRef(expr.id, { name: maybeType.name, overloadIds: [] });
         return;
       }
     }
+
+    // Check target first
+    this.checkExpr(target);
 
     // Regular member call
     const fn = this.env.lookupFunction(fnName);
@@ -381,14 +427,30 @@ export class Checker {
    */
   private checkList(expr: ListExpr): void {
     const elemTypes: Type[] = [];
+    const optionalIndices = new Set(expr.optionalIndices ?? []);
 
-    for (const elem of expr.elements) {
+    for (let i = 0; i < expr.elements.length; i++) {
+      const elem = expr.elements[i]!;
       this.checkExpr(elem);
-      elemTypes.push(this.getType(elem.id));
+      let elemType = this.getType(elem.id);
+      if (optionalIndices.has(i)) {
+        if (elemType.isOptionalType()) {
+          elemType = elemType.parameters[0] ?? DynType;
+        } else if (!elemType.isDynOrError()) {
+          this.errors.reportTypeMismatch(
+            elem.id,
+            new OptionalType(DynType),
+            elemType,
+            this.getLocation(elem.id)
+          );
+        }
+      }
+      elemTypes.push(elemType);
     }
 
     if (elemTypes.length === 0) {
-      this.setType(expr.id, new ListType(DynType));
+      const typeParam = new TypeParamType(`_list${expr.id}`);
+      this.setType(expr.id, new ListType(typeParam));
       return;
     }
 
@@ -412,7 +474,20 @@ export class Checker {
       this.checkExpr(entry.key);
       this.checkExpr(entry.value);
       keyTypes.push(this.getType(entry.key.id));
-      valueTypes.push(this.getType(entry.value.id));
+      let valueType = this.getType(entry.value.id);
+      if (entry.optional) {
+        if (valueType.isOptionalType()) {
+          valueType = valueType.parameters[0] ?? DynType;
+        } else if (!valueType.isDynOrError()) {
+          this.errors.reportTypeMismatch(
+            entry.value.id,
+            new OptionalType(DynType),
+            valueType,
+            this.getLocation(entry.value.id)
+          );
+        }
+      }
+      valueTypes.push(valueType);
     }
 
     if (keyTypes.length === 0) {
@@ -435,7 +510,7 @@ export class Checker {
    * Check struct creation
    */
   private checkStruct(expr: StructExpr): void {
-    const typeName = expr.typeName;
+    const typeName = expr.typeName.startsWith(".") ? expr.typeName.slice(1) : expr.typeName;
 
     // Look up struct type
     const structType = this.env.lookupStructType(typeName);
@@ -454,7 +529,23 @@ export class Checker {
       if (!fieldType) {
         this.errors.reportUndefinedField(field.id, field.name, this.getLocation(field.id));
       } else {
-        const valueType = this.getType(field.value.id);
+        let valueType = this.getType(field.value.id);
+        if (field.optional) {
+          if (valueType.isOptionalType()) {
+            valueType = valueType.parameters[0] ?? DynType;
+          } else if (!valueType.isDynOrError()) {
+            this.errors.reportTypeMismatch(
+              field.id,
+              new OptionalType(fieldType),
+              valueType,
+              this.getLocation(field.id)
+            );
+            continue;
+          }
+        }
+        if (valueType.kind === TypeKind.Null) {
+          continue;
+        }
         if (!valueType.isDynOrError() && !isAssignable(fieldType, valueType)) {
           this.errors.reportTypeMismatch(
             field.id,
@@ -475,7 +566,7 @@ export class Checker {
   private checkComprehension(expr: ComprehensionExpr): void {
     // Check the iteration range
     this.checkExpr(expr.iterRange);
-    const rangeType = this.getType(expr.iterRange.id);
+    const rangeType = this.mapping.substitute(this.getType(expr.iterRange.id), false);
 
     // Determine the iteration variable type from the range
     let iterVarType = DynType;
@@ -495,7 +586,7 @@ export class Checker {
     }
 
     // Push iteration variable into scope
-    this.env.enterScope();
+    this.env = this.env.enterScope();
     this.env.addVariables(new VariableDecl(expr.iterVar, iterVarType));
     if (expr.iterVar2) {
       this.env.addVariables(new VariableDecl(expr.iterVar2, iterVar2Type ?? DynType));
@@ -503,7 +594,7 @@ export class Checker {
 
     // Check accumulator initializer
     this.checkExpr(expr.accuInit);
-    const accuType = this.getType(expr.accuInit.id);
+    const accuType = this.mapping.substitute(this.getType(expr.accuInit.id), false);
 
     // Push accumulator variable into scope
     this.env.addVariables(new VariableDecl(expr.accuVar, accuType));
@@ -524,7 +615,7 @@ export class Checker {
     this.checkExpr(expr.loopStep);
     const stepType = this.getType(expr.loopStep.id);
     if (!stepType.isDynOrError() && !accuType.isDynOrError()) {
-      if (!isAssignable(accuType, stepType)) {
+      if (!this.mapping.isAssignable(accuType, stepType)) {
         this.errors.reportTypeMismatch(
           expr.loopStep.id,
           accuType,
@@ -538,7 +629,7 @@ export class Checker {
     this.checkExpr(expr.result);
 
     // Pop scope
-    this.env.exitScope();
+    this.env = this.env.exitScope();
 
     this.setType(expr.id, this.getType(expr.result.id));
   }
@@ -550,7 +641,8 @@ export class Checker {
     expr: CallExpr,
     overloads: OverloadDecl[],
     argTypes: Type[],
-    isMemberCall: boolean
+    isMemberCall: boolean,
+    resolvedName?: string
   ): void {
     const resolved = this.resolveOverload(overloads, argTypes, isMemberCall);
     if (!resolved) {
@@ -566,7 +658,11 @@ export class Checker {
     }
 
     this.setType(expr.id, resolved.resultType);
-    this.setRef(expr.id, new FunctionReference(...resolved.overloadIds));
+    if (resolvedName) {
+      this.setRef(expr.id, { name: resolvedName, overloadIds: resolved.overloadIds });
+    } else {
+      this.setRef(expr.id, new FunctionReference(...resolved.overloadIds));
+    }
   }
 
   /**
@@ -606,7 +702,7 @@ export class Checker {
 
       if (matches) {
         matchingOverloads.push(overload);
-        const overloadResultType = tempMapping.substitute(overload.resultType, true);
+        const overloadResultType = tempMapping.substitute(overload.resultType, false);
         if (resultType === null) {
           resultType = overloadResultType;
         } else if (!resultType.isEquivalentType(overloadResultType)) {
@@ -661,6 +757,7 @@ export class Checker {
         [
           "getFullYear",
           "getMonth",
+          "getDate",
           "getDayOfMonth",
           "getDayOfWeek",
           "getDayOfYear",
@@ -692,7 +789,7 @@ export class Checker {
       return expr.name;
     }
     if (expr instanceof SelectExpr) {
-      if (expr.testOnly) return null;
+      if (expr.testOnly || expr.optional) return null;
       const prefix = this.resolveQualifiedName(expr.operand);
       if (prefix) {
         return `${prefix}.${expr.field}`;

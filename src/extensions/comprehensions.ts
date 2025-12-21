@@ -1,59 +1,48 @@
 import { Function, Overload, type EnvOptions } from "../cel";
-import { MapType, TypeParamType } from "../checker/type";
+import { MapType, TypeParamType } from "../checker/types";
 import { AccumulatorName, IdentExpr, Operators, type Expr } from "../common/ast";
 import {
   ErrorValue,
   MapValue,
   type MapEntry,
   type Value,
-} from "../interpreter/value";
+} from "../interpreter/values";
 import { MacroError, ReceiverMacro, type Macro, type MacroExpander } from "../parser";
+import type { Extension } from "./extensions";
 
-type ComprehensionsConfig = { version: number };
-export type TwoVarComprehensionsOption = (config: ComprehensionsConfig) => void;
+export class TwoVarComprehensionsExtension implements Extension {
+  envOptions(): EnvOptions {
+    const macros: Macro[] = [
+      new ReceiverMacro("all", 3, quantifierAll),
+      new ReceiverMacro("exists", 3, quantifierExists),
+      new ReceiverMacro("existsOne", 3, quantifierExistsOne),
+      new ReceiverMacro("exists_one", 3, quantifierExistsOne),
+      new ReceiverMacro("transformList", 3, transformList),
+      new ReceiverMacro("transformList", 4, transformList),
+      new ReceiverMacro("transformMap", 3, transformMap),
+      new ReceiverMacro("transformMap", 4, transformMap),
+      new ReceiverMacro("transformMapEntry", 3, transformMapEntry),
+      new ReceiverMacro("transformMapEntry", 4, transformMapEntry),
+    ];
 
-export function TwoVarComprehensionsVersion(version: number): TwoVarComprehensionsOption {
-  return (config) => {
-    config.version = version;
-  };
-}
+    const kType = new TypeParamType("K");
+    const vType = new TypeParamType("V");
+    const mapKV = new MapType(kType, vType);
 
-export function TwoVarComprehensions(...options: TwoVarComprehensionsOption[]): EnvOptions {
-  const config: ComprehensionsConfig = { version: Number.MAX_SAFE_INTEGER };
-  for (const option of options) {
-    option(config);
-  }
-
-  const macros: Macro[] = [
-    new ReceiverMacro("all", 3, quantifierAll),
-    new ReceiverMacro("exists", 3, quantifierExists),
-    new ReceiverMacro("existsOne", 3, quantifierExistsOne),
-    new ReceiverMacro("exists_one", 3, quantifierExistsOne),
-    new ReceiverMacro("transformList", 3, transformList),
-    new ReceiverMacro("transformList", 4, transformList),
-    new ReceiverMacro("transformMap", 3, transformMap),
-    new ReceiverMacro("transformMap", 4, transformMap),
-    new ReceiverMacro("transformMapEntry", 3, transformMapEntry),
-    new ReceiverMacro("transformMapEntry", 4, transformMapEntry),
-  ];
-
-  const kType = new TypeParamType("K");
-  const vType = new TypeParamType("V");
-  const mapKV = new MapType(kType, vType);
-
-  const functions = [
-    new Function(
-      "cel.@mapInsert",
-      new Overload("@mapInsert_map_key_value", [mapKV, kType, vType], mapKV, (args: Value[]) =>
-        mapInsertKeyValue(args)
+    const functions = [
+      new Function(
+        "cel.@mapInsert",
+        new Overload("@mapInsert_map_key_value", [mapKV, kType, vType], mapKV, (args: Value[]) =>
+          mapInsertKeyValue(args)
+        ),
+        new Overload("@mapInsert_map_map", [mapKV, mapKV], mapKV, (lhs: Value, rhs: Value) =>
+          mapInsertMap(lhs, rhs)
+        )
       ),
-      new Overload("@mapInsert_map_map", [mapKV, mapKV], mapKV, (lhs: Value, rhs: Value) =>
-        mapInsertMap(lhs, rhs)
-      )
-    ),
-  ];
+    ];
 
-  return { macros, functions };
+    return { macros, functions };
+  }
 }
 
 const quantifierAll: MacroExpander = (helper, target, args) => {

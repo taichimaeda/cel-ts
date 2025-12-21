@@ -3,7 +3,7 @@
 // Implemented based on checker/decls.go from cel-go
 
 import { Operators } from "../common/ast";
-import { FunctionDecl, OverloadDecl } from "./decl";
+import { FunctionDecl, OverloadDecl } from "./decls";
 import {
   BoolType,
   BytesType,
@@ -18,7 +18,7 @@ import {
   TypeParamType,
   TypeTypeWithParam,
   UintType,
-} from "./type";
+} from "./types";
 
 /**
  * Get all standard library function declarations.
@@ -37,6 +37,7 @@ export class StandardLibrary {
       this.stringFunction(),
       this.boolFunction(),
       this.bytesFunction(),
+      this.dynFunction(),
       this.typeFunction(),
       this.durationFunction(),
       this.timestampFunction(),
@@ -232,6 +233,18 @@ export class StandardLibrary {
   }
 
   /**
+   * dyn() type conversion function
+   */
+  private static dynFunction(): FunctionDecl {
+    const fn = new FunctionDecl("dyn");
+
+    // dyn(dyn) -> dyn
+    fn.addOverload(new OverloadDecl("dyn_dyn", [DynType], DynType));
+
+    return fn;
+  }
+
+  /**
    * type() function - returns the type of a value
    */
   private static typeFunction(): FunctionDecl {
@@ -251,6 +264,8 @@ export class StandardLibrary {
 
     // duration(string) -> duration
     fn.addOverload(new OverloadDecl("duration_string", [StringType], DurationType));
+    // duration(duration) -> duration
+    fn.addOverload(new OverloadDecl("duration_duration", [DurationType], DurationType));
 
     return fn;
   }
@@ -265,6 +280,8 @@ export class StandardLibrary {
     fn.addOverload(new OverloadDecl("timestamp_string", [StringType], TimestampType));
     // timestamp(int) -> timestamp (seconds since epoch)
     fn.addOverload(new OverloadDecl("timestamp_int", [IntType], TimestampType));
+    // timestamp(timestamp) -> timestamp
+    fn.addOverload(new OverloadDecl("timestamp_timestamp", [TimestampType], TimestampType));
 
     return fn;
   }

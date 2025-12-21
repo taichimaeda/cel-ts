@@ -6,7 +6,7 @@ import {
   Overload,
   type EnvOptions,
 } from "../cel";
-import { ListType, TypeParamType, type Type } from "../checker/type";
+import { ListType, TypeParamType, type Type } from "../checker/types";
 import {
   CallExpr,
   ComprehensionExpr,
@@ -21,137 +21,139 @@ import {
   ListValue,
   UintValue,
   type Value,
-} from "../interpreter/value";
-import { ReceiverMacro, type Macro, MacroError } from "../parser";
+} from "../interpreter/values";
+import { MacroError, ReceiverMacro, type Macro } from "../parser";
+import { makeMap } from "../parser/macros";
+import type { Extension } from "./extensions";
 import { compareValues, isComparableValue } from "./util";
-import { makeMap } from "../parser/macro";
 
-type ListsConfig = { version: number };
-export type ListsOption = (config: ListsConfig) => void;
+export type ListsOptions = { version?: number };
 
-export function ListsVersion(version: number): ListsOption {
-  return (config) => {
-    config.version = version;
-  };
-}
+export class ListsExtension implements Extension {
+  private readonly version: number;
 
-export function Lists(...options: ListsOption[]): EnvOptions {
-  const config: ListsConfig = { version: Number.MAX_SAFE_INTEGER };
-  for (const option of options) {
-    option(config);
+  constructor(options: ListsOptions = {}) {
+    this.version = options.version ?? Number.MAX_SAFE_INTEGER;
   }
 
-  const elementParam = new TypeParamType("T");
-  const keyParam = new TypeParamType("K");
-  const listOfT: Type = new ListType(elementParam);
-  const listOfK: Type = new ListType(keyParam);
+  envOptions(): EnvOptions {
+    const elementParam = new TypeParamType("T");
+    const keyParam = new TypeParamType("K");
+    const listOfT: Type = new ListType(elementParam);
+    const listOfK: Type = new ListType(keyParam);
 
-  const functions = [
-    new Function(
-      "slice",
-      new MemberOverload(
-        "list_slice",
-        [listOfT, IntType, IntType],
-        listOfT,
-        (args: Value[]) => sliceList(args)
-      )
-    ),
-    new Function(
-      "flatten",
-      new MemberOverload(
-        "list_flatten",
-        [new ListType(DynType)],
-        new ListType(DynType),
-        (arg: Value) => flattenList(arg, 1)
+    const functions = [
+      new Function(
+        "slice",
+        new MemberOverload(
+          "list_slice",
+          [listOfT, IntType, IntType],
+          listOfT,
+          (args: Value[]) => sliceList(args)
+        )
       ),
-      new MemberOverload(
-        "list_flatten_int",
-        [new ListType(DynType), IntType],
-        new ListType(DynType),
-        (args: Value[]) => {
-          const list = args[0];
-          const depth = args[1];
-          if (!(depth instanceof IntValue)) {
-            return ErrorValue.typeMismatch("int", depth!);
+      new Function(
+        "flatten",
+        new MemberOverload(
+          "list_flatten",
+          [new ListType(DynType)],
+          new ListType(DynType),
+          (arg: Value) => flattenList(arg, 1)
+        ),
+        new MemberOverload(
+          "list_flatten_int",
+          [new ListType(DynType), IntType],
+          new ListType(DynType),
+          (args: Value[]) => {
+            const list = args[0];
+            const depth = args[1];
+            if (!(depth instanceof IntValue)) {
+              return ErrorValue.typeMismatch("int", depth!);
+            }
+            return flattenList(list!, Number(depth.value()));
           }
-          return flattenList(list!, Number(depth.value()));
-        }
-      )
-    ),
-    new Function(
-      "reverse",
-      new MemberOverload("list_reverse", [listOfT], listOfT, (arg: Value) => reverseList(arg))
-    ),
-    new Function(
-      "distinct",
-      new MemberOverload("list_distinct", [listOfT], listOfT, (arg: Value) => distinctList(arg))
-    ),
-    new Function(
-      "sort",
-      new MemberOverload("list_sort", [listOfT], listOfT, (arg: Value) => sortList(arg))
-    ),
-    new Function(
-      "@sortByAssociatedKeys",
-      new MemberOverload(
-        "list_sortByAssociatedKeys",
-        [listOfT, listOfK],
-        listOfT,
-        (args: Value[]) => sortByAssociatedKeys(args)
-      )
-    ),
-    new Function(
-      "lists.range",
-      new Overload("lists_range_int", [IntType], new ListType(IntType), (arg: Value) => rangeList(arg))
-    ),
-  ];
+        )
+      ),
+      new Function(
+        "reverse",
+        new MemberOverload("list_reverse", [listOfT], listOfT, (arg: Value) => reverseList(arg))
+      ),
+      new Function(
+        "distinct",
+        new MemberOverload("list_distinct", [listOfT], listOfT, (arg: Value) => distinctList(arg))
+      ),
+      new Function(
+        "sort",
+        new MemberOverload("list_sort", [listOfT], listOfT, (arg: Value) => sortList(arg))
+      ),
+      new Function(
+        "@sortByAssociatedKeys",
+        new MemberOverload(
+          "list_sortByAssociatedKeys",
+          [listOfT, listOfK],
+          listOfT,
+          (args: Value[]) => sortByAssociatedKeys(args)
+        )
+      ),
+      new Function(
+        "lists.range",
+        new Overload(
+          "lists_range_int",
+          [IntType],
+          new ListType(IntType),
+          (arg: Value) => rangeList(arg)
+        )
+      ),
+    ];
 
-  const macros: Macro[] = [];
-  if (config.version >= 2) {
-    macros.push(
-      new ReceiverMacro("sortBy", 2, (helper, target, args) => {
-        if (!target) {
-          return null;
-        }
-        if (
-          !(
-            target instanceof ListExpr ||
-            target instanceof SelectExpr ||
-            target instanceof IdentExpr ||
-            target instanceof ComprehensionExpr ||
-            target instanceof CallExpr
-          )
-        ) {
-          throw new MacroError(
-            "sortBy can only be applied to a list, identifier, comprehension, call or select expression"
+    const macros: Macro[] = [];
+    if (this.version >= 2) {
+      macros.push(
+        new ReceiverMacro("sortBy", 2, (helper, target, args) => {
+          if (!target) {
+            return null;
+          }
+          if (
+            !(
+              target instanceof ListExpr ||
+              target instanceof SelectExpr ||
+              target instanceof IdentExpr ||
+              target instanceof ComprehensionExpr ||
+              target instanceof CallExpr
+            )
+          ) {
+            throw new MacroError(
+              "sortBy can only be applied to a list, identifier, comprehension, call or select expression"
+            );
+          }
+
+          const varName = "@__sortBy_input__";
+          const varIdent = helper.createIdent(varName);
+          const mapExpr = makeMap(helper, helper.createIdent(varName), args);
+          if (!mapExpr) {
+            throw new MacroError("sortBy failed to build key list expression");
+          }
+          const callExpr = helper.createMemberCall(
+            "@sortByAssociatedKeys",
+            helper.createIdent(varName),
+            mapExpr
           );
-        }
 
-        const varName = "@__sortBy_input__";
-        const varIdent = helper.createIdent(varName);
-        const mapExpr = makeMap(helper, helper.createIdent(varName), args);
-        if (!mapExpr) {
-          throw new MacroError("sortBy failed to build key list expression");
-        }
-        const callExpr = helper.createMemberCall(
-          "@sortByAssociatedKeys",
-          helper.createIdent(varName),
-          mapExpr
-        );
+          return helper.createComprehension(
+            helper.createList(),
+            "#unused",
+            varName,
+            target!,
+            helper.createLiteral(false),
+            varIdent,
+            callExpr
+          );
+        })
+      );
+    }
 
-        return helper.createComprehension(
-          helper.createList(),
-          "#unused",
-          varName,
-          target!,
-          helper.createLiteral(false),
-          varIdent,
-          callExpr
-        );
-      })
-    );
+    return { functions, macros };
   }
-
-  return { functions, macros };
 }
 
 function sliceList(args: Value[]): Value {

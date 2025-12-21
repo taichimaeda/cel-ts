@@ -49,4 +49,4 @@ export * from "./formatter";
 export * from "./linter";
 
 // Extensions (experimental utility)
-export * from "./extension";
+export * from "./extensions";

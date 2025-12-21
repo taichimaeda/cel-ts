@@ -1,39 +1,50 @@
 import { BoolType, Function, Overload, type EnvOptions } from "../cel";
-import { ListType, TypeParamType } from "../checker/type";
-import { BoolValue, ErrorValue, ListValue, type Value } from "../interpreter/value";
+import { ListType, TypeParamType } from "../checker/types";
+import { BoolValue, ErrorValue, ListValue, type Value } from "../interpreter/values";
+import { ReceiverVarArgMacro } from "../parser";
+import type { Extension } from "./extensions";
+import { macroTargetMatchesNamespace } from "./macros";
 
-type SetsConfig = { version: number };
-export type SetsOption = (config: SetsConfig) => void;
-
-export function SetsVersion(version: number): SetsOption {
-  return (config) => {
-    config.version = version;
-  };
-}
-
-export function Sets(...options: SetsOption[]): EnvOptions {
-  const config: SetsConfig = { version: Number.MAX_SAFE_INTEGER };
-  for (const option of options) {
-    option(config);
+export class SetsExtension implements Extension {
+  envOptions(): EnvOptions {
+    const listType = new ListType(new TypeParamType("T"));
+    return {
+      macros: [
+        new ReceiverVarArgMacro("contains", (helper, target, args) => {
+          if (!macroTargetMatchesNamespace("sets", target)) {
+            return null;
+          }
+          return helper.createCall("sets.contains", ...args);
+        }),
+        new ReceiverVarArgMacro("equivalent", (helper, target, args) => {
+          if (!macroTargetMatchesNamespace("sets", target)) {
+            return null;
+          }
+          return helper.createCall("sets.equivalent", ...args);
+        }),
+        new ReceiverVarArgMacro("intersects", (helper, target, args) => {
+          if (!macroTargetMatchesNamespace("sets", target)) {
+            return null;
+          }
+          return helper.createCall("sets.intersects", ...args);
+        }),
+      ],
+      functions: [
+        new Function(
+          "sets.contains",
+          new Overload("list_sets_contains_list", [listType, listType], BoolType, setsContains)
+        ),
+        new Function(
+          "sets.equivalent",
+          new Overload("list_sets_equivalent_list", [listType, listType], BoolType, setsEquivalent)
+        ),
+        new Function(
+          "sets.intersects",
+          new Overload("list_sets_intersects_list", [listType, listType], BoolType, setsIntersects)
+        ),
+      ],
+    };
   }
-
-  const listType = new ListType(new TypeParamType("T"));
-  return {
-    functions: [
-      new Function(
-        "sets.contains",
-        new Overload("list_sets_contains_list", [listType, listType], BoolType, setsContains)
-      ),
-      new Function(
-        "sets.equivalent",
-        new Overload("list_sets_equivalent_list", [listType, listType], BoolType, setsEquivalent)
-      ),
-      new Function(
-        "sets.intersects",
-        new Overload("list_sets_intersects_list", [listType, listType], BoolType, setsIntersects)
-      ),
-    ],
-  };
 }
 
 function setsContains(lhs: Value, rhs: Value): Value {

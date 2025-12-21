@@ -9,7 +9,7 @@ import {
   TimestampValue,
   UintValue,
   type Value,
-} from "../interpreter/value";
+} from "../interpreter/values";
 
 export function compareValues(lhs: Value, rhs: Value): number | ErrorValue {
   if (lhs instanceof IntValue && rhs instanceof IntValue) {
@@ -24,6 +24,12 @@ export function compareValues(lhs: Value, rhs: Value): number | ErrorValue {
       return ErrorValue.create("cannot compare NaN");
     }
     return cmp;
+  }
+  if (lhs instanceof IntValue && rhs instanceof UintValue) {
+    return compareIntUint(lhs, rhs);
+  }
+  if (lhs instanceof UintValue && rhs instanceof IntValue) {
+    return -compareIntUint(rhs, lhs);
   }
   if (lhs instanceof StringValue && rhs instanceof StringValue) {
     return lhs.compare(rhs);
@@ -55,6 +61,9 @@ export function compareValues(lhs: Value, rhs: Value): number | ErrorValue {
   ) {
     const left = toNumber(lhs);
     const right = toNumber(rhs);
+    if (Number.isNaN(left) || Number.isNaN(right)) {
+      return ErrorValue.create("cannot compare NaN");
+    }
     return left < right ? -1 : left > right ? 1 : 0;
   }
   return ErrorValue.create(`cannot compare ${lhs.type()} with ${rhs.type()}`);
@@ -76,4 +85,15 @@ export function isComparableValue(value: Value): boolean {
 function toNumber(value: IntValue | UintValue | DoubleValue): number {
   if (value instanceof DoubleValue) return value.value();
   return Number(value.value());
+}
+
+function compareIntUint(lhs: IntValue, rhs: UintValue): number {
+  const left = lhs.value();
+  if (left < 0n) {
+    return -1;
+  }
+  const right = rhs.value();
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }

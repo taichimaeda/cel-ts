@@ -1,4 +1,4 @@
-import { DynType, ListType, MapType, Type } from "../checker/type";
+import { DynType, ListType, MapType, Type } from "../checker/types";
 
 /**
  * Lightweight runtime-only type markers for interpreter values that

@@ -1,14 +1,8 @@
 import type { EnvOptions } from "../cel";
 
-export * from "./bindings";
-export * from "./comprehensions";
-export * from "./encoders";
-export * from "./lists";
-export * from "./math";
-export * from "./protos";
-export * from "./regex";
-export * from "./sets";
-export * from "./strings";
+export interface Extension {
+  envOptions(): EnvOptions;
+}
 
 export function mergeEnvOptions(...options: EnvOptions[]): EnvOptions {
   const merged: EnvOptions = {};
@@ -43,6 +37,13 @@ export function mergeEnvOptions(...options: EnvOptions[]): EnvOptions {
     if (option.disableTypeChecking) {
       merged.disableTypeChecking = true;
     }
+    if (option.enumValuesAsInt !== undefined) {
+      merged.enumValuesAsInt = option.enumValuesAsInt;
+    }
   }
   return merged;
+}
+
+export function applyExtensions(base: EnvOptions, ...extensions: Extension[]): EnvOptions {
+  return mergeEnvOptions(base, ...extensions.map((extension) => extension.envOptions()));
 }

@@ -14,7 +14,7 @@ export {
   StructDecl,
   StructFieldDecl,
   VariableDecl
-} from "./decl";
+} from "./decls";
 
 export { CheckerEnv, Container } from "./env";
 export type { LookupResult } from "./env";
@@ -47,6 +47,6 @@ export {
   TypeType,
   TypeTypeWithParam,
   UintType
-} from "./type";
+} from "./types";
 
 export { StandardLibrary } from "./stdlib";

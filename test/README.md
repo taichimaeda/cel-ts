@@ -1,6 +1,6 @@
 # Tests
 
-Test suites for parsing, checking, evaluation, formatting, and tooling.
+Property tests cover the core CEL API, while formatter and linter keep focused unit tests.
 
 - `bun test` runs the default suite.
 - `pnpm conformance` runs CEL conformance fixtures (partial).

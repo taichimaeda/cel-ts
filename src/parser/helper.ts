@@ -15,6 +15,7 @@ import {
   LiteralExpr,
   MapEntry,
   MapExpr,
+  Operators,
   SelectExpr,
   StructExpr,
   StructField,
@@ -55,8 +56,7 @@ import {
   UintContext,
   type UnaryContext
 } from "./gen/CELParser.js";
-import { AllMacros, type Macro, MacroError, MacroRegistry } from "./macro";
-import { Operators } from "./operator";
+import { AllMacros, type Macro, MacroError, MacroRegistry } from "./macros";
 
 /**
  * Options for the parser helper.
@@ -178,11 +178,11 @@ export class ParserHelper {
   }
 
   createSelect(operand: Expr, field: string): SelectExpr {
-    return new SelectExpr(this.nextId(), operand, field, false);
+    return new SelectExpr(this.nextId(), operand, field, false, false);
   }
 
   createPresenceTest(operand: Expr, field: string): SelectExpr {
-    return new SelectExpr(this.nextId(), operand, field, true);
+    return new SelectExpr(this.nextId(), operand, field, true, false);
   }
 
   createError(ctx: ParserRuleContext, message: string): Expr {
@@ -382,11 +382,9 @@ export class ParserHelper {
       }
       const field = this.getEscapeIdentName(escapeIdentCtx);
 
-      if (ctx.QUESTIONMARK() !== null) {
-        return this.createError(ctx, "optional field access (?.) is not supported");
-      }
+      const isOptional = ctx.QUESTIONMARK() !== null;
 
-      const result = new SelectExpr(id, operand, field, false);
+      const result = new SelectExpr(id, operand, field, false, isOptional);
       this.setPosition(id, ctx);
       return result;
     }
@@ -424,11 +422,8 @@ export class ParserHelper {
       const id = this.nextId();
       const index = this.buildExpr(ctx.expr());
 
-      if (ctx.QUESTIONMARK() !== null) {
-        return this.createError(ctx, "optional index access ([?]) is not supported");
-      }
-
-      const result = new CallExpr(id, Operators.Index, [operand, index]);
+      const op = ctx.QUESTIONMARK() !== null ? Operators.OptIndex : Operators.Index;
+      const result = new CallExpr(id, op, [operand, index]);
       this.setPosition(id, ctx);
       return result;
     }
@@ -744,15 +739,23 @@ export class ParserHelper {
   // ============================================================================
 
   private parseIntLiteral(text: string): bigint {
-    // Handle hex (0x...), octal (0...), and decimal
-    if (text.startsWith("0x") || text.startsWith("0X")) {
-      return BigInt(text);
+    // Handle sign, hex (0x...), octal (0...), and decimal
+    let sign = "";
+    let literal = text;
+    if (literal.startsWith("-") || literal.startsWith("+")) {
+      sign = literal[0]!;
+      literal = literal.slice(1);
     }
-    if (text.startsWith("0") && text.length > 1 && !text.includes(".")) {
-      // Octal
-      return BigInt("0o" + text.slice(1));
+    if (literal.startsWith("0x") || literal.startsWith("0X")) {
+      const value = BigInt(literal);
+      return sign === "-" ? -value : value;
     }
-    return BigInt(text);
+    if (literal.startsWith("0") && literal.length > 1 && !literal.includes(".")) {
+      const value = BigInt("0o" + literal.slice(1));
+      return sign === "-" ? -value : value;
+    }
+    const value = BigInt(literal);
+    return sign === "-" ? -value : value;
   }
 
   private parseUintLiteral(text: string): bigint {
@@ -794,8 +797,10 @@ export class ParserHelper {
     let str = text.slice(1); // Remove 'b'
 
     // Handle raw bytes (br"..." or rb"...")
+    let raw = false;
     if (str.startsWith("r") || str.startsWith("R")) {
       str = str.slice(1);
+      raw = true;
     }
 
     // Handle triple-quoted
@@ -805,30 +810,45 @@ export class ParserHelper {
       str = str.slice(1, -1);
     }
 
-    // Process escapes and convert to bytes
-    const processed = this.processEscapes(str);
-    return new TextEncoder().encode(processed);
+    if (raw) {
+      return new TextEncoder().encode(str);
+    }
+
+    return this.processBytesEscapes(str);
   }
 
   private processEscapes(str: string): string {
     const escapeRegex =
-      /\\(u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|x[0-9a-fA-F]{2}|[0-7]{1,3}|[nrt\\'"])/g;
+      /\\(u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[xX][0-9a-fA-F]{2}|[0-7]{1,3}|[abfnrtv\\'\"?`])/g;
 
     return str.replace(escapeRegex, (_match, seq: string) => {
       switch (seq[0]) {
+        case "a":
+          return "\u0007";
+        case "b":
+          return "\b";
+        case "f":
+          return "\f";
         case "n":
           return "\n";
         case "r":
           return "\r";
         case "t":
           return "\t";
+        case "v":
+          return "\u000b";
         case "\\":
           return "\\";
         case '"':
           return '"';
         case "'":
           return "'";
+        case "`":
+          return "`";
+        case "?":
+          return "?";
         case "x":
+        case "X":
           return String.fromCharCode(Number.parseInt(seq.slice(1), 16));
         case "u":
           return String.fromCharCode(Number.parseInt(seq.slice(1), 16));
@@ -839,5 +859,115 @@ export class ParserHelper {
           return String.fromCharCode(Number.parseInt(seq, 8));
       }
     });
+  }
+
+  private processBytesEscapes(str: string): Uint8Array {
+    const bytes: number[] = [];
+    const encoder = new TextEncoder();
+
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i]!;
+      if (ch !== "\\") {
+        bytes.push(...encoder.encode(ch));
+        continue;
+      }
+      const next = str[i + 1];
+      if (!next) {
+        bytes.push(...encoder.encode("\\"));
+        continue;
+      }
+      switch (next) {
+        case "a":
+          bytes.push(0x07);
+          i += 1;
+          continue;
+        case "b":
+          bytes.push(0x08);
+          i += 1;
+          continue;
+        case "f":
+          bytes.push(0x0c);
+          i += 1;
+          continue;
+        case "n":
+          bytes.push(0x0a);
+          i += 1;
+          continue;
+        case "r":
+          bytes.push(0x0d);
+          i += 1;
+          continue;
+        case "t":
+          bytes.push(0x09);
+          i += 1;
+          continue;
+        case "v":
+          bytes.push(0x0b);
+          i += 1;
+          continue;
+        case "\\":
+          bytes.push(0x5c);
+          i += 1;
+          continue;
+        case "\"":
+          bytes.push(0x22);
+          i += 1;
+          continue;
+        case "'":
+          bytes.push(0x27);
+          i += 1;
+          continue;
+        case "`":
+          bytes.push(0x60);
+          i += 1;
+          continue;
+        case "?":
+          bytes.push(0x3f);
+          i += 1;
+          continue;
+        case "x":
+        case "X": {
+          const hex = str.slice(i + 2, i + 4);
+          if (hex.length === 2) {
+            bytes.push(Number.parseInt(hex, 16));
+            i += 3;
+            continue;
+          }
+          break;
+        }
+        case "u": {
+          const hex = str.slice(i + 2, i + 6);
+          if (hex.length === 4) {
+            bytes.push(...encoder.encode(String.fromCharCode(Number.parseInt(hex, 16))));
+            i += 5;
+            continue;
+          }
+          break;
+        }
+        case "U": {
+          const hex = str.slice(i + 2, i + 10);
+          if (hex.length === 8) {
+            bytes.push(...encoder.encode(String.fromCodePoint(Number.parseInt(hex, 16))));
+            i += 9;
+            continue;
+          }
+          break;
+        }
+        default: {
+          if (/[0-7]/.test(next)) {
+            const match = str.slice(i + 1).match(/^[0-7]{1,3}/);
+            if (match) {
+              bytes.push(Number.parseInt(match[0], 8));
+              i += match[0].length;
+              continue;
+            }
+          }
+        }
+      }
+
+      bytes.push(...encoder.encode(ch));
+    }
+
+    return new Uint8Array(bytes);
   }
 }

@@ -3,7 +3,7 @@
 // This is the canonical representation used throughout cel-ts, similar to cel-go's ast package.
 // Includes visitor pattern for AST traversal.
 
-import type { Type } from "../checker/type";
+import type { Type } from "../checker/types";
 import type { SourceInfo } from "./source";
 import { VisitOrder, type Visitor } from "./visitor";
 
@@ -37,6 +37,8 @@ export enum Operators {
 
   // Index
   Index = "_[_]",
+  OptIndex = "_[?_]",
+  OptSelect = "_?._",
 }
 
 /**
@@ -197,7 +199,8 @@ export class SelectExpr extends BaseExpr {
     id: ExprId,
     readonly operand: Expr,
     readonly field: string,
-    readonly testOnly: boolean
+    readonly testOnly: boolean,
+    readonly optional = false
   ) {
     super(id);
   }

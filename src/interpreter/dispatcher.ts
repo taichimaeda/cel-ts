@@ -2,7 +2,7 @@
 // Function call dispatcher
 // Implementation based on cel-go's interpret/dispatcher.go
 
-import { ErrorValue, type Value, ValueUtil } from "./value";
+import { ErrorValue, type Value, ValueUtil } from "./values";
 
 /**
  * Overload represents a single function overload.

@@ -5,7 +5,7 @@ import {
   StringType,
   type EnvOptions,
 } from "../cel";
-import { ListType, OptionalType } from "../checker/type";
+import { ListType, OptionalType } from "../checker/types";
 import {
   ErrorValue,
   IntValue,
@@ -13,60 +13,49 @@ import {
   OptionalValue,
   StringValue,
   type Value,
-} from "../interpreter/value";
+} from "../interpreter/values";
+import type { Extension } from "./extensions";
 
-type RegexConfig = { version: number };
-export type RegexOption = (config: RegexConfig) => void;
-
-export function RegexVersion(version: number): RegexOption {
-  return (config) => {
-    config.version = version;
-  };
-}
-
-export function Regex(...options: RegexOption[]): EnvOptions {
-  const config: RegexConfig = { version: Number.MAX_SAFE_INTEGER };
-  for (const option of options) {
-    option(config);
-  }
-
-  return {
-    functions: [
-      new Function(
-        "regex.extract",
-        new Overload(
-          "regex_extract_string_string",
-          [StringType, StringType],
-          new OptionalType(StringType),
-          (lhs: Value, rhs: Value) => extractOne(lhs, rhs)
-        )
-      ),
-      new Function(
-        "regex.extractAll",
-        new Overload(
-          "regex_extractAll_string_string",
-          [StringType, StringType],
-          new ListType(StringType),
-          (lhs: Value, rhs: Value) => extractAll(lhs, rhs)
-        )
-      ),
-      new Function(
-        "regex.replace",
-        new Overload(
-          "regex_replace_string_string_string",
-          [StringType, StringType, StringType],
-          StringType,
-          (args: Value[]) => replaceRegex(args)
+export class RegexExtension implements Extension {
+  envOptions(): EnvOptions {
+    return {
+      functions: [
+        new Function(
+          "regex.extract",
+          new Overload(
+            "regex_extract_string_string",
+            [StringType, StringType],
+            new OptionalType(StringType),
+            (lhs: Value, rhs: Value) => extractOne(lhs, rhs)
+          )
         ),
-        new Overload(
-          "regex_replace_string_string_string_int",
-          [StringType, StringType, StringType, IntType],
-          StringType,
-          (args: Value[]) => replaceRegex(args)
-        )
-      ),
-    ],
-  };
+        new Function(
+          "regex.extractAll",
+          new Overload(
+            "regex_extractAll_string_string",
+            [StringType, StringType],
+            new ListType(StringType),
+            (lhs: Value, rhs: Value) => extractAll(lhs, rhs)
+          )
+        ),
+        new Function(
+          "regex.replace",
+          new Overload(
+            "regex_replace_string_string_string",
+            [StringType, StringType, StringType],
+            StringType,
+            (args: Value[]) => replaceRegex(args)
+          ),
+          new Overload(
+            "regex_replace_string_string_string_int",
+            [StringType, StringType, StringType, IntType],
+            StringType,
+            (args: Value[]) => replaceRegex(args)
+          )
+        ),
+      ],
+    };
+  }
 }
 
 function extractOne(target: Value, pattern: Value): Value {
