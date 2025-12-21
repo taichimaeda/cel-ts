@@ -14,6 +14,7 @@ import {
   DoubleValue,
   ErrorValue,
   IntValue,
+  INT64_MIN,
   ListValue,
   UintValue,
   type Value,
@@ -171,6 +172,9 @@ export class MathExtension implements Extension {
           new Overload("math_abs_int", [IntType], IntType, (arg: Value) => {
             if (!(arg instanceof IntValue)) return ErrorValue.typeMismatch("int", arg);
             const value = arg.value();
+            if (value === INT64_MIN) {
+              return ErrorValue.create("int overflow");
+            }
             return IntValue.of(value < 0n ? -value : value);
           }),
           new Overload("math_abs_uint", [UintType], UintType, (arg: Value) => {

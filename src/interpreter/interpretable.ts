@@ -16,6 +16,8 @@ import {
   EnumValue,
   ErrorValue,
   IntValue,
+  INT64_MAX,
+  INT64_MIN,
   ListValue,
   type MapEntry,
   MapValue,
@@ -24,6 +26,7 @@ import {
   StringValue,
   StructValue,
   TimestampValue,
+  UINT64_MAX,
   UintValue,
   type UnknownValue,
   type Value,
@@ -809,11 +812,15 @@ export class CreateMapValue implements Interpretable {
 
   eval(activation: Activation): Value {
     const entries: MapEntry[] = [];
+    const seenKeys = new Set<string>();
 
     for (let i = 0; i < this.keys.length; i++) {
       const key = this.keys[i]!.eval(activation);
       if (ValueUtil.isErrorOrUnknown(key)) {
         return key;
+      }
+      if (!isSupportedMapKey(key)) {
+        return ErrorValue.create("unsupported key type", this.exprId);
       }
 
       const val = this.values[i]!.eval(activation);
@@ -836,6 +843,11 @@ export class CreateMapValue implements Interpretable {
         return val;
       }
 
+      const keyId = mapKeyId(key);
+      if (seenKeys.has(keyId)) {
+        return ErrorValue.create("Failed with repeated key", this.exprId);
+      }
+      seenKeys.add(keyId);
       entries.push({ key, value: val });
     }
 
@@ -887,7 +899,13 @@ export class CreateStructValue implements Interpretable {
       const fieldType = this.fieldTypes.get(this.fields[i]!);
       const protoFieldType = this.typeProvider?.fieldProtoType(this.typeName, this.fields[i]!);
       if (val instanceof NullValue) {
-        if (fieldType && !isNullAssignableField(fieldType)) {
+        if (fieldType) {
+          if (!isNullAssignableField(fieldType, protoFieldType)) {
+            return ErrorValue.create("unsupported field type", this.exprId);
+          }
+          continue;
+        }
+        if (protoFieldType === "google.protobuf.ListValue" || protoFieldType === "google.protobuf.Struct") {
           return ErrorValue.create("unsupported field type", this.exprId);
         }
         continue;
@@ -902,11 +920,35 @@ export class CreateStructValue implements Interpretable {
           val = coerced;
         }
       }
+      if (fieldType?.kind === CheckerTypeKind.Opaque && this.typeProvider) {
+        const enumType = this.typeProvider.findEnumType(fieldType.runtimeTypeName);
+        if (enumType) {
+          const numeric = enumNumericValue(val);
+          if (numeric !== null && !isEnumInt32Range(numeric)) {
+            return ErrorValue.create("range error", this.exprId);
+          }
+        }
+      }
+      if (protoFieldType && this.typeProvider) {
+        const enumType = this.typeProvider.findEnumType(protoFieldType);
+        if (enumType) {
+          const numeric = enumNumericValue(val);
+          if (numeric !== null && !isEnumInt32Range(numeric)) {
+            return ErrorValue.create("range error", this.exprId);
+          }
+        }
+      }
       if (fieldType?.kind === CheckerTypeKind.Double && protoFieldType === "float") {
         val = coerceFloatValue(val);
       }
       if (protoFieldType === "google.protobuf.Value") {
         val = coerceGoogleValue(val);
+      }
+      if (protoFieldType === "google.protobuf.Struct") {
+        const mapValue = mapValueFromGoogleStruct(val);
+        if (mapValue instanceof ErrorValue) {
+          return mapValue;
+        }
       }
       if (this.optionalFields.has(i)) {
         if (val instanceof OptionalValue) {
@@ -948,6 +990,7 @@ export class CreateStructValue implements Interpretable {
       if (anyValue) {
         return anyValue;
       }
+      return ErrorValue.create("conversion error", this.exprId);
     }
 
     return new StructValue(
@@ -1070,7 +1113,17 @@ function mapFromStructValue(structValue: StructValue): MapValue {
 
 function wrapperKindFromTypeName(
   typeName: string
-): "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string" | null {
+):
+  | "bool"
+  | "bytes"
+  | "double"
+  | "float"
+  | "int32"
+  | "int64"
+  | "uint32"
+  | "uint64"
+  | "string"
+  | null {
   const normalized = typeName.startsWith(".") ? typeName.slice(1) : typeName;
   switch (normalized) {
     case "google.protobuf.BoolValue":
@@ -1082,11 +1135,13 @@ function wrapperKindFromTypeName(
     case "google.protobuf.FloatValue":
       return "float";
     case "google.protobuf.Int32Value":
+      return "int32";
     case "google.protobuf.Int64Value":
-      return "int";
+      return "int64";
     case "google.protobuf.UInt32Value":
+      return "uint32";
     case "google.protobuf.UInt64Value":
-      return "uint";
+      return "uint64";
     case "google.protobuf.StringValue":
       return "string";
     default:
@@ -1095,7 +1150,7 @@ function wrapperKindFromTypeName(
 }
 
 function wrapperDefaultValue(
-  kind: "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string"
+  kind: "bool" | "bytes" | "double" | "float" | "int32" | "int64" | "uint32" | "uint64" | "string"
 ): Value {
   switch (kind) {
     case "bool":
@@ -1106,9 +1161,11 @@ function wrapperDefaultValue(
       return DoubleValue.of(0);
     case "float":
       return DoubleValue.of(0);
-    case "int":
+    case "int32":
+    case "int64":
       return IntValue.of(0);
-    case "uint":
+    case "uint32":
+    case "uint64":
       return UintValue.of(0);
     case "string":
       return StringValue.of("");
@@ -1116,7 +1173,7 @@ function wrapperDefaultValue(
 }
 
 function coerceWrapperValue(
-  kind: "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string",
+  kind: "bool" | "bytes" | "double" | "float" | "int32" | "int64" | "uint32" | "uint64" | "string",
   value: Value
 ): Value {
   if (kind === "float") {
@@ -1125,6 +1182,29 @@ function coerceWrapperValue(
       return numeric;
     }
     return DoubleValue.of(fround(numeric));
+  }
+  if (kind === "int32" || kind === "int64") {
+    const numeric = intValueFromNumeric(value);
+    if (numeric instanceof ErrorValue) {
+      return numeric;
+    }
+    const min = kind === "int32" ? -2147483648n : -(1n << 63n);
+    const max = kind === "int32" ? 2147483647n : (1n << 63n) - 1n;
+    if (numeric < min || numeric > max) {
+      return ErrorValue.create("range error");
+    }
+    return IntValue.of(numeric);
+  }
+  if (kind === "uint32" || kind === "uint64") {
+    const numeric = intValueFromNumeric(value);
+    if (numeric instanceof ErrorValue) {
+      return numeric;
+    }
+    const max = kind === "uint32" ? 4294967295n : (1n << 64n) - 1n;
+    if (numeric < 0n || numeric > max) {
+      return ErrorValue.create("range error");
+    }
+    return UintValue.of(numeric);
   }
   return value;
 }
@@ -1142,8 +1222,20 @@ function coerceFloatValue(value: Value): Value {
   return value;
 }
 
-function isNullAssignableField(fieldType: CheckerType): boolean {
+function isNullAssignableField(fieldType: CheckerType, protoFieldType?: string | null): boolean {
   if (fieldType.isOptionalType()) {
+    return true;
+  }
+  if (fieldType.kind === CheckerTypeKind.Struct) {
+    const runtimeName = fieldType.runtimeTypeName;
+    if (runtimeName === "google.protobuf.Struct" || runtimeName === "google.protobuf.ListValue") {
+      return false;
+    }
+    if (runtimeName === "google.protobuf.Value" || runtimeName === "google.protobuf.Any") {
+      return true;
+    }
+  }
+  if (protoFieldType === "google.protobuf.Value" || protoFieldType === "google.protobuf.Any") {
     return true;
   }
   switch (fieldType.kind) {
@@ -1283,6 +1375,23 @@ function uintToJsonValue(value: bigint): Value {
   return DoubleValue.of(Number(value));
 }
 
+function intValueFromNumeric(value: Value): bigint | ErrorValue {
+  if (value instanceof IntValue) {
+    return value.value();
+  }
+  if (value instanceof UintValue) {
+    return value.value();
+  }
+  if (value instanceof DoubleValue) {
+    const num = value.value();
+    if (!Number.isFinite(num) || !Number.isInteger(num)) {
+      return ErrorValue.typeMismatch("numeric", value);
+    }
+    return BigInt(num);
+  }
+  return ErrorValue.typeMismatch("numeric", value);
+}
+
 function extractNumericValue(value: Value): number | ErrorValue {
   if (value instanceof DoubleValue) {
     return value.value();
@@ -1299,8 +1408,75 @@ function fround(value: number): number {
   return buffer[0]!;
 }
 
+function enumNumericValue(value: Value): bigint | null {
+  if (value instanceof IntValue) {
+    return value.value();
+  }
+  if (value instanceof UintValue) {
+    return value.value();
+  }
+  if (value instanceof DoubleValue) {
+    const num = value.value();
+    if (!Number.isFinite(num) || !Number.isInteger(num)) {
+      return null;
+    }
+    return BigInt(num);
+  }
+  if (value instanceof EnumValue) {
+    return value.value();
+  }
+  return null;
+}
+
 function isEnumInt32Range(value: bigint): boolean {
   return value >= -2147483648n && value <= 2147483647n;
+}
+
+function mapValueFromGoogleStruct(value: Value): MapValue | ErrorValue {
+  if (value instanceof MapValue) {
+    if (!mapKeysAreStrings(value)) {
+      return ErrorValue.create("bad key type");
+    }
+    return value;
+  }
+  if (value instanceof StructValue) {
+    return mapFromStructValue(value);
+  }
+  return ErrorValue.typeMismatch("map", value);
+}
+
+function mapKeysAreStrings(value: MapValue): boolean {
+  for (const entry of value.value()) {
+    if (!(entry.key instanceof StringValue)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isSupportedMapKey(key: Value): boolean {
+  return (
+    key instanceof BoolValue ||
+    key instanceof IntValue ||
+    key instanceof UintValue ||
+    key instanceof StringValue
+  );
+}
+
+function mapKeyId(key: Value): string {
+  if (key instanceof IntValue) {
+    return `num:${key.value().toString()}`;
+  }
+  if (key instanceof UintValue) {
+    return `num:${key.value().toString()}`;
+  }
+  if (key instanceof BoolValue) {
+    return `bool:${key.value()}`;
+  }
+  if (key instanceof StringValue) {
+    return `string:${key.value()}`;
+  }
+  return `${key.type()}:${String(key.value())}`;
 }
 
 /**
@@ -1469,6 +1645,9 @@ export class HasFieldValue implements Interpretable {
     }
 
     if (obj instanceof StructValue) {
+      if (obj.hasFieldDefinitions() && !obj.hasFieldDefinition(this.field)) {
+        return ErrorValue.noSuchField(this.field, this.exprId);
+      }
       return BoolValue.of(obj.hasField(this.field));
     }
 
@@ -1671,21 +1850,39 @@ export class TypeConversionValue implements Interpretable {
       return val;
     }
     if (val instanceof EnumValue) {
-      return IntValue.of(val.value());
+      const raw = val.value();
+      if (raw < INT64_MIN || raw > INT64_MAX) {
+        return ErrorValue.create("range error", this.exprId);
+      }
+      return IntValue.of(raw);
     }
     if (val instanceof UintValue) {
-      return IntValue.of(val.value());
+      const raw = val.value();
+      if (raw > INT64_MAX) {
+        return ErrorValue.create("range error", this.exprId);
+      }
+      return IntValue.of(raw);
     }
     if (val instanceof DoubleValue) {
       const d = val.value();
       if (!Number.isFinite(d)) {
         return ErrorValue.create("cannot convert infinity or NaN to int", this.exprId);
       }
-      return IntValue.of(Math.trunc(d));
+      if (d <= Number(INT64_MIN) || d >= Number(INT64_MAX)) {
+        return ErrorValue.create("range error", this.exprId);
+      }
+      const truncated = BigInt(Math.trunc(d));
+      if (truncated < INT64_MIN || truncated > INT64_MAX) {
+        return ErrorValue.create("range error", this.exprId);
+      }
+      return IntValue.of(truncated);
     }
     if (val instanceof StringValue) {
       try {
         const n = BigInt(val.value());
+        if (n < INT64_MIN || n > INT64_MAX) {
+          return ErrorValue.create("range error", this.exprId);
+        }
         return IntValue.of(n);
       } catch {
         return ErrorValue.create(`cannot parse '${val.value()}' as int`, this.exprId);
@@ -1706,12 +1903,18 @@ export class TypeConversionValue implements Interpretable {
       if (n < 0n) {
         return ErrorValue.create("cannot convert negative enum to uint", this.exprId);
       }
+      if (n > UINT64_MAX) {
+        return ErrorValue.create("range error", this.exprId);
+      }
       return UintValue.of(n);
     }
     if (val instanceof IntValue) {
       const n = val.value();
       if (n < 0n) {
         return ErrorValue.create("cannot convert negative int to uint", this.exprId);
+      }
+      if (n > UINT64_MAX) {
+        return ErrorValue.create("range error", this.exprId);
       }
       return UintValue.of(n);
     }
@@ -1720,13 +1923,20 @@ export class TypeConversionValue implements Interpretable {
       if (!Number.isFinite(d) || d < 0) {
         return ErrorValue.create("cannot convert to uint", this.exprId);
       }
-      return UintValue.of(Math.trunc(d));
+      const truncated = BigInt(Math.trunc(d));
+      if (truncated > UINT64_MAX) {
+        return ErrorValue.create("range error", this.exprId);
+      }
+      return UintValue.of(truncated);
     }
     if (val instanceof StringValue) {
       try {
         const n = BigInt(val.value());
         if (n < 0n) {
           return ErrorValue.create("cannot parse negative number as uint", this.exprId);
+        }
+        if (n > UINT64_MAX) {
+          return ErrorValue.create("range error", this.exprId);
         }
         return UintValue.of(n);
       } catch {
@@ -1777,7 +1987,7 @@ export class TypeConversionValue implements Interpretable {
       return StringValue.of(val.value().toString());
     }
     if (val instanceof BytesValue) {
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder("utf-8", { fatal: true });
       try {
         return StringValue.of(decoder.decode(val.value()));
       } catch {
@@ -1811,11 +2021,11 @@ export class TypeConversionValue implements Interpretable {
       return val;
     }
     if (val instanceof StringValue) {
-      const s = val.value().toLowerCase();
-      if (s === "true" || s === "t" || s === "1") {
+      const s = val.value();
+      if (s === "true" || s === "TRUE" || s === "True" || s === "t" || s === "1") {
         return BoolValue.True;
       }
-      if (s === "false" || s === "f" || s === "0") {
+      if (s === "false" || s === "FALSE" || s === "False" || s === "f" || s === "0") {
         return BoolValue.False;
       }
       return ErrorValue.create(`cannot parse '${val.value()}' as bool`, this.exprId);

@@ -15,10 +15,13 @@ import {
   DurationValue,
   ErrorValue,
   IntValue,
+  INT64_MAX,
+  INT64_MIN,
   ListValue,
   MapValue,
   StringValue,
   TimestampValue,
+  UINT64_MAX,
   UintValue,
   type Value,
   ValueUtil,
@@ -168,18 +171,32 @@ export const typeConversionFunctions: Overload[] = [
       return val;
     }
     if (val instanceof UintValue) {
-      return IntValue.of(val.value());
+      const raw = val.value();
+      if (raw > INT64_MAX) {
+        return ErrorValue.create("range error");
+      }
+      return IntValue.of(raw);
     }
     if (val instanceof DoubleValue) {
       const d = val.value();
       if (!Number.isFinite(d)) {
         return ErrorValue.create("cannot convert infinity or NaN to int");
       }
-      return IntValue.of(Math.trunc(d));
+      if (d <= Number(INT64_MIN) || d >= Number(INT64_MAX)) {
+        return ErrorValue.create("range error");
+      }
+      const truncated = BigInt(Math.trunc(d));
+      if (truncated < INT64_MIN || truncated > INT64_MAX) {
+        return ErrorValue.create("range error");
+      }
+      return IntValue.of(truncated);
     }
     if (val instanceof StringValue) {
       try {
         const n = BigInt(val.value());
+        if (n < INT64_MIN || n > INT64_MAX) {
+          return ErrorValue.create("range error");
+        }
         return IntValue.of(n);
       } catch {
         return ErrorValue.create(`cannot parse '${val.value()}' as int`);
@@ -201,6 +218,9 @@ export const typeConversionFunctions: Overload[] = [
       if (n < 0n) {
         return ErrorValue.create("cannot convert negative int to uint");
       }
+      if (n > UINT64_MAX) {
+        return ErrorValue.create("range error");
+      }
       return UintValue.of(n);
     }
     if (val instanceof DoubleValue) {
@@ -208,13 +228,20 @@ export const typeConversionFunctions: Overload[] = [
       if (!Number.isFinite(d) || d < 0) {
         return ErrorValue.create("cannot convert to uint");
       }
-      return UintValue.of(Math.trunc(d));
+      const truncated = BigInt(Math.trunc(d));
+      if (truncated > UINT64_MAX) {
+        return ErrorValue.create("range error");
+      }
+      return UintValue.of(truncated);
     }
     if (val instanceof StringValue) {
       try {
         const n = BigInt(val.value());
         if (n < 0n) {
           return ErrorValue.create("cannot convert negative string to uint");
+        }
+        if (n > UINT64_MAX) {
+          return ErrorValue.create("range error");
         }
         return UintValue.of(n);
       } catch {
@@ -260,7 +287,7 @@ export const typeConversionFunctions: Overload[] = [
       return StringValue.of(val.value() ? "true" : "false");
     }
     if (val instanceof BytesValue) {
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder("utf-8", { fatal: true });
       try {
         return StringValue.of(decoder.decode(val.value()));
       } catch {
@@ -293,11 +320,11 @@ export const typeConversionFunctions: Overload[] = [
       return val;
     }
     if (val instanceof StringValue) {
-      const s = val.value().toLowerCase();
-      if (s === "true" || s === "t" || s === "1") {
+      const s = val.value();
+      if (s === "true" || s === "TRUE" || s === "True" || s === "t" || s === "1") {
         return BoolValue.True;
       }
-      if (s === "false" || s === "f" || s === "0") {
+      if (s === "false" || s === "FALSE" || s === "False" || s === "f" || s === "0") {
         return BoolValue.False;
       }
       return ErrorValue.create(`cannot parse '${val.value()}' as bool`);
@@ -612,7 +639,11 @@ function parseTimestamp(value: string): TimestampValue | ErrorValue {
     nanos = BigInt(digits.padEnd(9, "0"));
   }
 
-  return TimestampValue.of(BigInt(utcMillis) * 1_000_000n + nanos);
+  const timestampNanos = BigInt(utcMillis) * 1_000_000n + nanos;
+  if (timestampNanos < TIMESTAMP_MIN_NANOS || timestampNanos > TIMESTAMP_MAX_NANOS) {
+    return ErrorValue.create("timestamp out of range");
+  }
+  return TimestampValue.of(timestampNanos);
 }
 
 function parseTimestampOffset(tz: string): number | null {
@@ -711,5 +742,21 @@ function parseDuration(s: string): DurationValue | ErrorValue {
     totalNanos = -totalNanos;
   }
 
+  if (
+    totalNanos < -DURATION_MAX_NANOS ||
+    totalNanos > DURATION_MAX_NANOS ||
+    totalNanos < INT64_MIN ||
+    totalNanos > INT64_MAX
+  ) {
+    return ErrorValue.create("duration out of range");
+  }
+
   return DurationValue.of(totalNanos);
 }
+
+const DURATION_MAX_SECONDS = 315576000000n;
+const DURATION_MAX_NANOS = DURATION_MAX_SECONDS * 1_000_000_000n;
+const TIMESTAMP_MIN_SECONDS = -62135596800n;
+const TIMESTAMP_MAX_SECONDS = 253402300799n;
+const TIMESTAMP_MIN_NANOS = TIMESTAMP_MIN_SECONDS * 1_000_000_000n;
+const TIMESTAMP_MAX_NANOS = TIMESTAMP_MAX_SECONDS * 1_000_000_000n + 999_999_999n;

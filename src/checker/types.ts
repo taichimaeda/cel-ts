@@ -343,6 +343,23 @@ export function joinTypes(typ1: Type, typ2: Type): Type {
     return new MapType(joinTypes(key1, key2), joinTypes(val1, val2));
   }
 
+  if (typ1.kind === TypeKind.Opaque && typ2.kind === TypeKind.Opaque) {
+    if (typ1.runtimeTypeName !== typ2.runtimeTypeName) {
+      return DynType;
+    }
+    if (typ1.parameters.length !== typ2.parameters.length) {
+      return DynType;
+    }
+    if (typ1.parameters.length === 0) {
+      return typ1;
+    }
+    const params = typ1.parameters.map((param, index) => {
+      const other = typ2.parameters[index] ?? DynType;
+      return joinTypes(param, other);
+    });
+    return new OpaqueType(typ1.runtimeTypeName, ...params);
+  }
+
   // If types are equivalent, return one of them
   if (typ1.isEquivalentType(typ2)) {
     return typ1;

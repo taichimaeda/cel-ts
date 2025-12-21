@@ -535,7 +535,9 @@ export class Planner {
   private planCreateStruct(e: StructExpr): Interpretable {
     const resolvedType = this.typeMap?.get(e.id);
     const resolvedName =
-      resolvedType?.kind === TypeKind.Struct ? resolvedType.runtimeTypeName : e.typeName;
+      resolvedType?.kind === TypeKind.Struct
+        ? resolvedType.runtimeTypeName
+        : this.resolveStructTypeName(e.typeName);
     const fieldNames: string[] = [];
     const fieldValues: Interpretable[] = [];
     const optionalFieldIndices: number[] = [];
@@ -569,6 +571,24 @@ export class Planner {
       optionalFieldIndices,
       this.typeProvider
     );
+  }
+
+  private resolveStructTypeName(typeName: string): string {
+    if (!this.typeProvider || typeName.includes(".")) {
+      return typeName;
+    }
+    if (!this.containerName) {
+      return typeName;
+    }
+    const parts = this.containerName.split(".");
+    for (let i = parts.length; i >= 0; i--) {
+      const prefix = parts.slice(0, i).join(".");
+      const qualified = prefix ? `${prefix}.${typeName}` : typeName;
+      if (this.typeProvider.findStructType(qualified)) {
+        return qualified;
+      }
+    }
+    return typeName;
   }
 
   private coerceEnumToInt(type: CheckerType): CheckerType {

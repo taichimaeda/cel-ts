@@ -30,6 +30,32 @@ import {
   type ValueType,
 } from "./types";
 
+export const INT64_MIN = -(1n << 63n);
+export const INT64_MAX = (1n << 63n) - 1n;
+export const UINT64_MAX = (1n << 64n) - 1n;
+export const INT32_MIN = -2147483648n;
+export const INT32_MAX = 2147483647n;
+export const UINT32_MAX = 4294967295n;
+const DURATION_MAX_SECONDS = 315576000000n;
+const DURATION_MAX_NANOS = DURATION_MAX_SECONDS * 1_000_000_000n;
+const TIMESTAMP_MIN_SECONDS = -62135596800n;
+const TIMESTAMP_MAX_SECONDS = 253402300799n;
+const TIMESTAMP_MIN_NANOS = TIMESTAMP_MIN_SECONDS * 1_000_000_000n;
+const TIMESTAMP_MAX_NANOS = TIMESTAMP_MAX_SECONDS * 1_000_000_000n + 999_999_999n;
+
+function isDurationInRange(nanos: bigint): boolean {
+  return (
+    nanos >= -DURATION_MAX_NANOS &&
+    nanos <= DURATION_MAX_NANOS &&
+    nanos >= INT64_MIN &&
+    nanos <= INT64_MAX
+  );
+}
+
+function isTimestampInRange(nanos: bigint): boolean {
+  return nanos >= TIMESTAMP_MIN_NANOS && nanos <= TIMESTAMP_MAX_NANOS;
+}
+
 /**
  * Base interface for all CEL runtime values
  */
@@ -161,21 +187,36 @@ export class IntValue implements Value {
     return this.val;
   }
 
-  add(other: IntValue): IntValue {
-    return IntValue.of(this.val + other.val);
+  add(other: IntValue): IntValue | ErrorValue {
+    const result = this.val + other.val;
+    if (result < INT64_MIN || result > INT64_MAX) {
+      return ErrorValue.create("int overflow");
+    }
+    return IntValue.of(result);
   }
 
-  subtract(other: IntValue): IntValue {
-    return IntValue.of(this.val - other.val);
+  subtract(other: IntValue): IntValue | ErrorValue {
+    const result = this.val - other.val;
+    if (result < INT64_MIN || result > INT64_MAX) {
+      return ErrorValue.create("int overflow");
+    }
+    return IntValue.of(result);
   }
 
-  multiply(other: IntValue): IntValue {
-    return IntValue.of(this.val * other.val);
+  multiply(other: IntValue): IntValue | ErrorValue {
+    const result = this.val * other.val;
+    if (result < INT64_MIN || result > INT64_MAX) {
+      return ErrorValue.create("int overflow");
+    }
+    return IntValue.of(result);
   }
 
   divide(other: IntValue): IntValue | ErrorValue {
     if (other.val === 0n) {
       return ErrorValue.divisionByZero();
+    }
+    if (this.val === INT64_MIN && other.val === -1n) {
+      return ErrorValue.create("int overflow");
     }
     return IntValue.of(this.val / other.val);
   }
@@ -187,7 +228,10 @@ export class IntValue implements Value {
     return IntValue.of(this.val % other.val);
   }
 
-  negate(): IntValue {
+  negate(): IntValue | ErrorValue {
+    if (this.val === INT64_MIN) {
+      return ErrorValue.create("int overflow");
+    }
     return IntValue.of(-this.val);
   }
 
@@ -248,8 +292,12 @@ export class UintValue implements Value {
     return this.val;
   }
 
-  add(other: UintValue): UintValue {
-    return UintValue.of(this.val + other.val);
+  add(other: UintValue): UintValue | ErrorValue {
+    const result = this.val + other.val;
+    if (result > UINT64_MAX) {
+      return ErrorValue.create("uint overflow");
+    }
+    return UintValue.of(result);
   }
 
   subtract(other: UintValue): UintValue | ErrorValue {
@@ -259,8 +307,12 @@ export class UintValue implements Value {
     return UintValue.of(this.val - other.val);
   }
 
-  multiply(other: UintValue): UintValue {
-    return UintValue.of(this.val * other.val);
+  multiply(other: UintValue): UintValue | ErrorValue {
+    const result = this.val * other.val;
+    if (result > UINT64_MAX) {
+      return ErrorValue.create("uint overflow");
+    }
+    return UintValue.of(result);
   }
 
   divide(other: UintValue): UintValue | ErrorValue {
@@ -859,6 +911,14 @@ export class StructValue implements Value {
     return this.presentFields.has(name);
   }
 
+  hasFieldDefinition(name: string): boolean {
+    return this.fieldTypes.has(name);
+  }
+
+  hasFieldDefinitions(): boolean {
+    return this.fieldTypes.size > 0;
+  }
+
   getField(name: string): Value {
     const value = this.values.get(name);
     if (value !== undefined) {
@@ -1048,16 +1108,28 @@ export class DurationValue implements Value {
     return this.nanos;
   }
 
-  add(other: DurationValue): DurationValue {
-    return DurationValue.of(this.nanos + other.nanos);
+  add(other: DurationValue): DurationValue | ErrorValue {
+    const result = this.nanos + other.nanos;
+    if (!isDurationInRange(result)) {
+      return ErrorValue.create("duration out of range");
+    }
+    return DurationValue.of(result);
   }
 
-  subtract(other: DurationValue): DurationValue {
-    return DurationValue.of(this.nanos - other.nanos);
+  subtract(other: DurationValue): DurationValue | ErrorValue {
+    const result = this.nanos - other.nanos;
+    if (!isDurationInRange(result)) {
+      return ErrorValue.create("duration out of range");
+    }
+    return DurationValue.of(result);
   }
 
-  negate(): DurationValue {
-    return DurationValue.of(-this.nanos);
+  negate(): DurationValue | ErrorValue {
+    const result = -this.nanos;
+    if (!isDurationInRange(result)) {
+      return ErrorValue.create("duration out of range");
+    }
+    return DurationValue.of(result);
   }
 
   compare(other: DurationValue): number {
@@ -1124,15 +1196,27 @@ export class TimestampValue implements Value {
     return this.nanos;
   }
 
-  add(duration: DurationValue): TimestampValue {
-    return TimestampValue.of(this.nanos + duration.value());
+  add(duration: DurationValue): TimestampValue | ErrorValue {
+    const result = this.nanos + duration.value();
+    if (!isTimestampInRange(result)) {
+      return ErrorValue.create("timestamp out of range");
+    }
+    return TimestampValue.of(result);
   }
 
-  subtract(other: TimestampValue | DurationValue): TimestampValue | DurationValue {
+  subtract(other: TimestampValue | DurationValue): TimestampValue | DurationValue | ErrorValue {
     if (other instanceof TimestampValue) {
-      return DurationValue.of(this.nanos - other.nanos);
+      const diff = this.nanos - other.nanos;
+      if (!isDurationInRange(diff)) {
+        return ErrorValue.create("duration out of range");
+      }
+      return DurationValue.of(diff);
     }
-    return TimestampValue.of(this.nanos - other.value());
+    const result = this.nanos - other.value();
+    if (!isTimestampInRange(result)) {
+      return ErrorValue.create("timestamp out of range");
+    }
+    return TimestampValue.of(result);
   }
 
   compare(other: TimestampValue): number {

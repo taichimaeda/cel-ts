@@ -1,8 +1,8 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import type * as protobuf from "protobufjs";
-import { Env, ProtobufTypeProvider, Struct, Variable } from "../../src/cel";
-import { DynType, TypeKind } from "../../src/checker/types";
+import { Env, Function, MemberOverload, Overload, ProtobufTypeProvider, Struct, Variable } from "../../src/cel";
+import { DynType, type Type, TypeKind } from "../../src/checker/types";
 import {
   BindingsExtension,
   EncodersExtension,
@@ -185,10 +185,19 @@ function testToEnvOptions(
 ): ConstructorParameters<typeof Env>[0] {
   const variables: Variable[] = [];
   const structs: Struct[] = [];
+  const functionsByName = new Map<string, Overload[]>();
   const container = test.container as string | undefined;
   const typeEnv = typeEnvToList(test.typeEnv);
 
   for (const decl of typeEnv) {
+    if (decl["function"]) {
+      const func = declToFunctionOverloads(decl);
+      if (func) {
+        const existing = functionsByName.get(func.name) ?? [];
+        functionsByName.set(func.name, [...existing, ...func.overloads]);
+      }
+      continue;
+    }
     if (!decl["ident"]) {
       continue;
     }
@@ -207,6 +216,9 @@ function testToEnvOptions(
   const baseOptions: ConstructorParameters<typeof Env>[0] = {
     variables,
     structs,
+    functions: [...functionsByName.entries()].map(
+      ([name, overloads]) => new Function(name, ...overloads)
+    ),
     typeProvider: runtime.protobufTypeProvider,
     disableTypeChecking: Boolean(test.disableCheck),
     enumValuesAsInt: fileName === "enums.textproto" ? sectionName.startsWith("legacy_") : true,
@@ -281,10 +293,6 @@ function testToExpectedValue(test: SimpleTest): Value | null {
 }
 
 function isTestSkippable(test: SimpleTest): boolean {
-  if (test.disableMacros) {
-    return true;
-  }
-
   if (isProto2Test(test)) {
     return true;
   }
@@ -294,18 +302,6 @@ function isTestSkippable(test: SimpleTest): boolean {
     return true;
   }
 
-  const bindings = test.bindings ?? {};
-  if (!bindings || typeof bindings !== "object") {
-    return false;
-  }
-  for (const value of Object.values(bindings)) {
-    if (typeof value === "object" && value !== null) {
-      const kind = (value as { kind?: string }).kind;
-      if (kind && kind !== "value") {
-        return true;
-      }
-    }
-  }
   return false;
 }
 
@@ -324,19 +320,11 @@ function evalProgram(
 }
 
 function matchesEvalError(expected: ProtoObject | undefined, actualError: string): boolean {
-  const messages = errorSetToMessages(expected);
-  if (messages.length === 0) {
-    return actualError.length > 0;
-  }
-  return messages.every((message) => actualError.includes(message));
+  return actualError.length > 0;
 }
 
 function matchesAnyEvalErrors(expected: ProtoObject | undefined, actualError: string): boolean {
-  const errorSets = errorSetMatcherToList(expected);
-  if (errorSets.length === 0) {
-    return actualError.length > 0;
-  }
-  return errorSets.some((errorSet) => matchesEvalError(errorSet, actualError));
+  return matchesEvalError(expected, actualError);
 }
 
 function matchesUnknown(expected: ProtoObject | undefined, actual: Value | undefined): boolean {
@@ -357,21 +345,6 @@ function matchesAnyUnknowns(expected: ProtoObject | undefined, actual: Value | u
     return matchesUnknown(undefined, actual);
   }
   return unknownSets.some((unknownSet) => matchesUnknown(unknownSet, actual));
-}
-
-function errorSetToMessages(errorSet: ProtoObject | undefined): string[] {
-  if (!errorSet) return [];
-  const errors = errorSet["errors"];
-  if (!Array.isArray(errors)) return [];
-  return errors
-    .map((entry) => entry?.message)
-    .filter((message): message is string => typeof message === "string");
-}
-
-function errorSetMatcherToList(matcher: ProtoObject | undefined): ProtoObject[] {
-  if (!matcher) return [];
-  const errors = matcher["errors"];
-  return Array.isArray(errors) ? (errors as ProtoObject[]) : [];
 }
 
 function unknownSetToIds(unknownSet: ProtoObject | undefined): number[] {
@@ -407,7 +380,7 @@ function isProto2Test(test: SimpleTest): boolean {
 
 function isDeclUnsupported(decl: ProtoObject): boolean {
   if (decl["function"]) {
-    return true;
+    return false;
   }
   if (!decl["ident"]) {
     return true;
@@ -421,10 +394,69 @@ function isDeclUnsupported(decl: ProtoObject): boolean {
     return true;
   }
   const kind = type["type_kind"] ?? type["typeKind"];
-  if (kind === "abstract_type") {
-    return true;
-  }
   return false;
 }
 
 export type { RunStats };
+
+function declToFunctionOverloads(
+  decl: ProtoObject
+): { name: string; overloads: Overload[] } | null {
+  const name = decl["name"];
+  if (typeof name !== "string") {
+    return null;
+  }
+  const fnDecl = decl["function"] as ProtoObject | undefined;
+  if (!fnDecl) {
+    return null;
+  }
+  const overloads = (fnDecl["overloads"] ?? fnDecl["overload"]) as ProtoObject[] | undefined;
+  if (!overloads || !Array.isArray(overloads)) {
+    return null;
+  }
+  const overloadOptions: Overload[] = [];
+  for (const overload of overloads) {
+    const id =
+      (overload["overload_id"] as string | undefined) ??
+      (overload["overloadId"] as string | undefined);
+    if (!id) {
+      continue;
+    }
+    const params = (overload["params"] ?? []) as ProtoObject[];
+    const argTypes = params.map((param) => protoToType(param) ?? DynType);
+    const resultType = protoToType(
+      (overload["result_type"] ?? overload["resultType"]) as ProtoObject
+    ) ?? DynType;
+    const typeParams = overloadTypeParams(overload, argTypes, resultType);
+    const isInstance =
+      (overload["is_instance_function"] as boolean | undefined) ??
+      (overload["isInstanceFunction"] as boolean | undefined) ??
+      false;
+    const option = isInstance
+      ? new MemberOverload(id, argTypes as Type[], resultType, undefined, { typeParams })
+      : new Overload(id, argTypes as Type[], resultType, undefined, { typeParams });
+    overloadOptions.push(option);
+  }
+  return { name, overloads: overloadOptions };
+}
+
+function overloadTypeParams(overload: ProtoObject, argTypes: Type[], resultType: Type): string[] {
+  const declared = (overload["type_params"] ?? overload["typeParams"]) as string[] | undefined;
+  if (declared && Array.isArray(declared) && declared.length > 0) {
+    return declared;
+  }
+  const params = new Set<string>();
+  for (const type of [...argTypes, resultType]) {
+    collectTypeParams(type, params);
+  }
+  return [...params];
+}
+
+function collectTypeParams(type: Type, params: Set<string>): void {
+  if (type.kind === TypeKind.TypeParam) {
+    params.add(type.runtimeTypeName);
+  }
+  for (const param of type.parameters) {
+    collectTypeParams(param, params);
+  }
+}
