@@ -77,7 +77,7 @@ function protoToSimpleTest(test: RawSimpleTest): SimpleTest {
 
   const simple: SimpleTest = {};
   const assign = (target: SimpleTest, key: keyof SimpleTest, value: unknown) => {
-    if (value) {
+    if (value !== undefined) {
       target[key] = value as never;
     }
   };

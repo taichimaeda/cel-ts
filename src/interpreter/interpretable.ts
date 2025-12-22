@@ -962,7 +962,9 @@ export class CreateStructValue implements Interpretable {
         }
       }
       const isOneofField = this.typeProvider?.fieldIsOneof(this.typeName, this.fields[i]!) ?? false;
-      if (!isOneofField && fieldType && isDefaultFieldValue(fieldType, val)) {
+      const hasPresence =
+        this.typeProvider?.fieldHasPresence(this.typeName, this.fields[i]!) ?? false;
+      if (!isOneofField && !hasPresence && fieldType && isDefaultFieldValue(fieldType, val)) {
         continue;
       }
       entries.push({ key, value: val });

@@ -928,6 +928,15 @@ export class StructValue implements Value {
     if (!fieldType) {
       return ErrorValue.noSuchField(name);
     }
+    if (this.typeProvider) {
+      const rawDefault = this.typeProvider.findStructFieldDefaultValue(this.typeName, name);
+      if (rawDefault !== undefined) {
+        const value = protoDefaultToValue(fieldType, rawDefault, this.typeProvider);
+        if (value) {
+          return value;
+        }
+      }
+    }
     if (
       fieldType.kind === CheckerTypeKind.Struct &&
       wrapperKindFromTypeName(fieldType.runtimeTypeName) !== null
@@ -1643,6 +1652,70 @@ function defaultValueForType(type: CheckerType): Value {
     default:
       return NullValue.Instance;
   }
+}
+
+function protoDefaultToValue(
+  type: CheckerType,
+  raw: unknown,
+  typeProvider: TypeProvider
+): Value | null {
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+  switch (type.kind) {
+    case CheckerTypeKind.Bool:
+      return BoolValue.of(Boolean(raw));
+    case CheckerTypeKind.Int:
+      return IntValue.of(defaultToBigInt(raw));
+    case CheckerTypeKind.Uint:
+      return UintValue.of(defaultToBigInt(raw));
+    case CheckerTypeKind.Double:
+      return DoubleValue.of(Number(raw));
+    case CheckerTypeKind.String:
+      return StringValue.of(String(raw));
+    case CheckerTypeKind.Bytes:
+      if (raw instanceof Uint8Array || Array.isArray(raw)) {
+        return BytesValue.of(raw as Uint8Array | number[]);
+      }
+      if (typeof raw === "string") {
+        return BytesValue.fromString(raw);
+      }
+      return null;
+    case CheckerTypeKind.Opaque: {
+      const enumType = typeProvider.findEnumType(type.runtimeTypeName);
+      if (!enumType) {
+        return null;
+      }
+      if (typeof raw === "number" || typeof raw === "bigint") {
+        return new EnumValue(enumType.runtimeTypeName, BigInt(raw));
+      }
+      if (typeof raw === "string") {
+        const numeric = typeProvider.findEnumValue(enumType.runtimeTypeName, raw);
+        if (numeric !== undefined) {
+          return new EnumValue(enumType.runtimeTypeName, BigInt(numeric));
+        }
+      }
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+
+function defaultToBigInt(raw: unknown): bigint {
+  if (typeof raw === "bigint") {
+    return raw;
+  }
+  if (typeof raw === "number") {
+    return BigInt(Math.trunc(raw));
+  }
+  if (typeof raw === "string") {
+    return BigInt(raw);
+  }
+  if (raw && typeof raw === "object" && "toString" in raw) {
+    return BigInt(String(raw));
+  }
+  return 0n;
 }
 
 /**

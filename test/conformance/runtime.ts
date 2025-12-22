@@ -67,6 +67,61 @@ export type ConformanceRuntime = {
   skipFiles: Set<string>;
 };
 
+export function registerExtensionFields(
+  root: protobuf.Root,
+  options: { legacyProto2?: boolean } = {}
+): void {
+  if (!options.legacyProto2) {
+    return;
+  }
+  const extensions: protobuf.Field[] = [];
+  const visit = (node: protobuf.ReflectionObject): void => {
+    if (node instanceof protobuf.Field && node.extend) {
+      extensions.push(node);
+    }
+    const nested = (node as { nestedArray?: protobuf.ReflectionObject[] }).nestedArray;
+    if (Array.isArray(nested)) {
+      for (const child of nested) {
+        visit(child);
+      }
+    }
+  };
+  visit(root);
+
+  for (const field of extensions) {
+    const targetName = extensionTargetName(field);
+    if (!targetName) {
+      continue;
+    }
+    let target: protobuf.Type;
+    try {
+      target = root.lookupType(targetName);
+    } catch {
+      continue;
+    }
+    const fullName = field.fullName ?? "";
+    if (!fullName) {
+      continue;
+    }
+    const already = target.fieldsArray.some(
+      (existing) =>
+        existing.name === fullName || existing.name === stripLeadingDot(fullName)
+    );
+    if (already) {
+      continue;
+    }
+    if (field.extensionField && field.extensionField.parent && field.extensionField.parent !== target) {
+      field.extensionField.parent.remove(field.extensionField);
+      field.extensionField = null;
+    }
+    const rule = field.repeated ? "repeated" : undefined;
+    const sister = new protobuf.Field(fullName, field.id, field.type, rule, undefined, field.options);
+    sister.declaringField = field;
+    field.extensionField = sister;
+    target.add(sister);
+  }
+}
+
 export function createRuntime(): ConformanceRuntime {
   const conformanceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
   const celSpecRoot = path.join(conformanceRoot, "cel-spec");
@@ -142,7 +197,7 @@ export function createRuntime(): ConformanceRuntime {
     ["google.api.expr.test.v1.SimpleTestFile", "cel.expr.conformance.test.SimpleTestFile"],
   ]);
 
-  const skipFiles = new Set(["block_ext.textproto", "proto2.textproto", "proto2_ext.textproto"]);
+  const skipFiles = new Set(["block_ext.textproto"]);
 
   const options: protobuf.IConversionOptions = {
     defaults: false,
@@ -192,6 +247,27 @@ export function resolveAbsolutePath(target: string): string {
   return target;
 }
 
+function extensionTargetName(field: protobuf.Field): string | null {
+  const extend = field.extend;
+  if (!extend) {
+    return null;
+  }
+  if (extend.startsWith(".")) {
+    return stripLeadingDot(extend);
+  }
+  const parent = field.parent;
+  if (parent instanceof protobuf.Type) {
+    const parentPackage = stripLeadingDot(parent.parent?.fullName ?? "");
+    return parentPackage ? `${parentPackage}.${extend}` : extend;
+  }
+  const parentFull = stripLeadingDot(parent?.fullName ?? "");
+  return parentFull ? `${parentFull}.${extend}` : extend;
+}
+
+function stripLeadingDot(name: string): string {
+  return name.startsWith(".") ? name.slice(1) : name;
+}
+
 export function listProtoFiles(rootDir: string): string[] {
   const files: string[] = [];
   const entries = statSync(rootDir).isDirectory()
@@ -209,16 +285,19 @@ export function listProtoFiles(rootDir: string): string[] {
 }
 
 export function listProtoFilesAcrossRoots(primaryRoot: string, secondaryRoot: string): string[] {
-  const seen = new Map<string, string>();
+  const seen = new Set<string>();
+  const files: string[] = [];
   for (const file of listProtoFiles(primaryRoot)) {
-    const rel = path.relative(primaryRoot, file);
-    seen.set(rel, file);
-  }
-  for (const file of listProtoFiles(secondaryRoot)) {
-    const rel = path.relative(secondaryRoot, file);
-    if (!seen.has(rel)) {
-      seen.set(rel, file);
+    if (!seen.has(file)) {
+      seen.add(file);
+      files.push(file);
     }
   }
-  return [...seen.values()];
+  for (const file of listProtoFiles(secondaryRoot)) {
+    if (!seen.has(file)) {
+      seen.add(file);
+      files.push(file);
+    }
+  }
+  return files;
 }

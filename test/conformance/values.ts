@@ -122,7 +122,7 @@ export function protoToObjectValue(anyValue: ProtoObject): Value | null {
   const byteArray = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const decoded = messageType.decode(byteArray);
   const object = messageType.toObject(decoded, runtime.options) as ProtoObject;
-  return messageToValue(messageType, object);
+  return messageToValue(messageType, object, decoded as unknown as ProtoObject);
 }
 
 export function normalizeTypeName(typeName: string): string {
@@ -244,7 +244,11 @@ export function roundFloat32(value: number): number {
   return buffer[0]!;
 }
 
-export function messageToValue(messageType: protobuf.Type, object: ProtoObject): Value {
+export function messageToValue(
+  messageType: protobuf.Type,
+  object: ProtoObject,
+  decoded?: ProtoObject
+): Value {
   if (messageType.fullName === ".google.protobuf.Timestamp") {
     return protoToTimestamp(object);
   }
@@ -278,16 +282,25 @@ export function messageToValue(messageType: protobuf.Type, object: ProtoObject):
   const typeName = normalizeTypeName(messageType.fullName ?? "");
 
   for (const field of messageType.fieldsArray) {
-    const fieldName = normalizeProtoFieldName(field.name);
+    const protoFieldName = normalizeProtoFieldName(field.name);
+    const fieldName = stripLeadingDot(protoFieldName);
     const fieldType = runtime.protobufTypeProvider.findStructFieldType(typeName, fieldName);
     if (fieldType) {
       fieldTypes.set(fieldName, fieldType);
     }
-    const raw = object[field.name] ?? object[fieldName];
-    if (raw === undefined || raw === null) {
+    const raw = getFieldValue(object, field.name, protoFieldName, fieldName);
+    const decodedValue = getFieldValue(decoded, field.name, protoFieldName, fieldName);
+    const isPresent = hasField(decoded, field.name, protoFieldName, fieldName);
+    if ((raw === undefined || raw === null) && !isPresent) {
       continue;
     }
-    const fieldValue = fieldToValue(field, raw);
+    const valueSource =
+      raw !== undefined && raw !== null
+        ? raw
+        : decodedValue !== undefined
+          ? decodedValue
+          : field.defaultValue;
+    const fieldValue = fieldToValue(field, valueSource, decodedValue);
     if (fieldValue) {
       values.set(fieldName, fieldValue);
       presentFields.add(fieldName);
@@ -375,7 +388,11 @@ export function wrapperKindToDefaultValue(
   }
 }
 
-export function fieldToValue(field: protobuf.Field, raw: unknown): Value | null {
+export function fieldToValue(
+  field: protobuf.Field,
+  raw: unknown,
+  decodedRaw?: unknown
+): Value | null {
   if (field.map) {
     return mapFieldToValue(field, raw);
   }
@@ -384,7 +401,7 @@ export function fieldToValue(field: protobuf.Field, raw: unknown): Value | null 
     const entries = values.map((value) => fieldScalarOrMessageToValue(field, value));
     return ListValue.of(entries.map((entry) => entry ?? NullValue.Instance));
   }
-  return fieldScalarOrMessageToValue(field, raw);
+  return fieldScalarOrMessageToValue(field, raw, decodedRaw);
 }
 
 export function mapFieldToValue(field: protobuf.Field, raw: unknown): Value | null {
@@ -426,7 +443,11 @@ export function mapKeyToValue(keyType: string | undefined, key: string): Value |
   }
 }
 
-export function fieldScalarOrMessageToValue(field: protobuf.Field, raw: unknown): Value | null {
+export function fieldScalarOrMessageToValue(
+  field: protobuf.Field,
+  raw: unknown,
+  decodedRaw?: unknown
+): Value | null {
   const scalar = scalarToValue(field.type, raw);
   if (scalar) {
     return scalar;
@@ -437,8 +458,11 @@ export function fieldScalarOrMessageToValue(field: protobuf.Field, raw: unknown)
     return enumToValue(resolved, raw);
   }
   if (resolved instanceof protobuf.Type) {
-    const object = raw as ProtoObject;
-    return messageToValue(resolved, object);
+    const decodedMessage = getDecodedMessage(raw) ?? getDecodedMessage(decodedRaw);
+    const object = decodedMessage
+      ? (resolved.toObject(decodedMessage, runtime.options) as ProtoObject)
+      : ((raw ?? {}) as ProtoObject);
+    return messageToValue(resolved, object, decodedMessage ?? (raw as ProtoObject));
   }
   return null;
 }
@@ -483,6 +507,44 @@ export function rawToBytes(raw: unknown): Uint8Array {
     return new TextEncoder().encode(raw);
   }
   return new Uint8Array();
+}
+
+function stripLeadingDot(name: string): string {
+  return name.startsWith(".") ? name.slice(1) : name;
+}
+
+function getDecodedMessage(raw: unknown): protobuf.Message<{}> | undefined {
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+  if ("$type" in raw) {
+    return raw as protobuf.Message<{}>;
+  }
+  return undefined;
+}
+
+function hasField(source: ProtoObject | undefined, ...names: string[]): boolean {
+  if (!source) {
+    return false;
+  }
+  for (const name of names) {
+    if (Object.prototype.hasOwnProperty.call(source, name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function getFieldValue(source: ProtoObject | undefined, ...names: string[]): unknown {
+  if (!source) {
+    return undefined;
+  }
+  for (const name of names) {
+    if (Object.prototype.hasOwnProperty.call(source, name)) {
+      return source[name];
+    }
+  }
+  return undefined;
 }
 
 export function enumToValue(enumType: protobuf.Enum, raw: unknown): Value | null {

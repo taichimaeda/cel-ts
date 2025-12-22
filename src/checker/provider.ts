@@ -1,4 +1,5 @@
 import type { Field, Type as ProtoType, Root } from "protobufjs";
+import { Field as ProtobufField, Type as ProtobufType } from "protobufjs";
 import type { StructDecl } from "./decls";
 import {
   BoolType,
@@ -17,7 +18,7 @@ import {
   UintType,
 } from "./types";
 
-type ProtobufRoot = Pick<Root, "lookupType" | "lookupEnum">;
+type ProtobufRoot = Pick<Root, "lookupType" | "lookupEnum" | "lookup">;
 
 /**
  * Type provider interface for resolving struct field types.
@@ -57,13 +58,25 @@ export interface TypeProvider {
    * Whether a field is part of a oneof.
    */
   fieldIsOneof(typeName: string, fieldName: string): boolean;
+
+  /**
+   * Whether a field tracks presence.
+   * Proto2 scalars always track presence (so setting an int32 to 0 makes has(x.field) true).
+   * Proto3 scalars only track presence when declared optional/oneof (so setting an int32 to 0 is absent otherwise).
+   */
+  fieldHasPresence(typeName: string, fieldName: string): boolean;
+
+  /**
+   * Default value for a field if known.
+   */
+  findStructFieldDefaultValue(typeName: string, fieldName: string): unknown | undefined;
 }
 
 /**
  * Type provider that merges multiple providers.
  */
 export class CompositeTypeProvider implements TypeProvider {
-  constructor(private readonly providers: readonly TypeProvider[]) {}
+  constructor(private readonly providers: readonly TypeProvider[]) { }
 
   findStructType(typeName: string): Type | undefined {
     for (const provider of this.providers) {
@@ -133,6 +146,25 @@ export class CompositeTypeProvider implements TypeProvider {
     }
     return false;
   }
+
+  fieldHasPresence(typeName: string, fieldName: string): boolean {
+    for (const provider of this.providers) {
+      if (provider.fieldHasPresence(typeName, fieldName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  findStructFieldDefaultValue(typeName: string, fieldName: string): unknown | undefined {
+    for (const provider of this.providers) {
+      const value = provider.findStructFieldDefaultValue(typeName, fieldName);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+    return undefined;
+  }
 }
 
 /**
@@ -182,13 +214,24 @@ export class StructTypeProvider implements TypeProvider {
   fieldIsOneof(_typeName: string, _fieldName: string): boolean {
     return false;
   }
+
+  fieldHasPresence(_typeName: string, _fieldName: string): boolean {
+    return false;
+  }
+
+  findStructFieldDefaultValue(_typeName: string, _fieldName: string): unknown | undefined {
+    return undefined;
+  }
 }
 
 /**
  * Protobuf-backed type provider for resolving message fields as CEL struct types.
  */
 export class ProtobufTypeProvider implements TypeProvider {
-  constructor(private readonly root: ProtobufRoot) {}
+  constructor(
+    private readonly root: ProtobufRoot,
+    private readonly options: { legacyProto2?: boolean } = {}
+  ) { }
 
   findStructType(typeName: string): Type | undefined {
     const message = this.lookupMessage(typeName);
@@ -211,6 +254,14 @@ export class ProtobufTypeProvider implements TypeProvider {
   findStructFieldType(typeName: string, fieldName: string): Type | undefined {
     const message = this.lookupMessage(typeName);
     const field = message ? resolveMessageField(message, fieldName) : undefined;
+    if (this.isLegacyProto2Enabled(message)) {
+      if (!field && message) {
+        const extensionField = resolveExtensionField(this.root, message, fieldName);
+        if (extensionField) {
+          return this.fieldType(extensionField);
+        }
+      }
+    }
     if (!field) {
       return undefined;
     }
@@ -222,12 +273,22 @@ export class ProtobufTypeProvider implements TypeProvider {
     if (!message) {
       return [];
     }
-    return Object.keys(message.fields).map((name) => normalizeFieldName(name));
+    return message.fieldsArray.map((field) =>
+      stripLeadingDot(normalizeFieldName(field.name))
+    );
   }
 
   fieldProtoType(typeName: string, fieldName: string): string | null {
     const message = this.lookupMessage(typeName);
     const field = message ? resolveMessageField(message, fieldName) : undefined;
+    if (this.isLegacyProto2Enabled(message)) {
+      if (!field && message) {
+        const extensionField = resolveExtensionField(this.root, message, fieldName);
+        if (extensionField) {
+          return extensionField.type ?? null;
+        }
+      }
+    }
     return field?.type ?? null;
   }
 
@@ -235,6 +296,18 @@ export class ProtobufTypeProvider implements TypeProvider {
     const message = this.lookupMessage(typeName);
     const field = message ? resolveMessageField(message, fieldName) : undefined;
     return Boolean(field?.partOf);
+  }
+
+  fieldHasPresence(typeName: string, fieldName: string): boolean {
+    const message = this.lookupMessage(typeName);
+    const field = message ? resolveMessageField(message, fieldName) : undefined;
+    if (this.isLegacyProto2Enabled(message)) {
+      if (!field && message) {
+        const extensionField = resolveExtensionField(this.root, message, fieldName);
+        return this.fieldHasPresenceFor(message, extensionField);
+      }
+    }
+    return this.fieldHasPresenceFor(message, field);
   }
 
   findEnumValue(enumName: string, valueName: string): number | undefined {
@@ -247,6 +320,21 @@ export class ProtobufTypeProvider implements TypeProvider {
     }
   }
 
+  findStructFieldDefaultValue(typeName: string, fieldName: string): unknown | undefined {
+    const message = this.lookupMessage(typeName);
+    if (!this.isLegacyProto2Enabled(message)) {
+      return undefined;
+    }
+    const field = message ? resolveMessageField(message, fieldName) : undefined;
+    if (!field && message) {
+      const extensionField = resolveExtensionField(this.root, message, fieldName);
+      if (extensionField) {
+        return extensionField.defaultValue;
+      }
+    }
+    return field?.defaultValue;
+  }
+
   private lookupMessage(typeName: string): ProtoType | undefined {
     const normalized = this.normalizeTypeName(typeName);
     try {
@@ -254,6 +342,30 @@ export class ProtobufTypeProvider implements TypeProvider {
     } catch {
       return undefined;
     }
+  }
+
+  private fieldHasPresenceFor(message?: ProtoType, field?: Field): boolean {
+    if (!message || !field) {
+      return false;
+    }
+    if (this.isLegacyProto2Enabled(message)) {
+      return !field.repeated && !field.map;
+    }
+    return Boolean(field.hasPresence);
+  }
+
+  private isLegacyProto2Enabled(message?: ProtoType): boolean {
+    return Boolean(this.options.legacyProto2 && message && this.isLegacyProto2Message(message));
+  }
+
+  private isLegacyProto2Message(message: ProtoType): boolean {
+    const edition = (message as ProtoType & { _edition?: string })._edition;
+    if (edition === "proto2") {
+      return true;
+    }
+    const features = (message as ProtoType & { _features?: { field_presence?: string } })
+      ._features;
+    return features?.field_presence === "EXPLICIT";
   }
 
   private normalizeTypeName(typeName: string): string {
@@ -382,16 +494,89 @@ function normalizeFieldName(name: string): string {
   return name.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`);
 }
 
+function stripLeadingDot(name: string): string {
+  return name.startsWith(".") ? name.slice(1) : name;
+}
+
 function resolveMessageField(message: ProtoType, fieldName: string): Field | undefined {
-  const direct = message.fields[fieldName];
-  if (direct) {
-    return direct;
+  const normalized = stripLeadingDot(fieldName);
+  const candidates = [fieldName, normalized, `.${normalized}`];
+  for (const name of candidates) {
+    const direct = message.fields[name];
+    if (direct) {
+      return direct;
+    }
+    const arrayField = message.fieldsArray.find((field) => field.name === name);
+    if (arrayField) {
+      return arrayField;
+    }
   }
-  const camel = fieldName.replace(/_([a-z])/g, (_match, char: string) => char.toUpperCase());
-  const camelField = message.fields[camel];
-  if (camelField) {
-    return camelField;
+  const camel = normalized.replace(/_([a-z])/g, (_match, char: string) => char.toUpperCase());
+  const camelCandidates = [camel, `.${camel}`];
+  for (const name of camelCandidates) {
+    const camelField = message.fields[name];
+    if (camelField) {
+      return camelField;
+    }
+    const arrayField = message.fieldsArray.find((field) => field.name === name);
+    if (arrayField) {
+      return arrayField;
+    }
   }
-  const snake = normalizeFieldName(fieldName);
-  return message.fields[snake];
+  const snake = normalizeFieldName(normalized);
+  const snakeCandidates = [snake, `.${snake}`];
+  for (const name of snakeCandidates) {
+    const snakeField = message.fields[name];
+    if (snakeField) {
+      return snakeField;
+    }
+    const arrayField = message.fieldsArray.find((field) => field.name === name);
+    if (arrayField) {
+      return arrayField;
+    }
+  }
+  return undefined;
+}
+
+function resolveExtensionField(
+  root: ProtobufRoot,
+  message: ProtoType,
+  fieldName: string
+): Field | undefined {
+  const normalized = stripLeadingDot(fieldName);
+  let candidate: unknown;
+  try {
+    candidate = root.lookup(normalized);
+  } catch {
+    return undefined;
+  }
+  if (!(candidate instanceof ProtobufField)) {
+    return undefined;
+  }
+  const targetName = extensionTargetName(candidate);
+  if (!targetName) {
+    return undefined;
+  }
+  const messageName = stripLeadingDot(message.fullName ?? "");
+  return messageName === targetName ? candidate : undefined;
+}
+
+function extensionTargetName(field: ProtobufField): string | null {
+  const extend = field.extend;
+  if (!extend) {
+    return null;
+  }
+  if (extend.startsWith(".")) {
+    return stripLeadingDot(extend);
+  }
+  const parent = field.parent;
+  if (parent instanceof ProtobufType) {
+    const parentPackage = stripLeadingDot(parent.parent?.fullName ?? "");
+    return parentPackage ? `${parentPackage}.${extend}` : extend;
+  }
+  if (!parent) {
+    return extend;
+  }
+  const parentFull = stripLeadingDot(parent.fullName ?? "");
+  return parentFull ? `${parentFull}.${extend}` : extend;
 }

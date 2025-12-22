@@ -9,6 +9,7 @@ import {
   type Extension,
   MathExtension,
   OptionalTypesExtension,
+  ProtosExtension,
   StringsExtension,
   TwoVarComprehensionsExtension,
   applyExtensions,
@@ -20,6 +21,7 @@ import {
   type RunStats,
   type SimpleTest,
   type SimpleTestFile,
+  registerExtensionFields,
   runtime,
 } from "./runtime";
 import { messageToValue, protoToType, protoToValue } from "./values";
@@ -32,7 +34,8 @@ export async function runConformance(): Promise<RunStats> {
     { keepCase: true }
   );
   runtime.root.resolveAll();
-  runtime.protobufTypeProvider = new ProtobufTypeProvider(runtime.root);
+  registerExtensionFields(runtime.root, { legacyProto2: true });
+  runtime.protobufTypeProvider = new ProtobufTypeProvider(runtime.root, { legacyProto2: true });
 
   setAnyResolver((typeUrl, bytes) => {
     const typeName = stripTypeUrl(typeUrl);
@@ -44,7 +47,7 @@ export async function runConformance(): Promise<RunStats> {
     }
     const decoded = messageType.decode(bytes);
     const object = messageType.toObject(decoded, runtime.options) as ProtoObject;
-    return messageToValue(messageType, object);
+    return messageToValue(messageType, object, decoded as unknown as ProtoObject);
   });
 
   const files = readdirSync(runtime.paths.testdataRoot)
@@ -55,13 +58,27 @@ export async function runConformance(): Promise<RunStats> {
 
   for (const fileName of files) {
     if (runtime.skipFiles.has(fileName)) {
-      stats.skipped += 1;
+      stats.skipped += countTestsInFile(fileName);
       continue;
     }
     runSimpleTestFile(fileName, stats);
   }
 
   return stats;
+}
+
+function countTestsInFile(fileName: string): number {
+  const filePath = path.join(runtime.paths.testdataRoot, fileName);
+  const testFile = decodeTextProto(filePath);
+  const fileObj = protoToSimpleTestFile(
+    testFile.type.toObject(testFile.message, runtime.options) as SimpleTestFile
+  );
+  const sections = fileObj.section ?? [];
+  let count = 0;
+  for (const section of sections) {
+    count += section.test?.length ?? 0;
+  }
+  return count;
 }
 
 function runSimpleTestFile(fileName: string, stats: RunStats): void {
@@ -252,6 +269,9 @@ function fileToExtensions(fileName: string): Extension[] {
     case "macros2.textproto":
       options.push(new TwoVarComprehensionsExtension());
       return options;
+    case "proto2_ext.textproto":
+      options.push(new ProtosExtension());
+      return options;
     default:
       return options;
   }
@@ -293,10 +313,6 @@ function testToExpectedValue(test: SimpleTest): Value | null {
 }
 
 function isTestSkippable(test: SimpleTest): boolean {
-  if (isProto2Test(test)) {
-    return true;
-  }
-
   const typeEnv = typeEnvToList(test.typeEnv);
   if (typeEnv.some((decl) => isDeclUnsupported(decl))) {
     return true;
@@ -360,22 +376,6 @@ function unknownSetMatcherToList(matcher: ProtoObject | undefined): ProtoObject[
   if (!matcher) return [];
   const unknowns = matcher["unknowns"];
   return Array.isArray(unknowns) ? (unknowns as ProtoObject[]) : [];
-}
-
-function isProto2Test(test: SimpleTest): boolean {
-  if (typeof test.container === "string" && test.container.includes(".proto2")) {
-    return true;
-  }
-  const typeEnv = typeEnvToList(test.typeEnv);
-  for (const decl of typeEnv) {
-    const ident = decl["ident"] as ProtoObject | undefined;
-    const type = ident?.["type"] as ProtoObject | undefined;
-    const messageType = type?.["message_type"] ?? type?.["messageType"];
-    if (typeof messageType === "string" && messageType.includes(".proto2")) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function isDeclUnsupported(decl: ProtoObject): boolean {
