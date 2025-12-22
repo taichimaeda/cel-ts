@@ -13,8 +13,8 @@ import {
   BoolValue,
   DoubleValue,
   ErrorValue,
-  IntValue,
   INT64_MIN,
+  IntValue,
   ListValue,
   UintValue,
   type Value,
@@ -22,7 +22,7 @@ import {
 import { type Macro, MacroError, ReceiverVarArgMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { macroTargetMatchesNamespace } from "./macros";
-import { compareValues } from "./util";
+import { compareValues } from "./utils";
 
 export type MathOptions = { version?: number };
 

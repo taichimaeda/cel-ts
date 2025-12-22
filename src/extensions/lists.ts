@@ -12,7 +12,7 @@ import {
 import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import { makeMap } from "../parser/macros";
 import type { Extension } from "./extensions";
-import { compareValues, isComparableValue } from "./util";
+import { compareValues, isComparableValue } from "./utils";
 
 export type ListsOptions = { version?: number };
 
