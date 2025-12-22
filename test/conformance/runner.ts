@@ -93,10 +93,6 @@ function runSimpleTestFile(fileName: string, stats: RunStats): void {
     const sectionName = section.name ?? "";
     for (const test of section.test ?? []) {
       stats.total += 1;
-      if (isTestSkippable(test)) {
-        stats.skipped += 1;
-        continue;
-      }
 
       try {
         const result = runSimpleTest(test, fileName, sectionName);
@@ -310,15 +306,6 @@ function testToExpectedValue(test: SimpleTest): Value | null {
     return protoToValue(typed["result"] as ProtoObject);
   }
   return null;
-}
-
-function isTestSkippable(test: SimpleTest): boolean {
-  const typeEnv = typeEnvToList(test.typeEnv);
-  if (typeEnv.some((decl) => isDeclUnsupported(decl))) {
-    return true;
-  }
-
-  return false;
 }
 
 function evalProgram(

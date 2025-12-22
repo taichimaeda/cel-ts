@@ -10,12 +10,13 @@ pnpm conformance
 
 The runner uses `protoc` to encode textproto fixtures before decoding them
 with `protobufjs`, then executes supported tests against `cel-ts`.
+Ensure `protoc` is available in `PATH`.
 
 ## Notes
 
 - The `test/conformance/cel-spec` submodule provides the CEL proto and testdata.
-- The `test/conformance/cel-go` submodule supplies proto2/proto3 fixtures.
 - The `test/conformance/protobuf` submodule provides Google well-known types.
+- The `test/conformance/proto2pb` and `test/conformance/proto3pb` directories store proto fixtures.
 - Some suites are skipped until protobuf-backed struct and enum support lands.
 - Error/unknown result matchers are now evaluated instead of skipped.
 

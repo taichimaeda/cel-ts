@@ -43,7 +43,6 @@ export type RunStats = {
 export type ConformancePaths = {
   conformanceRoot: string;
   celSpecRoot: string;
-  celGoRoot: string;
   testdataRoot: string;
   protoRoot: string;
   googleProtoRoot: string;
@@ -125,17 +124,15 @@ export function registerExtensionFields(
 export function createRuntime(): ConformanceRuntime {
   const conformanceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
   const celSpecRoot = path.join(conformanceRoot, "cel-spec");
-  const celGoRoot = path.join(conformanceRoot, "cel-go");
   const testdataRoot = path.join(celSpecRoot, "tests", "simple", "testdata");
   const protoRoot = path.join(celSpecRoot, "proto");
   const googleProtoRoot = path.join(conformanceRoot, "protobuf", "src", "google", "protobuf");
-  const proto2Root = path.join(celGoRoot, "test", "proto2pb");
-  const proto3Root = path.join(celGoRoot, "test", "proto3pb");
+  const proto2Root = path.join(conformanceRoot, "proto2pb");
+  const proto3Root = path.join(conformanceRoot, "proto3pb");
   const descriptorSetPath = path.join(conformanceRoot, "conformance.desc");
   const paths: ConformancePaths = {
     conformanceRoot,
     celSpecRoot,
-    celGoRoot,
     testdataRoot,
     protoRoot,
     googleProtoRoot,
@@ -147,11 +144,12 @@ export function createRuntime(): ConformanceRuntime {
   if (
     !existsPath(testdataRoot) ||
     !existsPath(protoRoot) ||
+    !existsPath(googleProtoRoot) ||
     !existsPath(proto2Root) ||
     !existsPath(proto3Root)
   ) {
     throw new Error(
-      "Conformance submodules are missing. Run `git submodule update --init --recursive`."
+      "Conformance dependencies are missing. Ensure submodules and proto fixtures are populated."
     );
   }
 
@@ -163,7 +161,7 @@ export function createRuntime(): ConformanceRuntime {
   root.resolvePath = (_origin, target) => {
     const normalizedTarget = resolveAbsolutePath(target);
     const relativeTarget = normalizedTarget.replace(/^\.\//, "");
-    const celGoTarget = relativeTarget.startsWith("tests/")
+    const fixtureTarget = relativeTarget.startsWith("tests/")
       ? relativeTarget.replace(/^tests\//, "test/")
       : relativeTarget;
     if (path.isAbsolute(normalizedTarget)) {
@@ -172,11 +170,17 @@ export function createRuntime(): ConformanceRuntime {
     if (relativeTarget.startsWith("google/protobuf/")) {
       return path.join(googleProtoRoot, relativeTarget.slice("google/protobuf/".length));
     }
-    if (celGoTarget.startsWith("test/proto3pb/")) {
-      return path.join(celGoRoot, celGoTarget);
+    if (fixtureTarget.startsWith("proto3pb/")) {
+      return path.join(proto3Root, fixtureTarget.slice("proto3pb/".length));
     }
-    if (celGoTarget.startsWith("test/proto2pb/")) {
-      return path.join(celGoRoot, celGoTarget);
+    if (fixtureTarget.startsWith("proto2pb/")) {
+      return path.join(proto2Root, fixtureTarget.slice("proto2pb/".length));
+    }
+    if (fixtureTarget.startsWith("test/proto3pb/")) {
+      return path.join(proto3Root, fixtureTarget.slice("test/proto3pb/".length));
+    }
+    if (fixtureTarget.startsWith("test/proto2pb/")) {
+      return path.join(proto2Root, fixtureTarget.slice("test/proto2pb/".length));
     }
     const direct = path.join(protoRoot, relativeTarget);
     if (existsPath(direct)) {

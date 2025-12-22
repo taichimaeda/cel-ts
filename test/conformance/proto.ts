@@ -29,6 +29,17 @@ export function decodeTextProto(filePath: string): {
   return { type, message };
 }
 
+function formatProtocFailure(result: ReturnType<typeof spawnSync>, action: string): string {
+  if (result.error) {
+    const message = result.error instanceof Error ? result.error.message : String(result.error);
+    if (message.includes("ENOENT")) {
+      return `${action} failed: protoc not found in PATH`;
+    }
+    return `${action} failed: ${message}`;
+  }
+  return `${action} failed: ${result.stderr?.toString() ?? "unknown error"}`;
+}
+
 type RawSimpleTest = SimpleTest & {
   disable_macros?: boolean;
   disable_check?: boolean;
@@ -105,9 +116,7 @@ export function encodeTextProto(protoFile: string, protoMessage: string, text: s
     [
       `--proto_path=${runtime.paths.protoRoot}`,
       `--proto_path=${runtime.paths.googleProtoRoot}`,
-      `--proto_path=${runtime.paths.celGoRoot}`,
-      `--proto_path=${runtime.paths.proto3Root}`,
-      `--proto_path=${runtime.paths.proto2Root}`,
+      `--proto_path=${runtime.paths.conformanceRoot}`,
       `--descriptor_set_in=${runtime.paths.descriptorSetPath}`,
       "--encode",
       protoMessage,
@@ -119,7 +128,7 @@ export function encodeTextProto(protoFile: string, protoMessage: string, text: s
   );
 
   if (result.status !== 0) {
-    throw new Error(`protoc encode failed: ${result.stderr?.toString() ?? "unknown error"}`);
+    throw new Error(formatProtocFailure(result, "protoc encode"));
   }
 
   if (!result.stdout) {
@@ -138,17 +147,13 @@ export function ensureDescriptorSet(): void {
   const result = spawnSync("protoc", [
     `--proto_path=${runtime.paths.protoRoot}`,
     `--proto_path=${runtime.paths.googleProtoRoot}`,
-    `--proto_path=${runtime.paths.celGoRoot}`,
-    `--proto_path=${runtime.paths.proto3Root}`,
-    `--proto_path=${runtime.paths.proto2Root}`,
+    `--proto_path=${runtime.paths.conformanceRoot}`,
     "--include_imports",
     `--descriptor_set_out=${runtime.paths.descriptorSetPath}`,
     ...descriptorInputs,
   ]);
   if (result.status !== 0) {
-    throw new Error(
-      `protoc descriptor_set_out failed: ${result.stderr?.toString() ?? "unknown error"}`
-    );
+    throw new Error(formatProtocFailure(result, "protoc descriptor_set_out"));
   }
 }
 

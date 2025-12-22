@@ -64,8 +64,8 @@
       "docs",
       "*.gen.ts",
       "src/parser/gen",
-      "test/conformance/cel-go",
       "test/conformance/cel-spec",
+      "test/conformance/fixtures",
       "test/conformance/protobuf"
     ]
   }
