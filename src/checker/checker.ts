@@ -40,7 +40,6 @@ import {
   TypeKind,
   TypeParamType,
   UintType,
-  isAssignable,
   joinTypes,
 } from "./types";
 
@@ -67,7 +66,7 @@ export class Checker {
     private env: CheckerEnv,
     private readonly typeMap: Map<ExprId, Type>,
     private readonly refMap: Map<ExprId, ReferenceInfo>
-  ) {}
+  ) { }
 
   /**
    * Check an AST expression
@@ -541,7 +540,7 @@ export class Checker {
         if (valueType.kind === TypeKind.Null) {
           continue;
         }
-        if (!valueType.isDynOrError() && !isAssignable(fieldType, valueType)) {
+        if (!valueType.isDynOrError() && !this.mapping.isAssignable(fieldType, valueType)) {
           this.errors.reportTypeMismatch(
             field.id,
             fieldType,

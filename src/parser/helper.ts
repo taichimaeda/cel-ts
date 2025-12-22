@@ -864,108 +864,75 @@ export class ParserHelper {
   private processBytesEscapes(str: string): Uint8Array {
     const bytes: number[] = [];
     const encoder = new TextEncoder();
+    const escapeRegex =
+      /\\(u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[xX][0-9a-fA-F]{2}|[0-7]{1,3}|[abfnrtv\\'\"?`])/g;
 
-    for (let i = 0; i < str.length; i++) {
-      const ch = str[i]!;
-      if (ch !== "\\") {
-        bytes.push(...encoder.encode(ch));
-        continue;
+    let lastIndex = 0;
+    Array.from(str.matchAll(escapeRegex)).forEach(match => {
+      const seq = match[1];
+      const offset = match.index ?? 0;
+      if (!seq) {
+        return;
       }
-      const next = str[i + 1];
-      if (!next) {
-        bytes.push(...encoder.encode("\\"));
-        continue;
+      if (offset > lastIndex) {
+        bytes.push(...encoder.encode(str.slice(lastIndex, offset)));
       }
-      switch (next) {
+      switch (seq[0]) {
         case "a":
           bytes.push(0x07);
-          i += 1;
-          continue;
+          break;
         case "b":
           bytes.push(0x08);
-          i += 1;
-          continue;
+          break;
         case "f":
           bytes.push(0x0c);
-          i += 1;
-          continue;
+          break;
         case "n":
           bytes.push(0x0a);
-          i += 1;
-          continue;
+          break;
         case "r":
           bytes.push(0x0d);
-          i += 1;
-          continue;
+          break;
         case "t":
           bytes.push(0x09);
-          i += 1;
-          continue;
+          break;
         case "v":
           bytes.push(0x0b);
-          i += 1;
-          continue;
+          break;
         case "\\":
           bytes.push(0x5c);
-          i += 1;
-          continue;
+          break;
         case '"':
           bytes.push(0x22);
-          i += 1;
-          continue;
+          break;
         case "'":
           bytes.push(0x27);
-          i += 1;
-          continue;
+          break;
         case "`":
           bytes.push(0x60);
-          i += 1;
-          continue;
+          break;
         case "?":
           bytes.push(0x3f);
-          i += 1;
-          continue;
+          break;
         case "x":
-        case "X": {
-          const hex = str.slice(i + 2, i + 4);
-          if (hex.length === 2) {
-            bytes.push(Number.parseInt(hex, 16));
-            i += 3;
-            continue;
-          }
+        case "X":
+          bytes.push(Number.parseInt(seq.slice(1), 16));
           break;
-        }
-        case "u": {
-          const hex = str.slice(i + 2, i + 6);
-          if (hex.length === 4) {
-            bytes.push(...encoder.encode(String.fromCharCode(Number.parseInt(hex, 16))));
-            i += 5;
-            continue;
-          }
+        case "u":
+          bytes.push(...encoder.encode(String.fromCharCode(Number.parseInt(seq.slice(1), 16))));
           break;
-        }
-        case "U": {
-          const hex = str.slice(i + 2, i + 10);
-          if (hex.length === 8) {
-            bytes.push(...encoder.encode(String.fromCodePoint(Number.parseInt(hex, 16))));
-            i += 9;
-            continue;
-          }
+        case "U":
+          bytes.push(...encoder.encode(String.fromCodePoint(Number.parseInt(seq.slice(1), 16))));
           break;
-        }
-        default: {
-          if (/[0-7]/.test(next)) {
-            const match = str.slice(i + 1).match(/^[0-7]{1,3}/);
-            if (match) {
-              bytes.push(Number.parseInt(match[0], 8));
-              i += match[0].length;
-              continue;
-            }
-          }
-        }
+        default:
+          bytes.push(Number.parseInt(seq, 8));
+          break;
       }
+      lastIndex = offset + match[0].length;
+    });
 
-      bytes.push(...encoder.encode(ch));
+    if (lastIndex < str.length) {
+      bytes.push(...encoder.encode(str.slice(lastIndex)));
     }
 
     return new Uint8Array(bytes);

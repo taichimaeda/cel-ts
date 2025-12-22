@@ -1,7 +1,6 @@
 // CEL Type System
 // TypeScript-native implementation of CEL types
 
-import { TypeMapping } from "./mapping";
 
 /**
  * Type kinds representing all CEL type categories
@@ -261,14 +260,6 @@ export class TypeTypeWithParam extends Type {
     const param = this.parameters[0];
     return param ? `type(${param.toString()})` : "type";
   }
-}
-
-/**
- * Check assignability without providing an existing mapping.
- */
-export function isAssignable(target: Type, source: Type): boolean {
-  const mapping = new TypeMapping();
-  return mapping.isAssignable(target, source);
 }
 
 /**

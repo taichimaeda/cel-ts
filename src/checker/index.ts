@@ -13,7 +13,7 @@ export {
   OverloadDecl,
   StructDecl,
   StructFieldDecl,
-  VariableDecl,
+  VariableDecl
 } from "./decls";
 
 export { CheckerEnv, Container } from "./env";
@@ -34,7 +34,6 @@ export {
   DynType,
   ErrorType,
   IntType,
-  isAssignable,
   joinTypes,
   ListType,
   MapType,
@@ -48,7 +47,7 @@ export {
   TypeParamType,
   TypeType,
   TypeTypeWithParam,
-  UintType,
+  UintType
 } from "./types";
 
 export { StandardLibrary } from "./stdlib";
