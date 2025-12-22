@@ -253,6 +253,9 @@ function fileToExtensions(fileName: string): Extension[] {
     case "bindings_ext.textproto":
       options.push(new BindingsExtension());
       return options;
+    case "block_ext.textproto":
+      options.push(new BindingsExtension());
+      return options;
     case "encoders_ext.textproto":
       options.push(new EncodersExtension());
       return options;

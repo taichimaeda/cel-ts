@@ -1,11 +1,19 @@
-import type { EnvOptions, Function } from "../cel";
+import { Function, type EnvOptions, Overload, Variable } from "../cel";
+import { DynType, ListType, TypeParamType } from "../checker/types";
+import { type Expr, ListExpr, LiteralExpr } from "../common/ast";
 import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { extractIdentName, macroTargetMatchesNamespace } from "./macros";
 
 const celNamespace = "cel";
 const bindMacro = "bind";
+const blockMacro = "block";
+const indexMacro = "index";
+const iterVarMacro = "iterVar";
+const accuVarMacro = "accuVar";
 const unusedIterVar = "#unused";
+const blockFunction = "cel.@block";
+const maxBlockIndices = 30;
 
 export class BindingsExtension implements Extension {
   envOptions(): EnvOptions {
@@ -31,10 +39,76 @@ export class BindingsExtension implements Extension {
           result
         );
       }),
+      new ReceiverMacro(blockMacro, 2, (helper, target, args) => {
+        if (!macroTargetMatchesNamespace(celNamespace, target)) {
+          return null;
+        }
+        const bindings = args[0];
+        if (!(bindings instanceof ListExpr)) {
+          throw new MacroError("cel.block requires the first arg to be a list literal");
+        }
+        return helper.createCall(blockFunction, bindings, args[1]!);
+      }),
+      new ReceiverMacro(indexMacro, 1, (helper, target, args) => {
+        if (!macroTargetMatchesNamespace(celNamespace, target)) {
+          return null;
+        }
+        const index = extractNonNegativeInt(args[0]);
+        if (index === null) {
+          throw new MacroError("cel.index requires a single non-negative int constant arg");
+        }
+        return helper.createIdent(`@index${index}`);
+      }),
+      new ReceiverMacro(iterVarMacro, 2, (helper, target, args) => {
+        if (!macroTargetMatchesNamespace(celNamespace, target)) {
+          return null;
+        }
+        const depth = extractNonNegativeInt(args[0]);
+        const unique = extractNonNegativeInt(args[1]);
+        if (depth === null || unique === null) {
+          throw new MacroError("cel.iterVar requires two non-negative int constant args");
+        }
+        return helper.createIdent(`@it:${depth}:${unique}`);
+      }),
+      new ReceiverMacro(accuVarMacro, 2, (helper, target, args) => {
+        if (!macroTargetMatchesNamespace(celNamespace, target)) {
+          return null;
+        }
+        const depth = extractNonNegativeInt(args[0]);
+        const unique = extractNonNegativeInt(args[1]);
+        if (depth === null || unique === null) {
+          throw new MacroError("cel.accuVar requires two non-negative int constant args");
+        }
+        return helper.createIdent(`@ac:${depth}:${unique}`);
+      }),
     ];
 
-    const functions: Function[] = [];
+    const typeParam = new TypeParamType("T");
+    const functions: Function[] = [
+      new Function(blockFunction, new Overload("cel_block_list", [new ListType(DynType), typeParam], typeParam)),
+    ];
 
-    return { macros, functions };
+    const variables: Variable[] = [];
+    for (let i = 0; i < maxBlockIndices; i += 1) {
+      variables.push(new Variable(`@index${i}`, DynType));
+    }
+
+    return { macros, functions, variables };
   }
+}
+
+function extractNonNegativeInt(expr: Expr | undefined): number | null {
+  if (!(expr instanceof LiteralExpr)) {
+    return null;
+  }
+  if (expr.value.kind === "int") {
+    if (expr.value.value < 0n) {
+      return null;
+    }
+    return Number(expr.value.value);
+  }
+  if (expr.value.kind === "uint") {
+    return Number(expr.value.value);
+  }
+  return null;
 }

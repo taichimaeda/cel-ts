@@ -738,6 +738,40 @@ export class CallValue implements Interpretable {
 }
 
 /**
+ * cel.@block interpretable.
+ */
+export class BlockValue implements Interpretable {
+  constructor(
+    private readonly exprId: ExprId,
+    private readonly slots: Interpretable[],
+    private readonly result: Interpretable
+  ) { }
+
+  id(): ExprId {
+    return this.exprId;
+  }
+
+  eval(activation: Activation): Value {
+    if (this.slots.length === 0) {
+      return this.result.eval(activation);
+    }
+    const blockActivation = new MutableActivation(activation);
+    for (let i = 0; i < this.slots.length; i += 1) {
+      const val = this.slots[i]!.eval(blockActivation);
+      if (ValueUtil.isErrorOrUnknown(val)) {
+        return val;
+      }
+      blockActivation.set(`@index${i}`, val);
+    }
+    return this.result.eval(blockActivation);
+  }
+
+  cost(): number {
+    return 1 + this.slots.reduce((sum, slot) => sum + slot.cost(), 0) + this.result.cost();
+  }
+}
+
+/**
  * List literal interpretable.
  */
 export class CreateListValue implements Interpretable {

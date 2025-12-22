@@ -25,6 +25,7 @@ import {
   AndValue,
   AttrValue,
   BinaryValue,
+  BlockValue,
   CallValue,
   ComprehensionValue,
   ConditionalValue,
@@ -284,6 +285,13 @@ export class Planner {
   private planCall(e: CallExpr): Interpretable {
     const fnName = e.funcName;
 
+    if (!e.target && fnName === "cel.@block") {
+      const planned = this.planBlockCall(e);
+      if (planned) {
+        return planned;
+      }
+    }
+
     // Handle built-in operators
     switch (fnName) {
       case Operators.LogicalAnd:
@@ -324,6 +332,23 @@ export class Planner {
 
     // Global function call
     return this.planGlobalCall(e);
+  }
+
+  private planBlockCall(e: CallExpr): Interpretable | null {
+    if (e.args.length !== 2) {
+      return null;
+    }
+    const bindings = e.args[0];
+    const result = e.args[1];
+    if (!(bindings instanceof ListExpr) || !result) {
+      return null;
+    }
+    if (bindings.elements.length === 0) {
+      return this.planExpr(result);
+    }
+    const slots = bindings.elements.map((element) => this.planExpr(element));
+    const plannedResult = this.planExpr(result);
+    return new BlockValue(e.id, slots, plannedResult);
   }
 
   /**
@@ -437,7 +462,7 @@ export class Planner {
       for (const arg of e.args) {
         args.push(this.planExpr(arg));
       }
-      const overloadId = ref.overloadIds[0] ?? `${ref.name}_${args.length}`;
+      const overloadId = this.resolveOverloadId(ref, e.args, `${ref.name}_${args.length}`);
       return new CallValue(e.id, ref.name, overloadId, args, this.resolver);
     }
 
@@ -449,7 +474,10 @@ export class Planner {
         for (const arg of e.args) {
           args.push(this.planExpr(arg));
         }
-        const overloadId = this.refMap.get(e.id)?.overloadIds[0] ?? `${qualified}_${args.length}`;
+        const candidate = this.refMap.get(e.id);
+        const overloadId = candidate
+          ? this.resolveOverloadId(candidate, e.args, `${qualified}_${args.length}`)
+          : `${qualified}_${args.length}`;
         return new CallValue(e.id, qualified, overloadId, args, this.resolver);
       }
     }
@@ -462,7 +490,9 @@ export class Planner {
     }
 
     const memberRef = this.refMap.get(e.id);
-    const overloadId = memberRef?.overloadIds[0] ?? `${e.funcName}_${args.length}`;
+    const overloadId = memberRef
+      ? this.resolveOverloadId(memberRef, e.args, `${e.funcName}_${args.length}`)
+      : `${e.funcName}_${args.length}`;
 
     return new CallValue(e.id, e.funcName, overloadId, args, this.resolver);
   }
@@ -487,9 +517,41 @@ export class Planner {
       return new TypeConversionValue(e.id, args[0]!, ref.name, this.typeProvider);
     }
 
-    const overloadId = ref?.overloadIds[0] ?? `${e.funcName}_${args.length}`;
+    const overloadId = ref
+      ? this.resolveOverloadId(ref, e.args, `${e.funcName}_${args.length}`)
+      : `${e.funcName}_${args.length}`;
 
     return new CallValue(e.id, e.funcName, overloadId, args, this.resolver);
+  }
+
+  private resolveOverloadId(
+    ref: ReferenceInfo,
+    args: readonly Expr[],
+    fallback: string
+  ): string {
+    if (ref.overloadIds.length === 1) {
+      return ref.overloadIds[0]!;
+    }
+    if (ref.overloadIds.length === 0) {
+      return fallback;
+    }
+    if (this.hasDynArgs(args)) {
+      return fallback;
+    }
+    return ref.overloadIds[0] ?? fallback;
+  }
+
+  private hasDynArgs(args: readonly Expr[]): boolean {
+    if (!this.typeMap) {
+      return false;
+    }
+    for (const arg of args) {
+      const argType = this.typeMap.get(arg.id);
+      if (argType?.kind === TypeKind.Dyn) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

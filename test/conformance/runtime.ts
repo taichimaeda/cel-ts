@@ -201,7 +201,7 @@ export function createRuntime(): ConformanceRuntime {
     ["google.api.expr.test.v1.SimpleTestFile", "cel.expr.conformance.test.SimpleTestFile"],
   ]);
 
-  const skipFiles = new Set(["block_ext.textproto"]);
+  const skipFiles = new Set<string>();
 
   const options: protobuf.IConversionOptions = {
     defaults: false,
