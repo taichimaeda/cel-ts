@@ -1,14 +1,16 @@
 import {
   type AST,
   CallExpr,
+  ComprehensionExpr,
   type Expr,
+  IdentExpr,
   ListExpr,
+  LiteralExpr,
   MapExpr,
   Operators,
   SelectExpr,
   StructExpr,
 } from "../common/ast";
-import { Emitter } from "../common/emitter";
 
 export interface FormatterOptions {
   /** Maximum line length before formatting switches to multiline. */
@@ -25,8 +27,6 @@ export interface FormatterOptions {
   multilineCallArgs?: "never" | "always" | "auto";
   /** Format list/map/struct literals inline, multiline, or auto. */
   multilineLiterals?: "never" | "always" | "auto";
-  /** Prefer formatting macro calls captured in SourceInfo. */
-  preferMacroCalls?: boolean;
   /** Emit presence tests as has(operand.field). */
   printPresenceTestAsHas?: boolean;
 }
@@ -39,20 +39,14 @@ const defaultFormatterOptions: Required<FormatterOptions> = {
   chainStyle: "auto",
   multilineCallArgs: "auto",
   multilineLiterals: "auto",
-  preferMacroCalls: true,
   printPresenceTestAsHas: true,
 };
 
 export class Formatter {
   private readonly options: Required<FormatterOptions>;
-  private readonly emitter: Emitter;
 
   constructor(options: FormatterOptions = {}) {
     this.options = { ...defaultFormatterOptions, ...options };
-    this.emitter = new Emitter({
-      preferMacroCalls: this.options.preferMacroCalls,
-      printPresenceTestAsHas: this.options.printPresenceTestAsHas,
-    });
   }
 
   format(ast: AST): string {
@@ -65,7 +59,7 @@ export class Formatter {
     indent: number
   ): string {
     const resolvedExpr = this.resolveMacroCall(expr, sourceInfo);
-    const inline = this.emitter.emitExpr(resolvedExpr, sourceInfo);
+    const inline = this.formatInlineExpr(resolvedExpr, sourceInfo);
 
     if (resolvedExpr instanceof CallExpr) {
       const call = resolvedExpr;
@@ -116,7 +110,7 @@ export class Formatter {
     sourceInfo: AST["sourceInfo"] | undefined,
     indent: number
   ): string {
-    const inline = this.emitter.emitExpr(expr, sourceInfo);
+    const inline = this.formatInlineExpr(expr, sourceInfo);
     const shouldBreakByRule =
       this.options.breakBinaryOperators === "all" ||
       (this.options.breakBinaryOperators === "logical" && op.logical);
@@ -125,7 +119,7 @@ export class Formatter {
     }
 
     const left = op.logical
-      ? this.emitter.emitExpr(expr.args[0]!, sourceInfo)
+      ? this.formatInlineExpr(expr.args[0]!, sourceInfo)
       : this.formatExpr(expr.args[0]!, sourceInfo, indent);
     const right = this.formatExpr(expr.args[1]!, sourceInfo, indent + this.options.indentSize);
     return `${left} ${op.symbol}\n${this.indentText(right, indent + this.options.indentSize)}`;
@@ -136,7 +130,7 @@ export class Formatter {
     sourceInfo: AST["sourceInfo"] | undefined,
     indent: number
   ): string {
-    const inline = this.emitter.emitExpr(expr, sourceInfo);
+    const inline = this.formatInlineExpr(expr, sourceInfo);
     if (!this.options.breakTernary || inline.length <= this.options.maxLineLength) {
       return inline;
     }
@@ -157,7 +151,7 @@ export class Formatter {
     sourceInfo: AST["sourceInfo"] | undefined,
     indent: number
   ): string {
-    const inline = this.emitter.emitExpr(expr, sourceInfo);
+    const inline = this.formatInlineExpr(expr, sourceInfo);
     const shouldBreak =
       this.options.multilineCallArgs === "always" ||
       (this.options.multilineCallArgs === "auto" && inline.length > this.options.maxLineLength);
@@ -174,7 +168,7 @@ export class Formatter {
     const args = expr.args.map((arg) =>
       this.options.multilineCallArgs === "always"
         ? this.formatExpr(arg, sourceInfo, argIndent)
-        : this.emitter.emitExpr(arg, sourceInfo)
+        : this.formatInlineExpr(arg, sourceInfo)
     );
     return `${expr.funcName}(\n${args
       .map((arg) => this.indentText(arg, argIndent))
@@ -186,7 +180,7 @@ export class Formatter {
     sourceInfo: AST["sourceInfo"] | undefined,
     indent: number
   ): string {
-    const inline = this.emitter.emitExpr(expr, sourceInfo);
+    const inline = this.formatInlineExpr(expr, sourceInfo);
     const shouldBreak =
       this.options.multilineLiterals === "always" ||
       (this.options.multilineLiterals === "auto" &&
@@ -214,7 +208,7 @@ export class Formatter {
     sourceInfo: AST["sourceInfo"] | undefined,
     indent: number
   ): string {
-    const inline = this.emitter.emitExpr(expr, sourceInfo);
+    const inline = this.formatInlineExpr(expr, sourceInfo);
     const shouldBreak =
       this.options.multilineLiterals === "always" ||
       (this.options.multilineLiterals === "auto" &&
@@ -243,7 +237,7 @@ export class Formatter {
     sourceInfo: AST["sourceInfo"] | undefined,
     indent: number
   ): string {
-    const inline = this.emitter.emitExpr(expr, sourceInfo);
+    const inline = this.formatInlineExpr(expr, sourceInfo);
     const shouldBreak =
       this.options.multilineLiterals === "always" ||
       (this.options.multilineLiterals === "auto" &&
@@ -272,7 +266,7 @@ export class Formatter {
     sourceInfo: AST["sourceInfo"] | undefined,
     indent: number
   ): string {
-    const inline = this.emitter.emitExpr(chain.original, sourceInfo);
+    const inline = this.formatInlineExpr(chain.original, sourceInfo);
     if (
       this.options.chainStyle === "inline" ||
       (this.options.chainStyle === "auto" && inline.length <= this.options.maxLineLength)
@@ -291,7 +285,7 @@ export class Formatter {
         continue;
       }
       if (segment.kind === "call") {
-        const callInline = this.emitCallInline(segment.expr, sourceInfo);
+        const callInline = this.formatInlineCall(segment.expr, sourceInfo);
         const shouldBreak =
           this.options.multilineCallArgs === "always" ||
           (this.options.multilineCallArgs === "auto" &&
@@ -299,7 +293,7 @@ export class Formatter {
 
         if (!shouldBreak || segment.expr.args.length === 0) {
           lines.push(
-            `${this.indentText(`.${this.emitCallInline(segment.expr, sourceInfo)}`, segmentIndent)}`
+            `${this.indentText(`.${this.formatInlineCall(segment.expr, sourceInfo)}`, segmentIndent)}`
           );
           continue;
         }
@@ -323,7 +317,7 @@ export class Formatter {
           sourceInfo,
           segmentIndent + this.options.indentSize
         );
-        const indexInline = this.emitter.emitExpr(segment.index, sourceInfo);
+        const indexInline = this.formatInlineExpr(segment.index, sourceInfo);
         const prefix = segment.optional ? "[?" : "[";
         const suffix = "]";
         if (indexInline.length <= this.options.maxLineLength) {
@@ -447,7 +441,7 @@ export class Formatter {
   }
 
   private resolveMacroCall(expr: Expr, sourceInfo: AST["sourceInfo"] | undefined): Expr {
-    if (!this.options.preferMacroCalls || !sourceInfo?.isMacroCall(expr.id)) {
+    if (!sourceInfo?.isMacroCall(expr.id)) {
       return expr;
     }
 
@@ -455,9 +449,247 @@ export class Formatter {
     return macroCall ?? expr;
   }
 
-  private emitCallInline(expr: CallExpr, sourceInfo: AST["sourceInfo"] | undefined): string {
-    const args = expr.args.map((arg) => this.emitter.emitExpr(arg, sourceInfo)).join(", ");
+  private formatInlineCall(expr: CallExpr, sourceInfo: AST["sourceInfo"] | undefined): string {
+    const args = expr.args.map((arg) => this.formatInlineExpr(arg, sourceInfo)).join(", ");
     return `${expr.funcName}(${args})`;
+  }
+
+  private formatInlineExpr(expr: Expr, sourceInfo?: AST["sourceInfo"]): string {
+    return this.formatInlineExprInner(expr, sourceInfo);
+  }
+
+  private formatInlineExprInner(expr: Expr, sourceInfo?: AST["sourceInfo"]): string {
+    if (sourceInfo?.isMacroCall(expr.id)) {
+      const macroCall = sourceInfo.getMacroCall(expr.id);
+      if (macroCall) {
+        return this.formatInlineExprInner(macroCall, sourceInfo);
+      }
+    }
+
+    if (expr instanceof ListExpr) {
+      return this.formatInlineList(expr, sourceInfo);
+    }
+    if (expr instanceof MapExpr) {
+      return this.formatInlineMap(expr, sourceInfo);
+    }
+    if (expr instanceof StructExpr) {
+      return this.formatInlineStruct(expr, sourceInfo);
+    }
+    if (expr instanceof SelectExpr) {
+      return this.formatInlineSelect(expr, sourceInfo);
+    }
+    if (expr instanceof CallExpr) {
+      return this.formatInlineCallExpr(expr, sourceInfo);
+    }
+    if (expr instanceof LiteralExpr) {
+      return this.formatInlineLiteral(expr);
+    }
+    if (expr instanceof IdentExpr) {
+      return expr.name;
+    }
+    if (expr instanceof ComprehensionExpr) {
+      return this.formatInlineComprehension(expr, sourceInfo);
+    }
+    return "_";
+  }
+
+  private formatInlineLiteral(expr: LiteralExpr): string {
+    const { kind } = expr.value;
+    switch (kind) {
+      case "null":
+        return "null";
+      case "bool":
+        return expr.value.value ? "true" : "false";
+      case "int":
+        return expr.value.value.toString();
+      case "uint":
+        return `${expr.value.value.toString()}u`;
+      case "double":
+        return Number.isFinite(expr.value.value)
+          ? String(expr.value.value)
+          : expr.value.value > 0
+            ? "inf"
+            : "-inf";
+      case "string":
+        return `"${this.escapeString(expr.value.value)}"`;
+      case "bytes":
+        return `b"${this.escapeString(this.bytesToString(expr.value.value))}"`;
+      default:
+        return "_";
+    }
+  }
+
+  private formatInlineSelect(expr: SelectExpr, sourceInfo?: AST["sourceInfo"]): string {
+    if (expr.testOnly && this.options.printPresenceTestAsHas) {
+      const operator = expr.optional ? "?." : ".";
+      return `has(${this.formatInlineExprInner(expr.operand, sourceInfo)}${operator}${this.escapeIdent(
+        expr.field
+      )})`;
+    }
+    const operator = expr.optional ? "?." : ".";
+    return `${this.formatInlineExprInner(expr.operand, sourceInfo)}${operator}${this.escapeIdent(
+      expr.field
+    )}`;
+  }
+
+  private formatInlineCallExpr(expr: CallExpr, sourceInfo?: AST["sourceInfo"]): string {
+    const op = this.operatorFromName(expr.funcName, expr.args.length);
+    if (expr.funcName === Operators.OptIndex && expr.args.length === 2) {
+      const target = this.formatInlineExprInner(expr.args[0]!, sourceInfo);
+      const index = this.formatInlineExprInner(expr.args[1]!, sourceInfo);
+      return `${this.parenthesizeExpr(target, expr.args[0]!, op!)}[?${index}]`;
+    }
+    if (op?.kind === "index") {
+      const target = this.formatInlineExprInner(expr.args[0]!, sourceInfo);
+      const index = this.formatInlineExprInner(expr.args[1]!, sourceInfo);
+      return `${this.parenthesizeExpr(target, expr.args[0]!, op)}[${index}]`;
+    }
+    if (op?.kind === "unary") {
+      const inner = this.formatInlineExprInner(expr.args[0]!, sourceInfo);
+      return `${op.symbol}${this.parenthesizeExpr(inner, expr.args[0]!, op)}`;
+    }
+    if (op?.kind === "binary") {
+      const left = this.formatInlineExprInner(expr.args[0]!, sourceInfo);
+      const right = this.formatInlineExprInner(expr.args[1]!, sourceInfo);
+      return `${this.parenthesizeExpr(left, expr.args[0]!, op)} ${op.symbol} ${this.parenthesizeExpr(
+        right,
+        expr.args[1]!,
+        op,
+        "right"
+      )}`;
+    }
+    if (op?.kind === "ternary") {
+      const cond = this.formatInlineExprInner(expr.args[0]!, sourceInfo);
+      const t = this.formatInlineExprInner(expr.args[1]!, sourceInfo);
+      const f = this.formatInlineExprInner(expr.args[2]!, sourceInfo);
+      return `${cond} ? ${t} : ${f}`;
+    }
+
+    const args = expr.args.map((arg) => this.formatInlineExprInner(arg, sourceInfo)).join(", ");
+    if (expr.target) {
+      return `${this.formatInlineExprInner(expr.target, sourceInfo)}.${expr.funcName}(${args})`;
+    }
+    return `${expr.funcName}(${args})`;
+  }
+
+  private formatInlineList(expr: ListExpr, sourceInfo?: AST["sourceInfo"]): string {
+    const optional = new Set(expr.optionalIndices);
+    const parts = expr.elements.map((elem, idx) => {
+      const text = this.formatInlineExprInner(elem, sourceInfo);
+      return optional.has(idx) ? `${text}?` : text;
+    });
+    return `[${parts.join(", ")}]`;
+  }
+
+  private formatInlineMap(expr: MapExpr, sourceInfo?: AST["sourceInfo"]): string {
+    const entries = expr.entries.map((entry) => {
+      const key = this.formatInlineExprInner(entry.key, sourceInfo);
+      const optional = entry.optional ? "?" : "";
+      const value = this.formatInlineExprInner(entry.value, sourceInfo);
+      return `${key}${optional}: ${value}`;
+    });
+    return `{${entries.join(", ")}}`;
+  }
+
+  private formatInlineStruct(expr: StructExpr, sourceInfo?: AST["sourceInfo"]): string {
+    const fields = expr.fields.map((field) => {
+      const name = this.escapeIdent(field.name);
+      const optional = field.optional ? "?" : "";
+      const value = this.formatInlineExprInner(field.value, sourceInfo);
+      return `${name}${optional}: ${value}`;
+    });
+    const body = `{${fields.join(", ")}}`;
+    return expr.typeName ? `${expr.typeName}${body}` : body;
+  }
+
+  private formatInlineComprehension(
+    expr: ComprehensionExpr,
+    sourceInfo?: AST["sourceInfo"]
+  ): string {
+    const iterRange = this.formatInlineExprInner(expr.iterRange, sourceInfo);
+    const accuInit = this.formatInlineExprInner(expr.accuInit, sourceInfo);
+    const loopCondition = this.formatInlineExprInner(expr.loopCondition, sourceInfo);
+    const loopStep = this.formatInlineExprInner(expr.loopStep, sourceInfo);
+    const result = this.formatInlineExprInner(expr.result, sourceInfo);
+    const args = [
+      iterRange,
+      `"${this.escapeString(expr.iterVar)}"`,
+      ...(expr.iterVar2 ? [`"${this.escapeString(expr.iterVar2)}"`] : []),
+      `"${this.escapeString(expr.accuVar)}"`,
+      accuInit,
+      loopCondition,
+      loopStep,
+      result,
+    ];
+    return `comprehension(${args.join(", ")})`;
+  }
+
+
+  private getPrecedence(expr: Expr): number | null {
+    switch (expr.kind) {
+      case "call": {
+        const call = expr as CallExpr;
+        const op = this.operatorFromName(call.funcName, call.args.length);
+        return op?.precedence ?? 9;
+      }
+      case "comprehension":
+        return 0;
+      case "select":
+      case "list":
+      case "map":
+      case "struct":
+      case "literal":
+      case "ident":
+      case "unspecified":
+        return 9;
+      default:
+        return null;
+    }
+  }
+
+  private parenthesizeExpr(
+    text: string,
+    expr: Expr,
+    parent: { precedence: number; associative: boolean },
+    side: "left" | "right" = "left"
+  ): string {
+    const childPrecedence = this.getPrecedence(expr);
+    if (childPrecedence === null) {
+      return text;
+    }
+    if (childPrecedence < parent.precedence) {
+      return `(${text})`;
+    }
+    if (childPrecedence === parent.precedence && side === "right" && !parent.associative) {
+      return `(${text})`;
+    }
+    return text;
+  }
+
+  private escapeString(value: string): string {
+    return value
+      .replace(/\\/g, "\\\\")
+      .replace(/\n/g, "\\n")
+      .replace(/\r/g, "\\r")
+      .replace(/\t/g, "\\t")
+      .replace(/"/g, '\\"');
+  }
+
+  private escapeIdent(value: string): string {
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+      return value;
+    }
+    return `\`${value.replace(/`/g, "``")}\``;
+  }
+
+  private bytesToString(bytes: Uint8Array): string {
+    try {
+      return new TextDecoder().decode(bytes);
+    } catch {
+      return Array.from(bytes)
+        .map((b) => String.fromCharCode(b))
+        .join("");
+    }
   }
 }
 

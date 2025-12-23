@@ -33,28 +33,18 @@ export type MacroExpander = (
   args: Expr[]
 ) => Expr | null;
 
-/**
- * Macro interface for describing function signature and expansion.
- */
-export interface Macro {
-  /** Function name to match */
-  readonly name: string;
-  /** Expected argument count (0 for vararg) */
-  readonly argCount: number;
-  /** Whether this is a receiver-style macro */
-  readonly receiverStyle: boolean;
-  /** Whether this macro accepts a variable number of arguments */
-  readonly varArgStyle: boolean;
-  /** Generate the macro key for lookup */
-  macroKey(): string;
-  /** Get the expander function */
-  readonly expander: MacroExpander;
-}
+export type Macro =
+  | GlobalMacro
+  | ReceiverMacro
+  | GlobalVarArgMacro
+  | ReceiverVarArgMacro;
+
+export type MacroKind = "global" | "receiver" | "global_vararg" | "receiver_vararg";
 
 /**
  * Concrete macro implementation.
  */
-class BaseMacro implements Macro {
+class BaseMacro {
   constructor(
     readonly name: string,
     readonly argCount: number,
@@ -88,24 +78,32 @@ class MacroKey {
  * Macro variants for convenience.
  */
 export class GlobalMacro extends BaseMacro {
+  readonly kind: MacroKind = "global";
+
   constructor(fn: string, argCount: number, expander: MacroExpander) {
     super(fn, argCount, expander, false, false);
   }
 }
 
 export class ReceiverMacro extends BaseMacro {
+  readonly kind: MacroKind = "receiver";
+
   constructor(fn: string, argCount: number, expander: MacroExpander) {
     super(fn, argCount, expander, true, false);
   }
 }
 
 export class GlobalVarArgMacro extends BaseMacro {
+  readonly kind: MacroKind = "global_vararg";
+
   constructor(fn: string, expander: MacroExpander) {
     super(fn, 0, expander, false, true);
   }
 }
 
 export class ReceiverVarArgMacro extends BaseMacro {
+  readonly kind: MacroKind = "receiver_vararg";
+
   constructor(fn: string, expander: MacroExpander) {
     super(fn, 0, expander, true, true);
   }

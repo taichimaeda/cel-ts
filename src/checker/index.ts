@@ -5,7 +5,7 @@ export { Checker } from "./checker";
 export type { CheckResult } from "./checker";
 
 // Re-export ReferenceInfo helpers from common/ast
-export { FunctionReference, IdentReference } from "../common/ast";
+export { FunctionReference, VariableReference } from "../common/ast";
 export type { ReferenceInfo } from "../common/ast";
 
 export {

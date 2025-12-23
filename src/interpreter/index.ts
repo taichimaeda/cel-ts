@@ -58,14 +58,12 @@ export {
 // Dispatcher - Function dispatcher
 export {
   BinaryDispatcherOverload,
-  DefaultDispatcher,
-  FunctionResolver,
-  ResolvedCall,
+  Dispatcher as DefaultDispatcher,
+  TryResolvedCall as ResolvedCall,
   UnaryDispatcherOverload,
-  VariadicDispatcherOverload,
+  NaryDispatcherOverload as VariadicDispatcherOverload,
   type BinaryOp,
-  type Dispatcher,
-  type FunctionCall,
+  type ResolvedCall as FunctionCall,
   type FunctionOp,
   type Overload,
   type UnaryOp

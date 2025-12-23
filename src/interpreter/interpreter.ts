@@ -17,11 +17,11 @@ import type { SourceInfo } from "../common/source";
 import CELLexer from "../parser/gen/CELLexer.js";
 import CELParser, { type StartContext } from "../parser/gen/CELParser.js";
 import { ParserHelper } from "../parser/helper";
+import { Planner } from "../planner";
 import { type Activation, EmptyActivation, LazyActivation, MapActivation } from "./activation";
-import { DefaultDispatcher, type Dispatcher } from "./dispatcher";
+import { Dispatcher } from "./dispatcher";
 import { standardFunctions } from "./functions";
 import type { Interpretable } from "./interpretable";
-import { Planner } from "../planner";
 import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, ValueUtil } from "./values";
 
 /**
@@ -102,7 +102,7 @@ export class Env {
     this.disableTypeChecking = options.disableTypeChecking ?? false;
 
     // Initialize dispatcher
-    this.dispatcher = options.functions ?? new DefaultDispatcher();
+    this.dispatcher = options.functions ?? new Dispatcher();
     for (const overload of standardFunctions) {
       this.dispatcher.add(overload);
     }

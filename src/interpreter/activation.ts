@@ -10,26 +10,19 @@ import {
   type Value,
 } from "./values";
 
-/**
- * Activation provides variable bindings for expression evaluation.
- */
-export interface Activation {
-  /**
-   * Resolve a variable by name.
-   * Returns undefined if the variable is not found.
-   */
-  resolve(name: string): Value | undefined;
-
-  /**
-   * Parent activation for hierarchical scoping.
-   */
-  parent(): Activation | undefined;
-}
+export type Activation =
+  | EmptyActivation
+  | MapActivation
+  | LazyActivation
+  | HierarchicalActivation
+  | PartialActivation
+  | MutableActivation
+  | StrictActivation;
 
 /**
  * Empty activation that resolves no variables
  */
-export class EmptyActivation implements Activation {
+export class EmptyActivation {
   constructor() { }
 
   resolve(_name: string): Value | undefined {
@@ -44,7 +37,7 @@ export class EmptyActivation implements Activation {
 /**
  * Map-based activation that resolves variables from a Map
  */
-export class MapActivation implements Activation {
+export class MapActivation {
   constructor(
     private readonly bindings: Map<string, Value>,
     private readonly parentActivation?: Activation
@@ -66,7 +59,7 @@ export class MapActivation implements Activation {
 /**
  * Activation that converts native JavaScript values to CEL values on access
  */
-export class LazyActivation implements Activation {
+export class LazyActivation {
   private readonly bindings: Map<string, unknown>;
   private readonly cache: Map<string, Value>;
 
@@ -110,7 +103,7 @@ export class LazyActivation implements Activation {
 /**
  * Hierarchical activation that chains multiple activations
  */
-export class HierarchicalActivation implements Activation {
+export class HierarchicalActivation {
   constructor(
     private readonly parentActivation: Activation,
     private readonly child: Activation
@@ -132,7 +125,7 @@ export class HierarchicalActivation implements Activation {
 /**
  * Activation with variable scope tracking for comprehensions
  */
-export class PartialActivation implements Activation {
+export class PartialActivation {
   private readonly unknowns: Set<string>;
 
   constructor(
@@ -173,7 +166,7 @@ export class PartialActivation implements Activation {
  * Mutable activation that allows variable updates during evaluation
  * Used for iteration variables in comprehensions
  */
-export class MutableActivation implements Activation {
+export class MutableActivation {
   private readonly bindings: Map<string, Value>;
 
   constructor(private readonly parentActivation?: Activation) {
@@ -217,7 +210,7 @@ export class MutableActivation implements Activation {
 /**
  * Activation that provides error values for undefined variables
  */
-export class StrictActivation implements Activation {
+export class StrictActivation {
   constructor(private readonly delegate: Activation) { }
 
   resolve(name: string): Value | undefined {

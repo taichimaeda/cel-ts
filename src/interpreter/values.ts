@@ -43,6 +43,25 @@ const TIMESTAMP_MAX_SECONDS = 253402300799n;
 const TIMESTAMP_MIN_NANOS = TIMESTAMP_MIN_SECONDS * 1_000_000_000n;
 const TIMESTAMP_MAX_NANOS = TIMESTAMP_MAX_SECONDS * 1_000_000_000n + 999_999_999n;
 
+export type ValueKind =
+  | "bool"
+  | "int"
+  | "uint"
+  | "enum"
+  | "double"
+  | "string"
+  | "bytes"
+  | "null"
+  | "list"
+  | "map"
+  | "struct"
+  | "type"
+  | "duration"
+  | "timestamp"
+  | "error"
+  | "unknown"
+  | "optional";
+
 function isDurationInRange(nanos: bigint): boolean {
   return (
     nanos >= -DURATION_MAX_NANOS &&
@@ -57,20 +76,21 @@ function isTimestampInRange(nanos: bigint): boolean {
 }
 
 /**
- * Base interface for all CEL runtime values
+ * Base class for all CEL runtime values
  */
-export interface Value {
+export abstract class BaseValue {
+  abstract readonly kind: ValueKind;
   /** Get the type of this value */
-  type(): ValueType;
+  abstract type(): ValueType;
 
   /** Get a human-readable representation */
-  toString(): string;
+  abstract toString(): string;
 
   /** Check equality with another value */
-  equal(other: Value): Value;
+  abstract equal(other: Value): Value;
 
   /** Convert to native JavaScript value */
-  value(): unknown;
+  abstract value(): unknown;
 }
 
 /**
@@ -95,11 +115,14 @@ export function resolveAnyValue(typeUrl: string, bytes: Uint8Array): Value | nul
 /**
  * Boolean value
  */
-export class BoolValue implements Value {
+export class BoolValue extends BaseValue {
   static readonly True = new BoolValue(true);
   static readonly False = new BoolValue(false);
+  readonly kind: ValueKind = "bool";
 
-  private constructor(private readonly val: boolean) {}
+  private constructor(private readonly val: boolean) {
+    super();
+  }
 
   static of(val: boolean): BoolValue {
     return val ? BoolValue.True : BoolValue.False;
@@ -140,14 +163,16 @@ export class BoolValue implements Value {
 /**
  * 64-bit signed integer value
  */
-export class IntValue implements Value {
+export class IntValue extends BaseValue {
   static readonly Zero = new IntValue(0n);
   static readonly One = new IntValue(1n);
   static readonly NegOne = new IntValue(-1n);
+  readonly kind: ValueKind = "int";
 
   private readonly val: bigint;
 
   constructor(val: bigint | number) {
+    super();
     this.val = typeof val === "number" ? BigInt(Math.trunc(val)) : val;
   }
 
@@ -245,13 +270,15 @@ export class IntValue implements Value {
 /**
  * 64-bit unsigned integer value
  */
-export class UintValue implements Value {
+export class UintValue extends BaseValue {
   static readonly Zero = new UintValue(0n);
   static readonly One = new UintValue(1n);
+  readonly kind: ValueKind = "uint";
 
   private readonly val: bigint;
 
   constructor(val: bigint | number) {
+    super();
     const v = typeof val === "number" ? BigInt(Math.trunc(val)) : val;
     if (v < 0n) {
       throw new Error("UintValue cannot be negative");
@@ -339,11 +366,14 @@ export class UintValue implements Value {
 /**
  * Enum value backed by a numeric value with a specific enum type.
  */
-export class EnumValue implements Value {
+export class EnumValue extends BaseValue {
+  readonly kind: ValueKind = "enum";
+
   private readonly enumType: CheckerType;
   private readonly val: bigint;
 
   constructor(typeName: string, val: bigint | number) {
+    super();
     this.enumType = new OpaqueType(typeName);
     this.val = typeof val === "number" ? BigInt(Math.trunc(val)) : val;
   }
@@ -386,16 +416,18 @@ export class EnumValue implements Value {
 /**
  * Double-precision floating point value
  */
-export class DoubleValue implements Value {
+export class DoubleValue extends BaseValue {
   static readonly Zero = new DoubleValue(0);
   static readonly One = new DoubleValue(1);
   static readonly NaN = new DoubleValue(Number.NaN);
   static readonly PositiveInfinity = new DoubleValue(Number.POSITIVE_INFINITY);
   static readonly NegativeInfinity = new DoubleValue(Number.NEGATIVE_INFINITY);
+  readonly kind: ValueKind = "double";
 
   private readonly val: number;
 
   constructor(val: number) {
+    super();
     this.val = val;
   }
 
@@ -468,10 +500,13 @@ export class DoubleValue implements Value {
 /**
  * String value
  */
-export class StringValue implements Value {
+export class StringValue extends BaseValue {
   static readonly Empty = new StringValue("");
+  readonly kind: ValueKind = "string";
 
-  constructor(private readonly val: string) {}
+  constructor(private readonly val: string) {
+    super();
+  }
 
   static of(val: string): StringValue {
     if (val === "") return StringValue.Empty;
@@ -546,10 +581,13 @@ export class StringValue implements Value {
 /**
  * Bytes value
  */
-export class BytesValue implements Value {
+export class BytesValue extends BaseValue {
   static readonly Empty = new BytesValue(new Uint8Array(0));
+  readonly kind: ValueKind = "bytes";
 
-  constructor(private readonly val: Uint8Array) {}
+  constructor(private readonly val: Uint8Array) {
+    super();
+  }
 
   static of(val: Uint8Array | number[]): BytesValue {
     const arr = val instanceof Uint8Array ? val : new Uint8Array(val);
@@ -614,10 +652,13 @@ export class BytesValue implements Value {
 /**
  * Null value singleton
  */
-export class NullValue implements Value {
+export class NullValue extends BaseValue {
   static readonly Instance = new NullValue();
+  readonly kind: ValueKind = "null";
 
-  private constructor() {}
+  private constructor() {
+    super();
+  }
 
   type(): ValueType {
     return CheckerNullType;
@@ -639,12 +680,14 @@ export class NullValue implements Value {
 /**
  * List value
  */
-export class ListValue implements Value {
+export class ListValue extends BaseValue {
   static readonly Empty = new ListValue([]);
+  readonly kind: ValueKind = "list";
 
   private readonly elements: readonly Value[];
 
   constructor(elements: Value[]) {
+    super();
     this.elements = Object.freeze([...elements]);
   }
 
@@ -726,13 +769,15 @@ export interface MapEntry {
 /**
  * Map value
  */
-export class MapValue implements Value {
+export class MapValue extends BaseValue {
   static readonly Empty = new MapValue([]);
+  readonly kind: ValueKind = "map";
 
   private readonly entries: readonly MapEntry[];
   private readonly keyIndex: Map<string, number>;
 
   constructor(entries: MapEntry[]) {
+    super();
     this.entries = Object.freeze([...entries]);
     this.keyIndex = new Map();
     for (let i = 0; i < entries.length; i++) {
@@ -835,7 +880,9 @@ export class MapValue implements Value {
 /**
  * Struct value for protobuf/message-like objects with field presence info.
  */
-export class StructValue implements Value {
+export class StructValue extends BaseValue {
+  readonly kind: ValueKind = "struct";
+
   private readonly values: Map<string, Value>;
   private readonly presentFields: Set<string>;
   private readonly fieldTypes: Map<string, CheckerType>;
@@ -848,6 +895,7 @@ export class StructValue implements Value {
     fieldTypes: Map<string, CheckerType> = new Map(),
     typeProvider?: TypeProvider
   ) {
+    super();
     this.values = new Map(values);
     this.presentFields = new Set(presentFields);
     this.fieldTypes = new Map(fieldTypes);
@@ -1002,7 +1050,7 @@ function wrapperKindFromTypeName(
 /**
  * Type value - represents a type itself as a value
  */
-export class TypeValue implements Value {
+export class TypeValue extends BaseValue {
   static readonly BoolType = new TypeValue(CheckerBoolType);
   static readonly IntType = new TypeValue(CheckerIntType);
   static readonly UintType = new TypeValue(CheckerUintType);
@@ -1015,8 +1063,11 @@ export class TypeValue implements Value {
   static readonly TypeType = new TypeValue(CheckerTypeType);
   static readonly DurationType = new TypeValue(CheckerDurationType);
   static readonly TimestampType = new TypeValue(CheckerTimestampType);
+  readonly kind: ValueKind = "type";
 
-  constructor(private readonly typeName: ValueType) {}
+  constructor(private readonly typeName: ValueType) {
+    super();
+  }
 
   type(): ValueType {
     return CheckerTypeType;
@@ -1079,10 +1130,13 @@ export class ValueUtil {
 /**
  * Duration value (nanoseconds)
  */
-export class DurationValue implements Value {
+export class DurationValue extends BaseValue {
   static readonly Zero = new DurationValue(0n);
+  readonly kind: ValueKind = "duration";
 
-  constructor(private readonly nanos: bigint) {}
+  constructor(private readonly nanos: bigint) {
+    super();
+  }
 
   static of(nanos: bigint): DurationValue {
     if (nanos === 0n) return DurationValue.Zero;
@@ -1167,8 +1221,12 @@ export class DurationValue implements Value {
 /**
  * Timestamp value (Unix timestamp in nanoseconds)
  */
-export class TimestampValue implements Value {
-  constructor(private readonly nanos: bigint) {}
+export class TimestampValue extends BaseValue {
+  readonly kind: ValueKind = "timestamp";
+
+  constructor(private readonly nanos: bigint) {
+    super();
+  }
 
   static of(nanos: bigint): TimestampValue {
     return new TimestampValue(nanos);
@@ -1453,11 +1511,15 @@ function weekdayToNumber(weekday: string): number {
 /**
  * Error value for runtime errors
  */
-export class ErrorValue implements Value {
+export class ErrorValue extends BaseValue {
+  readonly kind: ValueKind = "error";
+
   constructor(
     private readonly message: string,
     private readonly exprId?: ExprId
-  ) {}
+  ) {
+    super();
+  }
 
   static create(message: string, exprId?: ExprId): ErrorValue {
     return new ErrorValue(message, exprId);
@@ -1522,12 +1584,14 @@ export class ErrorValue implements Value {
 /**
  * Unknown value for partial evaluation
  */
-export class UnknownValue implements Value {
+export class UnknownValue extends BaseValue {
   static readonly Instance = new UnknownValue([]);
+  readonly kind: ValueKind = "unknown";
 
   private readonly attributeIds: readonly number[];
 
   constructor(attributeIds: number[]) {
+    super();
     this.attributeIds = Object.freeze([...attributeIds]);
   }
 
@@ -1561,10 +1625,13 @@ export class UnknownValue implements Value {
 /**
  * Optional value wrapper
  */
-export class OptionalValue implements Value {
+export class OptionalValue extends BaseValue {
   static readonly None = new OptionalValue(null);
+  readonly kind: ValueKind = "optional";
 
-  private constructor(private readonly inner: Value | null) {}
+  private constructor(private readonly inner: Value | null) {
+    super();
+  }
 
   static of(val: Value): OptionalValue {
     return new OptionalValue(val);
@@ -1610,6 +1677,25 @@ export class OptionalValue implements Value {
     return this.inner ?? defaultValue;
   }
 }
+
+export type Value =
+  | BoolValue
+  | IntValue
+  | UintValue
+  | EnumValue
+  | DoubleValue
+  | StringValue
+  | BytesValue
+  | NullValue
+  | ListValue
+  | MapValue
+  | StructValue
+  | TypeValue
+  | DurationValue
+  | TimestampValue
+  | ErrorValue
+  | UnknownValue
+  | OptionalValue;
 
 function defaultValueForType(type: CheckerType): Value {
   if (type.isOptionalType()) {

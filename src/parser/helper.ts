@@ -160,8 +160,18 @@ export class ParserHelper {
     result: Expr,
     iterVar2?: string
   ): ComprehensionExpr {
-    return new ComprehensionExpr(
-      this.nextId(),
+    const fields: {
+      id: ExprId;
+      iterRange: Expr;
+      iterVar: string;
+      accuVar: string;
+      accuInit: Expr;
+      loopCondition: Expr;
+      loopStep: Expr;
+      result: Expr;
+      iterVar2?: string | undefined;
+    } = {
+      id: this.nextId(),
       iterRange,
       iterVar,
       accuVar,
@@ -169,8 +179,11 @@ export class ParserHelper {
       loopCondition,
       loopStep,
       result,
-      iterVar2
-    );
+    };
+    if (iterVar2 !== undefined) {
+      fields.iterVar2 = iterVar2;
+    }
+    return new ComprehensionExpr(fields);
   }
 
   createAccuIdent(): IdentExpr {

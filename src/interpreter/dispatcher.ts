@@ -4,91 +4,7 @@
 
 import { ErrorValue, type Value, ValueUtil } from "./values";
 
-/**
- * Overload represents a single function overload.
- */
-export interface Overload {
-  /**
-   * Unique identifier for this overload.
-   */
-  id: string;
-
-  /**
-   * Whether this is a unary function.
-   */
-  unary?: UnaryOp | undefined;
-
-  /**
-   * Whether this is a binary function.
-   */
-  binary?: BinaryOp | undefined;
-
-  /**
-   * Whether this is a function with variable arguments.
-   */
-  nary?: FunctionOp | undefined;
-
-  /**
-   * Non-strict function evaluation (receives unevaluated args).
-   */
-  nonStrict?: boolean | undefined;
-}
-
-/**
- * Represents a unary dispatcher overload.
- */
-export class UnaryDispatcherOverload implements Overload {
-  constructor(
-    readonly id: string,
-    readonly unary: UnaryOp
-  ) {}
-}
-
-/**
- * Represents a binary dispatcher overload.
- */
-export class BinaryDispatcherOverload implements Overload {
-  constructor(
-    readonly id: string,
-    readonly binary: BinaryOp
-  ) {}
-}
-
-/**
- * Represents a variadic dispatcher overload.
- */
-export class VariadicDispatcherOverload implements Overload {
-  readonly nonStrict?: boolean;
-
-  constructor(
-    readonly id: string,
-    readonly nary: FunctionOp,
-    options: { nonStrict?: boolean } = {}
-  ) {
-    this.nonStrict = options.nonStrict ?? false;
-  }
-}
-
-function invokeOverload(overload: Overload, args: Value[]): Value | undefined {
-  if (overload.unary && args.length === 1) {
-    const [arg] = args;
-    if (!arg) {
-      return undefined;
-    }
-    return overload.unary(arg);
-  }
-  if (overload.binary && args.length === 2) {
-    const [left, right] = args;
-    if (!(left && right)) {
-      return undefined;
-    }
-    return overload.binary(left, right);
-  }
-  if (overload.nary) {
-    return overload.nary(args);
-  }
-  return undefined;
-}
+export type Overload = UnaryDispatcherOverload | BinaryDispatcherOverload | NaryDispatcherOverload;
 
 /**
  * Unary operation type.
@@ -106,100 +22,89 @@ export type BinaryOp = (lhs: Value, rhs: Value) => Value;
 export type FunctionOp = (values: Value[]) => Value;
 
 /**
- * Dispatcher resolves function calls to their implementations.
+ * Represents a unary dispatcher overload.
  */
-export interface Dispatcher {
-  /**
-   * Add an overload to the dispatcher.
-   */
-  add(overload: Overload): void;
+export class UnaryDispatcherOverload {
+  readonly kind = "unary";
+  readonly nonStrict?: boolean;
 
-  /**
-   * Find overloads by function name.
-   */
-  findOverloads(name: string): Overload[];
-
-  /**
-   * Find a specific overload by ID.
-   */
-  findOverload(overloadId: string): Overload | undefined;
-
-  /**
-   * Get all registered overload IDs.
-   */
-  overloadIds(): string[];
-}
-
-/**
- * Default dispatcher implementation.
- */
-export class DefaultDispatcher implements Dispatcher {
-  private readonly overloads: Map<string, Overload> = new Map();
-  private readonly nameToOverloads: Map<string, Overload[]> = new Map();
-
-  add(overload: Overload): void {
-    this.overloads.set(overload.id, overload);
-
-    // Update the mapping from function name to overloads
-    const name = this.extractFunctionName(overload.id);
-    const existing = this.nameToOverloads.get(name) ?? [];
-    existing.push(overload);
-    this.nameToOverloads.set(name, existing);
+  constructor(
+    readonly id: string,
+    readonly unary: UnaryOp,
+    options: { nonStrict?: boolean } = {}
+  ) {
+    this.nonStrict = options.nonStrict ?? false;
   }
 
-  findOverloads(name: string): Overload[] {
-    return this.nameToOverloads.get(name) ?? [];
-  }
-
-  findOverload(overloadId: string): Overload | undefined {
-    return this.overloads.get(overloadId);
-  }
-
-  overloadIds(): string[] {
-    return [...this.overloads.keys()];
-  }
-
-  /**
-   * Extract base function name from overload ID.
-   */
-  private extractFunctionName(overloadId: string): string {
-    // Overload ID is typically in the format "function_type1_type2"
-    const underscoreIndex = overloadId.indexOf("_");
-    if (underscoreIndex === -1) {
-      return overloadId;
+  invoke(args: Value[]): Value | undefined {
+    if (args.length !== 1) {
+      return undefined;
     }
-    return overloadId.substring(0, underscoreIndex);
+    const [arg] = args;
+    if (!arg) {
+      return undefined;
+    }
+    return this.unary(arg);
   }
 }
 
 /**
- * Function call represents a resolved function call.
+ * Represents a binary dispatcher overload.
  */
-export interface FunctionCall {
-  /**
-   * Execute the function with given arguments.
-   */
-  invoke(args: Value[]): Value;
+export class BinaryDispatcherOverload {
+  readonly kind = "binary";
+  readonly nonStrict?: boolean;
 
-  /**
-   * The overload ID for this call.
-   */
-  overloadId(): string;
+  constructor(
+    readonly id: string,
+    readonly binary: BinaryOp,
+    options: { nonStrict?: boolean } = {}
+  ) {
+    this.nonStrict = options.nonStrict ?? false;
+  }
 
-  /**
-   * Whether this is a non-strict function.
-   */
-  isNonStrict(): boolean;
+  invoke(args: Value[]): Value | undefined {
+    if (args.length !== 2) {
+      return undefined;
+    }
+    const [left, right] = args;
+    if (!(left && right)) {
+      return undefined;
+    }
+    return this.binary(left, right);
+  }
 }
+
+/**
+ * Represents a variadic dispatcher overload.
+ */
+export class NaryDispatcherOverload {
+  readonly kind = "nary";
+  readonly nonStrict?: boolean;
+
+  constructor(
+    readonly id: string,
+    readonly nary: FunctionOp,
+    options: { nonStrict?: boolean } = {}
+  ) {
+    this.nonStrict = options.nonStrict ?? false;
+  }
+
+  invoke(args: Value[]): Value | undefined {
+    return this.nary(args);
+  }
+}
+
+export type ResolvedCall = TryResolvedCall | TryAllResolvedCall;
 
 /**
  * Resolved function call implementation.
  */
-export class ResolvedCall implements FunctionCall {
-  constructor(private readonly overload: Overload) {}
+export class TryResolvedCall {
+  constructor(private readonly overload: Overload) { }
 
   invoke(args: Value[]): Value {
-    const result = invokeOverload(this.overload, args);
+    const result = this.overload.invoke(args);
     if (result === undefined) {
       return ErrorValue.create(
         `no matching implementation for overload '${this.overload.id}' with ${args.length} arguments`
@@ -220,14 +125,14 @@ export class ResolvedCall implements FunctionCall {
 /**
  * Try all overloads until one succeeds.
  */
-export class TryAllResolvedCall implements FunctionCall {
-  constructor(private readonly overloads: Overload[]) {}
+export class TryAllResolvedCall {
+  constructor(private readonly overloads: Overload[]) { }
 
   invoke(args: Value[]): Value {
     let lastError: Value | undefined;
 
     for (const overload of this.overloads) {
-      const result = invokeOverload(overload, args);
+      const result = overload.invoke(args);
       if (result === undefined) {
         continue;
       }
@@ -256,21 +161,36 @@ export class TryAllResolvedCall implements FunctionCall {
 }
 
 /**
- * Function resolver for matching arguments to overloads.
+ * Function dispatcher implementation.
  */
-export class FunctionResolver {
-  constructor(private readonly dispatcher: Dispatcher) {}
+export class Dispatcher {
+  private readonly overloads: Map<string, Overload> = new Map();
+  private readonly nameToOverloads: Map<string, Overload[]> = new Map();
 
-  /**
-   * Resolve a function call by name and arguments.
-   */
-  resolve(name: string, args: Value[]): FunctionCall | undefined {
-    const overloads = this.dispatcher.findOverloads(name);
+  add(overload: Overload): void {
+    this.overloads.set(overload.id, overload);
+
+    // Update the mapping from function name to overloads
+    const name = this.extractFunctionName(overload.id);
+    const existing = this.nameToOverloads.get(name) ?? [];
+    existing.push(overload);
+    this.nameToOverloads.set(name, existing);
+  }
+
+  findOverloadById(id: string): Overload | undefined {
+    return this.overloads.get(id);
+  }
+
+  findOverloadsByName(name: string): Overload[] {
+    return this.nameToOverloads.get(name) ?? [];
+  }
+
+  resolve(name: string, args: Value[]): ResolvedCall | undefined {
+    const overloads = this.findOverloadsByName(name);
     if (overloads.length === 0) {
       return undefined;
     }
 
-    // Collect all overloads that may match
     const candidates: Overload[] = [];
     for (const overload of overloads) {
       if (this.matches(overload, args)) {
@@ -282,7 +202,6 @@ export class FunctionResolver {
       return undefined;
     }
 
-    // If there are multiple candidates, return TryAllResolvedCall
     if (candidates.length > 1) {
       return new TryAllResolvedCall(candidates);
     }
@@ -291,45 +210,36 @@ export class FunctionResolver {
     if (!firstCandidate) {
       return undefined;
     }
-    return new ResolvedCall(firstCandidate);
+    return new TryResolvedCall(firstCandidate);
   }
 
-  /**
-   * Resolve a function call by specific overload ID.
-   */
-  resolveOverload(overloadId: string): FunctionCall | undefined {
-    const overload = this.dispatcher.findOverload(overloadId);
+  resolveOverload(overloadId: string): ResolvedCall | undefined {
+    const overload = this.findOverloadById(overloadId);
     if (overload) {
-      return new ResolvedCall(overload);
+      return new TryResolvedCall(overload);
     }
     return undefined;
   }
 
   /**
-   * Check if an overload matches the given arguments.
+   * Extract base function name from overload ID.
    */
+  private extractFunctionName(overloadId: string): string {
+    // Overload ID is typically in the format "function_type1_type2"
+    const underscoreIndex = overloadId.indexOf("_");
+    if (underscoreIndex === -1) {
+      return overloadId;
+    }
+    return overloadId.substring(0, underscoreIndex);
+  }
+
   private matches(overload: Overload, args: Value[]): boolean {
-    // For unary operators
-    if (overload.unary) {
-      if (args.length !== 1) {
-        return false;
-      }
-      return args[0] !== undefined;
+    if (overload instanceof UnaryDispatcherOverload) {
+      return args.length === 1 && args[0] !== undefined;
     }
-
-    // For binary operators
-    if (overload.binary) {
-      if (args.length !== 2) {
-        return false;
-      }
-      return args[0] !== undefined && args[1] !== undefined;
+    if (overload instanceof BinaryDispatcherOverload) {
+      return args.length === 2 && args[0] !== undefined && args[1] !== undefined;
     }
-
-    // For variable argument functions
-    if (overload.nary) {
-      return true;
-    }
-
-    return false;
+    return true;
   }
 }

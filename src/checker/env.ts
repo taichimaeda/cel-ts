@@ -454,9 +454,7 @@ function builtinTypeForName(name: string): Type | undefined {
 /**
  * Result of looking up an identifier
  */
-export interface LookupResult {
-  name: string;
-  type: Type;
-  kind: "variable" | "type" | "enum";
-  value?: number;
-}
+export type LookupResult =
+  | { kind: "variable"; name: string; type: Type }
+  | { kind: "type"; name: string; type: Type }
+  | { kind: "enum"; name: string; type: Type; value: number };

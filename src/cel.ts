@@ -44,11 +44,12 @@ import {
   MapActivation,
 } from "./interpreter/activation";
 import {
-  DefaultDispatcher,
-  type Dispatcher,
+  BinaryDispatcherOverload,
+  Dispatcher,
   type Overload as DispatcherOverload,
+  NaryDispatcherOverload,
+  UnaryDispatcherOverload,
 } from "./interpreter/dispatcher";
-import { Planner } from "./planner";
 import {
   DefaultTypeAdapter,
   type ErrorValue,
@@ -58,6 +59,7 @@ import {
   ValueUtil,
 } from "./interpreter/values";
 import { AllMacros, type Macro, Parser, ParserHelper } from "./parser";
+import { Planner } from "./planner";
 
 // ============================================================================
 // Errors - CEL Error Types
@@ -539,23 +541,27 @@ class FunctionOverloadOption {
       return;
     }
 
-    const dispatcherOverload: DispatcherOverload = {
-      id: this.id,
-    };
-
     switch (this.argTypes.length) {
       case 1:
-        dispatcherOverload.unary = (arg: Value) => (this.binding as UnaryBinding)(arg);
-        break;
+        runtimeOverloads.push(
+          new UnaryDispatcherOverload(this.id, (arg: Value) => (this.binding as UnaryBinding)(arg))
+        );
+        return;
       case 2:
-        dispatcherOverload.binary = (lhs: Value, rhs: Value) =>
-          (this.binding as BinaryBinding)(lhs, rhs);
-        break;
+        runtimeOverloads.push(
+          new BinaryDispatcherOverload(this.id, (lhs: Value, rhs: Value) =>
+            (this.binding as BinaryBinding)(lhs, rhs)
+          )
+        );
+        return;
       default:
-        dispatcherOverload.nary = (args: Value[]) => (this.binding as FunctionBinding)(args);
-        break;
+        runtimeOverloads.push(
+          new NaryDispatcherOverload(this.id, (args: Value[]) =>
+            (this.binding as FunctionBinding)(args)
+          )
+        );
+        return;
     }
-    runtimeOverloads.push(dispatcherOverload);
   }
 }
 
@@ -637,7 +643,7 @@ export class Env {
       provider,
       config.enumValuesAsInt
     );
-    this.dispatcher = new DefaultDispatcher();
+    this.dispatcher = new Dispatcher();
     this.parser = new Parser();
 
     if (!config.disableStandardLibrary) {
@@ -877,3 +883,4 @@ export {
   ValueUtil
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";
+

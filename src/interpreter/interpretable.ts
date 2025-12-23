@@ -7,7 +7,7 @@ import { type Type as CheckerType, TypeKind as CheckerTypeKind } from "../checke
 import type { ExprId } from "../common/ast";
 import { type Activation, MutableActivation } from "./activation";
 import type { Attribute, Qualifier } from "./attributes";
-import type { FunctionResolver } from "./dispatcher";
+import type { Dispatcher } from "./dispatcher";
 import {
   BoolValue,
   BytesValue,
@@ -15,9 +15,9 @@ import {
   DurationValue,
   EnumValue,
   ErrorValue,
-  IntValue,
   INT64_MAX,
   INT64_MIN,
+  IntValue,
   ListValue,
   type MapEntry,
   MapValue,
@@ -34,30 +34,56 @@ import {
   resolveAnyValue,
 } from "./values";
 
-/**
- * Interpretable represents an evaluatable expression.
- */
-export interface Interpretable {
-  /**
-   * Expression ID from the AST.
-   */
-  id(): ExprId;
+export type InterpretableKind =
+  | "const"
+  | "ident"
+  | "attr"
+  | "not"
+  | "not_strictly_false"
+  | "neg"
+  | "and"
+  | "or"
+  | "conditional"
+  | "binary"
+  | "call"
+  | "block"
+  | "list"
+  | "map"
+  | "struct"
+  | "index"
+  | "field"
+  | "has_field"
+  | "comprehension"
+  | "type_conversion";
 
-  /**
-   * Estimated evaluation cost.
-   */
-  cost(): number;
-
-  /**
-   * Evaluate the expression with the given activation.
-   */
-  eval(activation: Activation): Value;
-}
+export type Interpretable =
+  | ConstValue
+  | IdentValue
+  | AttrValue
+  | NotValue
+  | NotStrictlyFalseValue
+  | NegValue
+  | AndValue
+  | OrValue
+  | ConditionalValue
+  | BinaryValue
+  | CallValue
+  | BlockValue
+  | CreateListValue
+  | CreateMapValue
+  | CreateStructValue
+  | IndexValue
+  | FieldValue
+  | HasFieldValue
+  | ComprehensionValue
+  | TypeConversionValue;
 
 /**
  * Constant literal interpretable.
  */
-export class ConstValue implements Interpretable {
+export class ConstValue {
+  readonly kind: InterpretableKind = "const";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly val: Value
@@ -79,7 +105,9 @@ export class ConstValue implements Interpretable {
 /**
  * Variable/identifier interpretable.
  */
-export class IdentValue implements Interpretable {
+export class IdentValue {
+  readonly kind: InterpretableKind = "ident";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly name: string
@@ -105,7 +133,9 @@ export class IdentValue implements Interpretable {
 /**
  * Attribute access interpretable.
  */
-export class AttrValue implements Interpretable {
+export class AttrValue {
+  readonly kind: InterpretableKind = "attr";
+
   constructor(private readonly attr: Attribute) { }
 
   id(): ExprId {
@@ -132,7 +162,9 @@ export class AttrValue implements Interpretable {
 /**
  * Logical NOT interpretable.
  */
-export class NotValue implements Interpretable {
+export class NotValue {
+  readonly kind: InterpretableKind = "not";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable
@@ -163,7 +195,9 @@ export class NotValue implements Interpretable {
  * Treat error values as true and only return false for literal false.
  * Used by comprehension loop conditions.
  */
-export class NotStrictlyFalseValue implements Interpretable {
+export class NotStrictlyFalseValue {
+  readonly kind: InterpretableKind = "not_strictly_false";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable
@@ -195,7 +229,9 @@ export class NotStrictlyFalseValue implements Interpretable {
 /**
  * Numeric negation interpretable.
  */
-export class NegValue implements Interpretable {
+export class NegValue {
+  readonly kind: InterpretableKind = "neg";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable
@@ -227,7 +263,9 @@ export class NegValue implements Interpretable {
 /**
  * Logical AND interpretable with short-circuit evaluation.
  */
-export class AndValue implements Interpretable {
+export class AndValue {
+  readonly kind: InterpretableKind = "and";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly lhs: Interpretable,
@@ -286,7 +324,9 @@ export class AndValue implements Interpretable {
 /**
  * Logical OR interpretable with short-circuit evaluation.
  */
-export class OrValue implements Interpretable {
+export class OrValue {
+  readonly kind: InterpretableKind = "or";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly lhs: Interpretable,
@@ -345,7 +385,9 @@ export class OrValue implements Interpretable {
 /**
  * Ternary conditional interpretable.
  */
-export class ConditionalValue implements Interpretable {
+export class ConditionalValue {
+  readonly kind: InterpretableKind = "conditional";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly condition: Interpretable,
@@ -391,7 +433,9 @@ export class ConditionalValue implements Interpretable {
 /**
  * Binary operation interpretable.
  */
-export class BinaryValue implements Interpretable {
+export class BinaryValue {
+  readonly kind: InterpretableKind = "binary";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly operator: string,
@@ -660,13 +704,15 @@ export class BinaryValue implements Interpretable {
 /**
  * Function call interpretable.
  */
-export class CallValue implements Interpretable {
+export class CallValue {
+  readonly kind: InterpretableKind = "call";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly functionName: string,
     private readonly overloadId: string,
     private readonly args: Interpretable[],
-    private readonly resolver: FunctionResolver
+    private readonly dispatcher: Dispatcher
   ) { }
 
   id(): ExprId {
@@ -716,10 +762,10 @@ export class CallValue implements Interpretable {
     }
 
     // Resolve overload
-    const call = this.resolver.resolveOverload(this.overloadId);
+    const call = this.dispatcher.resolveOverload(this.overloadId);
     if (!call) {
       // Try to resolve by name
-      const byName = this.resolver.resolve(this.functionName, argValues);
+      const byName = this.dispatcher.resolve(this.functionName, argValues);
       if (byName) {
         return byName.invoke(argValues);
       }
@@ -740,7 +786,9 @@ export class CallValue implements Interpretable {
 /**
  * cel.@block interpretable.
  */
-export class BlockValue implements Interpretable {
+export class BlockValue {
+  readonly kind: InterpretableKind = "block";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly slots: Interpretable[],
@@ -774,7 +822,9 @@ export class BlockValue implements Interpretable {
 /**
  * List literal interpretable.
  */
-export class CreateListValue implements Interpretable {
+export class CreateListValue {
+  readonly kind: InterpretableKind = "list";
+
   private readonly optionalIndices: Set<number>;
 
   constructor(
@@ -828,7 +878,9 @@ export class CreateListValue implements Interpretable {
 /**
  * Map literal interpretable.
  */
-export class CreateMapValue implements Interpretable {
+export class CreateMapValue {
+  readonly kind: InterpretableKind = "map";
+
   private readonly optionalIndices: Set<number>;
 
   constructor(
@@ -900,7 +952,9 @@ export class CreateMapValue implements Interpretable {
 /**
  * Struct creation interpretable (for proto messages, etc.).
  */
-export class CreateStructValue implements Interpretable {
+export class CreateStructValue {
+  readonly kind: InterpretableKind = "struct";
+
   private readonly optionalFields: Set<number>;
 
   constructor(
@@ -1147,9 +1201,7 @@ function mapFromStructValue(structValue: StructValue): MapValue {
   return MapValue.of(entries);
 }
 
-function wrapperKindFromTypeName(
-  typeName: string
-):
+type WrapperScalarKind =
   | "bool"
   | "bytes"
   | "double"
@@ -1158,8 +1210,9 @@ function wrapperKindFromTypeName(
   | "int64"
   | "uint32"
   | "uint64"
-  | "string"
-  | null {
+  | "string";
+
+function wrapperKindFromTypeName(typeName: string): WrapperScalarKind | null {
   const normalized = typeName.startsWith(".") ? typeName.slice(1) : typeName;
   switch (normalized) {
     case "google.protobuf.BoolValue":
@@ -1185,9 +1238,7 @@ function wrapperKindFromTypeName(
   }
 }
 
-function wrapperDefaultValue(
-  kind: "bool" | "bytes" | "double" | "float" | "int32" | "int64" | "uint32" | "uint64" | "string"
-): Value {
+function wrapperDefaultValue(kind: WrapperScalarKind): Value {
   switch (kind) {
     case "bool":
       return BoolValue.False;
@@ -1208,10 +1259,7 @@ function wrapperDefaultValue(
   }
 }
 
-function coerceWrapperValue(
-  kind: "bool" | "bytes" | "double" | "float" | "int32" | "int64" | "uint32" | "uint64" | "string",
-  value: Value
-): Value {
+function coerceWrapperValue(kind: WrapperScalarKind, value: Value): Value {
   if (kind === "float") {
     const numeric = extractNumericValue(value);
     if (numeric instanceof ErrorValue) {
@@ -1518,7 +1566,9 @@ function mapKeyId(key: Value): string {
 /**
  * Index access interpretable.
  */
-export class IndexValue implements Interpretable {
+export class IndexValue {
+  readonly kind: InterpretableKind = "index";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
@@ -1608,7 +1658,9 @@ function normalizeIndexValue(value: Value): IntValue | ErrorValue {
 /**
  * Field access interpretable.
  */
-export class FieldValue implements Interpretable {
+export class FieldValue {
+  readonly kind: InterpretableKind = "field";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
@@ -1651,7 +1703,9 @@ export class FieldValue implements Interpretable {
  * Has field (presence test) interpretable.
  * Returns true if the field exists on the operand.
  */
-export class HasFieldValue implements Interpretable {
+export class HasFieldValue {
+  readonly kind: InterpretableKind = "has_field";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
@@ -1699,7 +1753,9 @@ export class HasFieldValue implements Interpretable {
 /**
  * Comprehension (list/map comprehension) interpretable.
  */
-export class ComprehensionValue implements Interpretable {
+export class ComprehensionValue {
+  readonly kind: InterpretableKind = "comprehension";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly iterVar: string,
@@ -1837,7 +1893,9 @@ export class ComprehensionValue implements Interpretable {
 /**
  * Type conversion/assertion interpretable.
  */
-export class TypeConversionValue implements Interpretable {
+export class TypeConversionValue {
+  readonly kind: InterpretableKind = "type_conversion";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,

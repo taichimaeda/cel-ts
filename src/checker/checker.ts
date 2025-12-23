@@ -10,7 +10,6 @@ import {
   type Expr,
   FunctionReference,
   IdentExpr,
-  IdentReference,
   ListExpr,
   LiteralExpr,
   MapExpr,
@@ -18,6 +17,7 @@ import {
   type ReferenceInfo,
   SelectExpr,
   StructExpr,
+  VariableReference,
 } from "../common/ast";
 import type { SourceInfo } from "../common/source";
 import { type OverloadDecl, VariableDecl } from "./decls";
@@ -164,8 +164,9 @@ export class Checker {
     // Check if identifier is declared
     const ident = this.env.lookupIdent(identName);
     if (ident) {
+      const value = ident.kind === "enum" ? ident.value : undefined;
       this.setType(expr.id, ident.type);
-      this.setRef(expr.id, new IdentReference(ident.name, ident.value));
+      this.setRef(expr.id, new VariableReference(ident.name, value));
       return;
     }
 
@@ -187,8 +188,9 @@ export class Checker {
     if (name) {
       const ident = this.env.lookupIdent(name);
       if (ident) {
+        const value = ident.kind === "enum" ? ident.value : undefined;
         this.setType(expr.id, ident.type);
-        this.setRef(expr.id, new IdentReference(ident.name, ident.value));
+        this.setRef(expr.id, new VariableReference(ident.name, value));
         return;
       }
     }
@@ -304,7 +306,7 @@ export class Checker {
         }
         const targetType = maybeType.type.parameters[0] ?? DynType;
         this.setType(expr.id, targetType);
-        this.setRef(expr.id, { name: maybeType.name, overloadIds: [] });
+        this.setRef(expr.id, new VariableReference(maybeType.name));
         return;
       }
       this.errors.reportUndeclaredReference(
@@ -344,7 +346,7 @@ export class Checker {
     const resultType = joinTypes(trueType, falseType);
 
     this.setType(expr.id, resultType);
-    this.setRef(expr.id, new FunctionReference("conditional"));
+    this.setRef(expr.id, new FunctionReference(["conditional"]));
   }
 
   /**
@@ -381,7 +383,7 @@ export class Checker {
         }
         const targetType = maybeType.type.parameters[0] ?? DynType;
         this.setType(expr.id, targetType);
-        this.setRef(expr.id, { name: maybeType.name, overloadIds: [] });
+        this.setRef(expr.id, new VariableReference(maybeType.name));
         return;
       }
     }
@@ -653,9 +655,9 @@ export class Checker {
 
     this.setType(expr.id, resolved.resultType);
     if (resolvedName) {
-      this.setRef(expr.id, { name: resolvedName, overloadIds: resolved.overloadIds });
+      this.setRef(expr.id, new FunctionReference(resolved.overloadIds, resolvedName));
     } else {
-      this.setRef(expr.id, new FunctionReference(...resolved.overloadIds));
+      this.setRef(expr.id, new FunctionReference(resolved.overloadIds));
     }
   }
 

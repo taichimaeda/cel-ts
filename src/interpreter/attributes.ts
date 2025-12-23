@@ -4,6 +4,7 @@
 
 import type { ExprId } from "../common/ast";
 import type { Activation } from "./activation";
+import type { Interpretable } from "./interpretable";
 import {
   BoolValue,
   BytesValue,
@@ -23,50 +24,13 @@ import {
   ValueUtil,
 } from "./values";
 
-/**
- * Attribute represents a qualified variable reference.
- */
-export interface Attribute {
-  /**
-   * Add a qualifier to this attribute.
-   */
-  addQualifier(qualifier: Qualifier): Attribute;
+export type Attribute = AbsoluteAttribute | RelativeAttribute | ConditionalAttribute | MaybeAttribute;
 
-  /**
-   * Resolve the attribute value.
-   */
-  resolve(activation: Activation): Value;
+export type Qualifier = StringQualifier | IndexQualifier | ComputedQualifier;
 
-  /**
-   * Get the expression ID associated with this attribute.
-   */
-  id(): ExprId;
+export type AttributeKind = "absolute" | "relative" | "conditional" | "maybe";
 
-  /**
-   * Get all qualifiers on this attribute.
-   */
-  qualifiers(): readonly Qualifier[];
-}
-
-/**
- * Qualifier represents a field access, index access, or method call.
- */
-export interface Qualifier {
-  /**
-   * Get the expression ID for this qualifier.
-   */
-  id(): ExprId;
-
-  /**
-   * Qualify a value, returning the qualified result.
-   */
-  qualify(activation: Activation, obj: Value): Value;
-
-  /**
-   * Check if this is a constant qualifier (no runtime resolution needed).
-   */
-  isConstant(): boolean;
-}
+export type QualifierKind = "string" | "index" | "computed";
 
 /**
  * AttributeFactory creates attributes and qualifiers.
@@ -104,17 +68,11 @@ export interface AttributeFactory {
 }
 
 /**
- * Forward reference to Interpretable (defined in interpretable.ts).
- */
-export interface Interpretable {
-  id(): ExprId;
-  eval(activation: Activation): Value;
-}
-
-/**
  * String qualifier for field access like obj.field.
  */
-export class StringQualifier implements Qualifier {
+export class StringQualifier {
+  readonly kind: QualifierKind = "string";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly field: string,
@@ -172,7 +130,7 @@ export class StringQualifier implements Qualifier {
     // Object access (when converted from native JS value)
     const nativeVal = obj.value();
     if (typeof nativeVal === "object" && nativeVal !== null) {
-      const record = nativeVal as Record<string, unknown>;
+      const record = nativeVal as unknown as Record<string, unknown>;
       if (this.field in record) {
         const value = this.adapter.nativeToValue(record[this.field]);
         if (optionalSelection) {
@@ -196,7 +154,9 @@ export class StringQualifier implements Qualifier {
 /**
  * Index qualifier for index access like obj[index].
  */
-export class IndexQualifier implements Qualifier {
+export class IndexQualifier {
+  readonly kind: QualifierKind = "index";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly index: Value,
@@ -315,7 +275,9 @@ function normalizeIndexValue(value: Value): IntValue | ErrorValue {
 /**
  * Computed qualifier for dynamic index access like obj[expr].
  */
-export class ComputedQualifier implements Qualifier {
+export class ComputedQualifier {
+  readonly kind: QualifierKind = "computed";
+
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
@@ -351,7 +313,9 @@ export class ComputedQualifier implements Qualifier {
 /**
  * Absolute attribute rooted at a variable.
  */
-export class AbsoluteAttribute implements Attribute {
+export class AbsoluteAttribute {
+  readonly kind: AttributeKind = "absolute";
+
   private readonly namePath: readonly string[];
   private readonly quals: Qualifier[];
 
@@ -416,7 +380,9 @@ export class AbsoluteAttribute implements Attribute {
 /**
  * Relative attribute from a computed operand.
  */
-export class RelativeAttribute implements Attribute {
+export class RelativeAttribute {
+  readonly kind: AttributeKind = "relative";
+
   private readonly quals: Qualifier[];
 
   constructor(
@@ -462,7 +428,9 @@ export class RelativeAttribute implements Attribute {
 /**
  * Conditional attribute for ternary expressions.
  */
-export class ConditionalAttribute implements Attribute {
+export class ConditionalAttribute {
+  readonly kind: AttributeKind = "conditional";
+
   private readonly quals: Qualifier[] = [];
 
   constructor(
@@ -516,7 +484,9 @@ export class ConditionalAttribute implements Attribute {
 /**
  * Maybe attribute for optional field access.
  */
-export class MaybeAttribute implements Attribute {
+export class MaybeAttribute {
+  readonly kind: AttributeKind = "maybe";
+
   private readonly candidates: Attribute[];
   private readonly quals: Qualifier[];
 

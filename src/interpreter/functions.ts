@@ -4,9 +4,9 @@
 
 import {
   BinaryDispatcherOverload,
+  NaryDispatcherOverload,
   type Overload,
   UnaryDispatcherOverload,
-  VariadicDispatcherOverload,
 } from "./dispatcher";
 import {
   BoolValue,
@@ -14,9 +14,9 @@ import {
   DoubleValue,
   DurationValue,
   ErrorValue,
-  IntValue,
   INT64_MAX,
   INT64_MIN,
+  IntValue,
   ListValue,
   MapValue,
   StringValue,
@@ -152,7 +152,7 @@ export const stringFunctions: Overload[] = [
   }),
 
   // string.replace(string, string) -> string
-  new VariadicDispatcherOverload("replace_string", (args: Value[]): Value => {
+  new NaryDispatcherOverload("replace_string", (args: Value[]): Value => {
     if (args.length !== 3) {
       return ErrorValue.create("replace requires 3 arguments");
     }

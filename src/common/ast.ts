@@ -42,22 +42,37 @@ export enum Operators {
 }
 
 /**
- * Base expression interface.
+ * Expression identifiers and kinds.
  */
 export type ExprId = number;
+export type ExprKind =
+  | "unspecified"
+  | "literal"
+  | "ident"
+  | "select"
+  | "call"
+  | "list"
+  | "map"
+  | "struct"
+  | "comprehension";
 
-export interface Expr {
-  /** Unique ID for this expression node */
-  readonly id: ExprId;
-  /** Traverse the expression with a visitor. */
-  accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
-}
+export type Expr =
+  | UnspecifiedExpr
+  | LiteralExpr
+  | IdentExpr
+  | SelectExpr
+  | CallExpr
+  | ListExpr
+  | MapExpr
+  | StructExpr
+  | ComprehensionExpr;
 
 /**
  * Base class providing shared behavior for expressions.
  */
-export abstract class BaseExpr implements Expr {
-  constructor(readonly id: ExprId) {}
+export abstract class BaseExpr {
+  abstract readonly kind: ExprKind;
+  abstract readonly id: ExprId;
 
   abstract accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
 
@@ -99,8 +114,10 @@ export abstract class BaseExpr implements Expr {
  * Placeholder expression representing unspecified nodes.
  */
 export class UnspecifiedExpr extends BaseExpr {
-  constructor(id: ExprId) {
-    super(id);
+  readonly kind: ExprKind = "unspecified";
+
+  constructor(readonly id: ExprId) {
+    super();
   }
 
   override accept(
@@ -125,11 +142,13 @@ export class UnspecifiedExpr extends BaseExpr {
  * Literal value expression.
  */
 export class LiteralExpr extends BaseExpr {
+  readonly kind: ExprKind = "literal";
+
   constructor(
-    id: ExprId,
+    readonly id: ExprId,
     readonly value: LiteralValue
   ) {
-    super(id);
+    super();
   }
 
   override accept(
@@ -166,11 +185,13 @@ export type LiteralValue =
  * Identifier expression.
  */
 export class IdentExpr extends BaseExpr {
+  readonly kind: ExprKind = "ident";
+
   constructor(
-    id: ExprId,
+    readonly id: ExprId,
     readonly name: string
   ) {
-    super(id);
+    super();
   }
 
   override accept(
@@ -195,15 +216,17 @@ export class IdentExpr extends BaseExpr {
  * Field selection expression (e.g., `obj.field`).
  */
 export class SelectExpr extends BaseExpr {
+  readonly kind: ExprKind = "select";
+
   /** If true, this is a presence test (has()) rather than a selection */
   constructor(
-    id: ExprId,
+    readonly id: ExprId,
     readonly operand: Expr,
     readonly field: string,
     readonly testOnly: boolean,
     readonly optional = false
   ) {
-    super(id);
+    super();
   }
 
   override accept(
@@ -229,14 +252,16 @@ export class SelectExpr extends BaseExpr {
  * Function call expression.
  */
 export class CallExpr extends BaseExpr {
+  readonly kind: ExprKind = "call";
+
   /** Target for member calls (e.g., the `obj` in `obj.method(args)`) */
   constructor(
-    id: ExprId,
+    readonly id: ExprId,
     readonly funcName: string,
     readonly args: readonly Expr[],
     readonly target?: Expr
   ) {
-    super(id);
+    super();
   }
 
   override accept(
@@ -267,13 +292,15 @@ export class CallExpr extends BaseExpr {
  * List creation expression.
  */
 export class ListExpr extends BaseExpr {
+  readonly kind: ExprKind = "list";
+
   /** Indices of optional elements */
   constructor(
-    id: ExprId,
+    readonly id: ExprId,
     readonly elements: readonly Expr[],
     readonly optionalIndices: readonly number[]
   ) {
-    super(id);
+    super();
   }
 
   override accept(
@@ -313,7 +340,7 @@ export interface EntryExpr {
  * Base class providing shared behavior for entries.
  */
 export abstract class BaseEntry implements EntryExpr {
-  constructor(readonly id: ExprId) {}
+  constructor(readonly id: ExprId) { }
 
   abstract accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
 
@@ -364,11 +391,13 @@ export class MapEntry extends BaseEntry {
  * Map creation expression.
  */
 export class MapExpr extends BaseExpr {
+  readonly kind: ExprKind = "map";
+
   constructor(
-    id: ExprId,
+    readonly id: ExprId,
     readonly entries: readonly MapEntry[]
   ) {
-    super(id);
+    super();
   }
 
   override accept(
@@ -429,12 +458,14 @@ export class StructField extends BaseEntry {
  * Struct/message creation expression.
  */
 export class StructExpr extends BaseExpr {
+  readonly kind: ExprKind = "struct";
+
   constructor(
-    id: ExprId,
+    readonly id: ExprId,
     readonly typeName: string,
     readonly fields: readonly StructField[]
   ) {
-    super(id);
+    super();
   }
 
   override accept(
@@ -463,26 +494,57 @@ export class StructExpr extends BaseExpr {
  * Example: `list.all(x, x > 0)`
  */
 export class ComprehensionExpr extends BaseExpr {
-  constructor(
-    id: ExprId,
-    /** Expression that evaluates to the iterable (list or map) */
-    readonly iterRange: Expr,
-    /** Iteration variable name */
-    readonly iterVar: string,
-    /** Accumulator variable name */
-    readonly accuVar: string,
-    /** Initial accumulator value */
-    readonly accuInit: Expr,
-    /** Loop condition (evaluated each iteration, continues while true) */
-    readonly loopCondition: Expr,
-    /** Loop step (updates the accumulator) */
-    readonly loopStep: Expr,
-    /** Result expression (evaluated after the loop) */
-    readonly result: Expr,
-    /** Second iteration variable name (optional) */
-    readonly iterVar2?: string
-  ) {
-    super(id);
+  readonly kind: ExprKind = "comprehension";
+
+  readonly id: ExprId;
+  /** Expression that evaluates to the iterable (list or map). */
+  readonly iterRange: Expr;
+  /** Iteration variable name. */
+  readonly iterVar: string;
+  /** Accumulator variable name. */
+  readonly accuVar: string;
+  /** Initial accumulator value. */
+  readonly accuInit: Expr;
+  /** Loop condition (evaluated each iteration, continues while true). */
+  readonly loopCondition: Expr;
+  /** Loop step (updates the accumulator). */
+  readonly loopStep: Expr;
+  /** Result expression (evaluated after the loop). */
+  readonly result: Expr;
+  /** Second iteration variable name (optional). */
+  readonly iterVar2: string | undefined;
+
+  constructor({
+    id,
+    iterRange,
+    iterVar,
+    iterVar2,
+    accuVar,
+    accuInit,
+    loopCondition,
+    loopStep,
+    result,
+  }: {
+    id: ExprId;
+    iterRange: Expr;
+    iterVar: string;
+    iterVar2?: string | undefined;
+    accuVar: string;
+    accuInit: Expr;
+    loopCondition: Expr;
+    loopStep: Expr;
+    result: Expr;
+  }) {
+    super();
+    this.id = id;
+    this.iterRange = iterRange;
+    this.iterVar = iterVar;
+    this.iterVar2 = iterVar2;
+    this.accuVar = accuVar;
+    this.accuInit = accuInit;
+    this.loopCondition = loopCondition;
+    this.loopStep = loopStep;
+    this.result = result;
   }
 
   override accept(
@@ -509,20 +571,6 @@ export class ComprehensionExpr extends BaseExpr {
 }
 
 /**
- * Union type for all expression types.
- */
-export type AnyExpr =
-  | UnspecifiedExpr
-  | LiteralExpr
-  | IdentExpr
-  | SelectExpr
-  | CallExpr
-  | ListExpr
-  | MapExpr
-  | StructExpr
-  | ComprehensionExpr;
-
-/**
  * Union type for all entry expression types.
  */
 export type AnyEntryExpr = MapEntry | StructField;
@@ -544,37 +592,26 @@ export const AccumulatorName = "__result__";
  * Reference information for a checked expression.
  * Contains resolution information from type checking.
  */
-export interface ReferenceInfo {
-  /** Resolved name (fully qualified) */
-  name?: string;
-  /** Overload IDs for function calls */
-  overloadIds: string[];
-  /** Constant value (for enum constants) */
-  value?: unknown;
-}
+export type ReferenceInfo = VariableReference | FunctionReference;
 
 /**
- * Identifier reference information.
+ * Variable reference information.
  */
-export class IdentReference implements ReferenceInfo {
-  readonly overloadIds: string[] = [];
+export class VariableReference {
   constructor(
     readonly name: string,
     readonly value?: unknown
-  ) {}
+  ) { }
 }
 
 /**
  * Function reference information.
  */
-export class FunctionReference implements ReferenceInfo {
-  readonly overloadIds: string[];
-  readonly name?: string;
-  readonly value?: unknown;
-
-  constructor(...overloadIds: string[]) {
-    this.overloadIds = overloadIds;
-  }
+export class FunctionReference {
+  constructor(
+    readonly overloadIds: string[],
+    readonly name?: string | undefined,
+  ) { }
 }
 
 // ============================================================================
@@ -591,7 +628,7 @@ export class AST {
     readonly sourceInfo: SourceInfo,
     readonly typeMap: Map<ExprId, Type> = new Map(),
     readonly refMap: Map<ExprId, ReferenceInfo> = new Map()
-  ) {}
+  ) { }
 
   /**
    * Get the type for an expression ID.
@@ -626,7 +663,7 @@ export class AST {
    */
   getOverloadIds(id: ExprId): string[] {
     const ref = this.refMap.get(id);
-    return ref?.overloadIds ?? [];
+    return ref instanceof FunctionReference ? ref.overloadIds : [];
   }
 
   /**

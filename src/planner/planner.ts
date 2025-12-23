@@ -15,12 +15,14 @@ import {
   LiteralExpr,
   MapExpr,
   Operators,
+  FunctionReference,
   type ReferenceInfo,
   SelectExpr,
   StructExpr,
+  VariableReference,
 } from "../common/ast";
 import { type Attribute, DefaultAttributeFactory, MaybeAttribute } from "../interpreter/attributes";
-import { DefaultDispatcher, type Dispatcher, FunctionResolver } from "../interpreter/dispatcher";
+import { Dispatcher } from "../interpreter/dispatcher";
 import {
   AndValue,
   AttrValue,
@@ -78,7 +80,6 @@ export interface PlannerOptions {
  */
 export class Planner {
   private readonly refMap: Map<ExprId, ReferenceInfo>;
-  private readonly resolver: FunctionResolver;
   private readonly dispatcher: Dispatcher;
   private readonly attributeFactory: DefaultAttributeFactory;
   private readonly typeProvider: TypeProvider | undefined;
@@ -88,9 +89,7 @@ export class Planner {
   private readonly enumValuesAsInt: boolean;
 
   constructor(options: PlannerOptions = {}) {
-    const dispatcher = options.dispatcher ?? new DefaultDispatcher();
-    this.dispatcher = dispatcher;
-    this.resolver = new FunctionResolver(dispatcher);
+    this.dispatcher = options.dispatcher ?? new Dispatcher();
     this.refMap = options.refMap ?? new Map();
     this.hasRefMap = options.refMap !== undefined;
     this.attributeFactory = new DefaultAttributeFactory();
@@ -168,10 +167,10 @@ export class Planner {
    */
   private planIdent(e: IdentExpr): Interpretable {
     const ref = this.refMap.get(e.id);
-    if (ref?.value !== undefined) {
+    if (ref instanceof VariableReference && ref.value !== undefined) {
       return new ConstValue(e.id, this.enumValueToValue(ref, e.id));
     }
-    if (ref?.name && ref.name !== e.name) {
+    if (ref instanceof VariableReference && ref.name !== e.name) {
       const attr = this.attributeForName(e.id, ref.name);
       return new AttrValue(attr);
     }
@@ -191,7 +190,7 @@ export class Planner {
    */
   private planSelect(e: SelectExpr): Interpretable {
     const ref = this.refMap.get(e.id);
-    if (ref?.value !== undefined) {
+    if (ref instanceof VariableReference && ref.value !== undefined) {
       return new ConstValue(e.id, this.enumValueToValue(ref, e.id));
     }
     const selectType = this.typeMap?.get(e.id);
@@ -202,7 +201,7 @@ export class Planner {
       }
     }
     if (!e.testOnly && !e.optional) {
-      if (ref?.name) {
+      if (ref instanceof VariableReference) {
         const attr = this.attributeForName(e.id, ref.name);
         return new AttrValue(attr);
       }
@@ -453,32 +452,33 @@ export class Planner {
    */
   private planMemberCall(e: CallExpr): Interpretable {
     const ref = this.refMap.get(e.id);
-    if (ref?.name && ref.overloadIds.length === 0 && e.args.length === 1) {
+    if (ref instanceof VariableReference && e.args.length === 1) {
       const arg = this.planExpr(e.args[0]!);
       return new TypeConversionValue(e.id, arg, ref.name, this.typeProvider);
     }
-    if (ref?.name) {
+    if (ref instanceof FunctionReference && ref.name) {
       const args: Interpretable[] = [];
       for (const arg of e.args) {
         args.push(this.planExpr(arg));
       }
       const overloadId = this.resolveOverloadId(ref, e.args, `${ref.name}_${args.length}`);
-      return new CallValue(e.id, ref.name, overloadId, args, this.resolver);
+      return new CallValue(e.id, ref.name, overloadId, args, this.dispatcher);
     }
 
     const targetName = this.resolveQualifiedName(e.target!);
     if (targetName) {
       const qualified = `${targetName.join(".")}.${e.funcName}`;
-      if (this.dispatcher.findOverloads(qualified).length > 0) {
+      if (this.dispatcher.findOverloadsByName(qualified).length > 0) {
         const args: Interpretable[] = [];
         for (const arg of e.args) {
           args.push(this.planExpr(arg));
         }
         const candidate = this.refMap.get(e.id);
-        const overloadId = candidate
-          ? this.resolveOverloadId(candidate, e.args, `${qualified}_${args.length}`)
-          : `${qualified}_${args.length}`;
-        return new CallValue(e.id, qualified, overloadId, args, this.resolver);
+        const overloadId =
+          candidate instanceof FunctionReference
+            ? this.resolveOverloadId(candidate, e.args, `${qualified}_${args.length}`)
+            : `${qualified}_${args.length}`;
+        return new CallValue(e.id, qualified, overloadId, args, this.dispatcher);
       }
     }
 
@@ -490,11 +490,12 @@ export class Planner {
     }
 
     const memberRef = this.refMap.get(e.id);
-    const overloadId = memberRef
-      ? this.resolveOverloadId(memberRef, e.args, `${e.funcName}_${args.length}`)
-      : `${e.funcName}_${args.length}`;
+    const overloadId =
+      memberRef instanceof FunctionReference
+        ? this.resolveOverloadId(memberRef, e.args, `${e.funcName}_${args.length}`)
+        : `${e.funcName}_${args.length}`;
 
-    return new CallValue(e.id, e.funcName, overloadId, args, this.resolver);
+    return new CallValue(e.id, e.funcName, overloadId, args, this.dispatcher);
   }
 
   /**
@@ -513,19 +514,21 @@ export class Planner {
     }
 
     const ref = this.refMap.get(e.id);
-    if (ref?.name && ref.overloadIds.length === 0 && args.length === 1) {
+    if (ref instanceof VariableReference && args.length === 1) {
       return new TypeConversionValue(e.id, args[0]!, ref.name, this.typeProvider);
     }
 
-    const overloadId = ref
-      ? this.resolveOverloadId(ref, e.args, `${e.funcName}_${args.length}`)
-      : `${e.funcName}_${args.length}`;
+    const functionName = ref instanceof FunctionReference && ref.name ? ref.name : e.funcName;
+    const overloadId =
+      ref instanceof FunctionReference
+        ? this.resolveOverloadId(ref, e.args, `${functionName}_${args.length}`)
+        : `${functionName}_${args.length}`;
 
-    return new CallValue(e.id, e.funcName, overloadId, args, this.resolver);
+    return new CallValue(e.id, functionName, overloadId, args, this.dispatcher);
   }
 
   private resolveOverloadId(
-    ref: ReferenceInfo,
+    ref: FunctionReference,
     args: readonly Expr[],
     fallback: string
   ): string {
@@ -741,7 +744,7 @@ export class Planner {
     }
   }
 
-  private enumValueToValue(ref: ReferenceInfo, exprId: ExprId): Value {
+  private enumValueToValue(ref: VariableReference, exprId: ExprId): Value {
     const value = ref.value;
     const numeric = this.enumNumericValue(value);
     if (numeric === null) {
@@ -769,7 +772,7 @@ export class Planner {
     return null;
   }
 
-  private enumTypeFromRef(ref: ReferenceInfo): string | null {
+  private enumTypeFromRef(ref: VariableReference): string | null {
     const refName = ref.name;
     if (!refName) {
       return null;
