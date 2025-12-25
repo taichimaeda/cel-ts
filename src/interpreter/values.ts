@@ -4,10 +4,10 @@
 import type { TypeProvider } from "../checker/provider";
 import {
   OptionalType as CheckerOptionalType,
-  PrimitiveTypes,
   StructType as CheckerStructType,
-  type Type as CheckerType,
   OpaqueType,
+  PrimitiveTypes,
+  type Type as CheckerType,
 } from "../checker/types";
 import type { ExprId } from "../common/ast";
 import {
@@ -15,15 +15,15 @@ import {
   GenericMapType,
   OptionalType as RuntimeOptionalType,
   UnknownType,
-  type ValueType,
+  type RuntimeType,
 } from "./types";
 import {
   defaultValueForType,
   formatTimestamp,
-  wrapperTypeNameToKind,
   parseTimeZoneOffset,
   protoDefaultToValue,
   weekdayToNumber,
+  wrapperTypeNameToKind,
 } from "./utils";
 
 // ---------------------------------------------------------------------------
@@ -98,7 +98,7 @@ function isTimestampInRange(nanos: bigint): boolean {
 export abstract class BaseValue {
   abstract readonly kind: ValueKind;
   /** Get the type of this value */
-  abstract type(): ValueType;
+  abstract type(): RuntimeType;
 
   /** Get a human-readable representation */
   abstract toString(): string;
@@ -141,7 +141,7 @@ export class BoolValue extends BaseValue {
     return val ? BoolValue.True : BoolValue.False;
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.Bool;
   }
 
@@ -150,8 +150,8 @@ export class BoolValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof BoolValue) {
-      return BoolValue.of(this.val === other.val);
+    if (isBoolValue(other)) {
+      return BoolValue.of(this.val === other.value());
     }
     return BoolValue.False;
   }
@@ -197,7 +197,7 @@ export class IntValue extends BaseValue {
     return new IntValue(v);
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.Int;
   }
 
@@ -206,16 +206,16 @@ export class IntValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof IntValue) {
-      return BoolValue.of(this.val === other.val);
-    }
-    if (other instanceof EnumValue) {
+    if (isIntValue(other)) {
       return BoolValue.of(this.val === other.value());
     }
-    if (other instanceof UintValue) {
+    if (isEnumValue(other)) {
+      return BoolValue.of(this.val === other.value());
+    }
+    if (isUintValue(other)) {
       return BoolValue.of(this.val >= 0n && this.val === other.value());
     }
-    if (other instanceof DoubleValue) {
+    if (isDoubleValue(other)) {
       return BoolValue.of(Number(this.val) === other.value());
     }
     return BoolValue.False;
@@ -306,7 +306,7 @@ export class UintValue extends BaseValue {
     return new UintValue(v);
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.Uint;
   }
 
@@ -315,14 +315,14 @@ export class UintValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof UintValue) {
-      return BoolValue.of(this.val === other.val);
+    if (isUintValue(other)) {
+      return BoolValue.of(this.val === other.value());
     }
-    if (other instanceof IntValue) {
+    if (isIntValue(other)) {
       const otherVal = other.value();
       return BoolValue.of(otherVal >= 0n && this.val === otherVal);
     }
-    if (other instanceof DoubleValue) {
+    if (isDoubleValue(other)) {
       return BoolValue.of(Number(this.val) === other.value());
     }
     return BoolValue.False;
@@ -395,7 +395,7 @@ export class EnumValue extends BaseValue {
     return new EnumValue(typeName, val);
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return this.enumType;
   }
 
@@ -408,18 +408,19 @@ export class EnumValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof EnumValue) {
+    if (isEnumValue(other)) {
       return BoolValue.of(
-        this.enumType.runtimeTypeName === other.enumType.runtimeTypeName && this.val === other.val
+        this.enumType.runtimeTypeName === other.enumType.runtimeTypeName &&
+        this.val === other.val
       );
     }
-    if (other instanceof IntValue) {
+    if (isIntValue(other)) {
       return BoolValue.of(this.val === other.value());
     }
-    if (other instanceof UintValue) {
+    if (isUintValue(other)) {
       return BoolValue.of(this.val >= 0n && this.val === other.value());
     }
-    if (other instanceof DoubleValue) {
+    if (isDoubleValue(other)) {
       return BoolValue.of(Number(this.val) === other.value());
     }
     return BoolValue.False;
@@ -457,7 +458,7 @@ export class DoubleValue extends BaseValue {
     return new DoubleValue(val);
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.Double;
   }
 
@@ -469,13 +470,13 @@ export class DoubleValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof DoubleValue) {
-      return BoolValue.of(this.val === other.val);
+    if (isDoubleValue(other)) {
+      return BoolValue.of(this.val === other.value());
     }
-    if (other instanceof IntValue) {
+    if (isIntValue(other)) {
       return BoolValue.of(this.val === Number(other.value()));
     }
-    if (other instanceof UintValue) {
+    if (isUintValue(other)) {
       return BoolValue.of(this.val === Number(other.value()));
     }
     return BoolValue.False;
@@ -530,7 +531,7 @@ export class StringValue extends BaseValue {
     return new StringValue(val);
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.String;
   }
 
@@ -539,8 +540,8 @@ export class StringValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof StringValue) {
-      return BoolValue.of(this.val === other.val);
+    if (isStringValue(other)) {
+      return BoolValue.of(this.val === other.value());
     }
     return BoolValue.False;
   }
@@ -617,7 +618,7 @@ export class BytesValue extends BaseValue {
     return BytesValue.of(encoder.encode(val));
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.Bytes;
   }
 
@@ -628,7 +629,7 @@ export class BytesValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof BytesValue) {
+    if (isBytesValue(other)) {
       if (this.val.length !== other.val.length) {
         return BoolValue.False;
       }
@@ -677,7 +678,7 @@ export class NullValue extends BaseValue {
     super();
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.Null;
   }
 
@@ -686,7 +687,7 @@ export class NullValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    return BoolValue.of(other instanceof NullValue);
+    return BoolValue.of(other.kind === "null");
   }
 
   value(): null {
@@ -713,7 +714,7 @@ export class ListValue extends BaseValue {
     return new ListValue(elements);
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return GenericListType;
   }
 
@@ -722,16 +723,16 @@ export class ListValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof ListValue) {
+    if (isListValue(other)) {
       if (this.elements.length !== other.elements.length) {
         return BoolValue.False;
       }
       for (let i = 0; i < this.elements.length; i++) {
         const eq = this.elements[i]!.equal(other.elements[i]!);
-        if (eq instanceof BoolValue && !eq.value()) {
+        if (isBoolValue(eq) && !eq.value()) {
           return BoolValue.False;
         }
-        if (eq instanceof ErrorValue) {
+        if (isErrorValue(eq)) {
           return eq;
         }
       }
@@ -759,7 +760,7 @@ export class ListValue extends BaseValue {
   contains(val: Value): BoolValue {
     for (const elem of this.elements) {
       const eq = elem.equal(val);
-      if (eq instanceof BoolValue && eq.value()) {
+      if (isBoolValue(eq) && eq.value()) {
         return BoolValue.True;
       }
     }
@@ -817,13 +818,13 @@ export class MapValue extends BaseValue {
   }
 
   private keyToString(key: Value): string {
-    if (key instanceof IntValue) {
+    if (isIntValue(key)) {
       return `num:${key.value().toString()}`;
     }
-    if (key instanceof UintValue) {
+    if (isUintValue(key)) {
       return `num:${key.value().toString()}`;
     }
-    if (key instanceof DoubleValue) {
+    if (isDoubleValue(key)) {
       const value = key.value();
       if (Number.isFinite(value) && Number.isInteger(value)) {
         return `num:${value}`;
@@ -834,7 +835,7 @@ export class MapValue extends BaseValue {
     return `${key.type()}:${key.value()}`;
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return GenericMapType;
   }
 
@@ -844,17 +845,17 @@ export class MapValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof MapValue) {
+    if (isMapValue(other)) {
       if (this.entries.length !== other.entries.length) {
         return BoolValue.False;
       }
       for (const entry of this.entries) {
         const otherVal = other.get(entry.key);
-        if (otherVal instanceof ErrorValue) {
+        if (isErrorValue(otherVal)) {
           return BoolValue.False;
         }
         const eq = entry.value.equal(otherVal);
-        if (eq instanceof BoolValue && !eq.value()) {
+        if (isBoolValue(eq) && !eq.value()) {
           return BoolValue.False;
         }
       }
@@ -929,7 +930,7 @@ export class StructValue extends BaseValue {
     return new StructValue(typeName, values, presentFields, fieldTypes, typeProvider);
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return new CheckerStructType(this.typeName);
   }
 
@@ -939,7 +940,7 @@ export class StructValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (!(other instanceof StructValue)) {
+    if (!isStructValue(other)) {
       return BoolValue.False;
     }
     if (this.typeName !== other.typeName) {
@@ -955,18 +956,18 @@ export class StructValue extends BaseValue {
 
     for (const name of fieldNames) {
       const left = this.getField(name);
-      if (left instanceof ErrorValue) {
+      if (left.kind === "error") {
         return left;
       }
       const right = other.getField(name);
-      if (right instanceof ErrorValue) {
+      if (right.kind === "error") {
         return right;
       }
       const eq = left.equal(right);
-      if (eq instanceof BoolValue && !eq.value()) {
+      if (isBoolValue(eq) && !eq.value()) {
         return BoolValue.False;
       }
-      if (eq instanceof ErrorValue) {
+      if (isErrorValue(eq)) {
         return eq;
       }
     }
@@ -1066,15 +1067,15 @@ export class TypeValue extends BaseValue {
   static readonly TimestampType = new TypeValue(PrimitiveTypes.Timestamp);
   readonly kind: ValueKind = "type";
 
-  private constructor(private readonly typeName: ValueType) {
+  private constructor(private readonly typeName: RuntimeType) {
     super();
   }
 
-  static of(typeName: ValueType): TypeValue {
+  static of(typeName: RuntimeType): TypeValue {
     return new TypeValue(typeName);
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.Type;
   }
 
@@ -1083,7 +1084,7 @@ export class TypeValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof TypeValue) {
+    if (isTypeValue(other)) {
       if (this.typeName.toString() === other.typeName.toString()) {
         return BoolValue.True;
       }
@@ -1097,39 +1098,251 @@ export class TypeValue extends BaseValue {
   }
 }
 
-export type { ValueType } from "./types";
+/**
+ * Convert a ValueType to a TypeValue.
+ */
+export function toTypeValue(type: RuntimeType): TypeValue {
+  if (type === PrimitiveTypes.Bool) return TypeValue.BoolType;
+  if (type === PrimitiveTypes.Int) return TypeValue.IntType;
+  if (type === PrimitiveTypes.Uint) return TypeValue.UintType;
+  if (type === PrimitiveTypes.Double) return TypeValue.DoubleType;
+  if (type === PrimitiveTypes.String) return TypeValue.StringType;
+  if (type === PrimitiveTypes.Bytes) return TypeValue.BytesType;
+  if (type === PrimitiveTypes.Null) return TypeValue.NullType;
+  if (type === GenericListType) return TypeValue.ListType;
+  if (type === GenericMapType) return TypeValue.MapType;
+  if (type === PrimitiveTypes.Type) return TypeValue.TypeType;
+  if (type === PrimitiveTypes.Duration) return TypeValue.DurationType;
+  if (type === PrimitiveTypes.Timestamp) return TypeValue.TimestampType;
+  if (type === RuntimeOptionalType) {
+    return TypeValue.of(new CheckerOptionalType(PrimitiveTypes.Dyn));
+  }
+  return TypeValue.of(type);
+}
 
-export class ValueUtil {
-  static toTypeValue(type: ValueType): TypeValue {
-    if (type === PrimitiveTypes.Bool) return TypeValue.BoolType;
-    if (type === PrimitiveTypes.Int) return TypeValue.IntType;
-    if (type === PrimitiveTypes.Uint) return TypeValue.UintType;
-    if (type === PrimitiveTypes.Double) return TypeValue.DoubleType;
-    if (type === PrimitiveTypes.String) return TypeValue.StringType;
-    if (type === PrimitiveTypes.Bytes) return TypeValue.BytesType;
-    if (type === PrimitiveTypes.Null) return TypeValue.NullType;
-    if (type === GenericListType) return TypeValue.ListType;
-    if (type === GenericMapType) return TypeValue.MapType;
-    if (type === PrimitiveTypes.Type) return TypeValue.TypeType;
-    if (type === PrimitiveTypes.Duration) return TypeValue.DurationType;
-    if (type === PrimitiveTypes.Timestamp) return TypeValue.TimestampType;
-    if (type === RuntimeOptionalType) {
-      return TypeValue.of(new CheckerOptionalType(PrimitiveTypes.Dyn));
+// ------------------------------
+// Type Guards / Type Checks
+// ------------------------------
+
+/**
+ * Check if a value is a BoolValue.
+ */
+export function isBoolValue(value: Value): value is BoolValue {
+  return value.kind === "bool";
+}
+
+/**
+ * Check if a value is an IntValue.
+ */
+export function isIntValue(value: Value): value is IntValue {
+  return value.kind === "int";
+}
+
+/**
+ * Check if a value is a UintValue.
+ */
+export function isUintValue(value: Value): value is UintValue {
+  return value.kind === "uint";
+}
+
+/**
+ * Check if a value is an EnumValue.
+ */
+export function isEnumValue(value: Value): value is EnumValue {
+  return value.kind === "enum";
+}
+
+/**
+ * Check if a value is a DoubleValue.
+ */
+export function isDoubleValue(value: Value): value is DoubleValue {
+  return value.kind === "double";
+}
+
+/**
+ * Check if a value is a StringValue.
+ */
+export function isStringValue(value: Value): value is StringValue {
+  return value.kind === "string";
+}
+
+/**
+ * Check if a value is a BytesValue.
+ */
+export function isBytesValue(value: Value): value is BytesValue {
+  return value.kind === "bytes";
+}
+
+/**
+ * Check if a value is a NullValue.
+ */
+export function isNullValue(value: Value): value is NullValue {
+  return value.kind === "null";
+}
+
+/**
+ * Check if a value is a ListValue.
+ */
+export function isListValue(value: Value): value is ListValue {
+  return value.kind === "list";
+}
+
+/**
+ * Check if a value is a MapValue.
+ */
+export function isMapValue(value: Value): value is MapValue {
+  return value.kind === "map";
+}
+
+/**
+ * Check if a value is a StructValue.
+ */
+export function isStructValue(value: Value): value is StructValue {
+  return value.kind === "struct";
+}
+
+/**
+ * Check if a value is a TypeValue.
+ */
+export function isTypeValue(value: Value): value is TypeValue {
+  return value.kind === "type";
+}
+
+/**
+ * Check if a value is a DurationValue.
+ */
+export function isDurationValue(value: Value): value is DurationValue {
+  return value.kind === "duration";
+}
+
+/**
+ * Check if a value is a TimestampValue.
+ */
+export function isTimestampValue(value: Value): value is TimestampValue {
+  return value.kind === "timestamp";
+}
+
+/**
+ * Check if a value is an ErrorValue.
+ */
+export function isErrorValue(value: Value): value is ErrorValue {
+  return value.kind === "error";
+}
+
+/**
+ * Check if a value is an UnknownValue.
+ */
+export function isUnknownValue(value: Value): value is UnknownValue {
+  return value.kind === "unknown";
+}
+
+/**
+ * Check if a value is an OptionalValue.
+ */
+export function isOptionalValue(value: Value): value is OptionalValue {
+  return value.kind === "optional";
+}
+
+/**
+ * Check if a value is comparable.
+ */
+export function isComparableValue(value: Value): boolean {
+  switch (value.kind) {
+    case "int":
+    case "uint":
+    case "double":
+    case "bool":
+    case "duration":
+    case "timestamp":
+    case "string":
+    case "bytes":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Compare two values.
+ */
+export function compareValues(lhs: Value, rhs: Value): number | ErrorValue {
+  if (isIntValue(lhs) && isIntValue(rhs)) {
+    return lhs.compare(rhs);
+  }
+  if (isUintValue(lhs) && isUintValue(rhs)) {
+    return lhs.compare(rhs);
+  }
+  if (isDoubleValue(lhs) && isDoubleValue(rhs)) {
+    const cmp = lhs.compare(rhs);
+    if (Number.isNaN(cmp)) {
+      return ErrorValue.of("cannot compare NaN");
     }
-    return TypeValue.of(type);
+    return cmp;
   }
+  if (isIntValue(lhs) && isUintValue(rhs)) {
+    return compareIntUint(lhs, rhs);
+  }
+  if (isUintValue(lhs) && isIntValue(rhs)) {
+    return -compareIntUint(rhs, lhs);
+  }
+  if (isStringValue(lhs) && isStringValue(rhs)) {
+    return lhs.compare(rhs);
+  }
+  if (isBytesValue(lhs) && isBytesValue(rhs)) {
+    const left = lhs.value();
+    const right = rhs.value();
+    const len = Math.min(left.length, right.length);
+    for (let i = 0; i < len; i++) {
+      if (left[i]! < right[i]!) return -1;
+      if (left[i]! > right[i]!) return 1;
+    }
+    if (left.length === right.length) return 0;
+    return left.length < right.length ? -1 : 1;
+  }
+  if (isBoolValue(lhs) && isBoolValue(rhs)) {
+    const left = lhs.value();
+    const right = rhs.value();
+    if (left === right) return 0;
+    return left ? 1 : -1;
+  }
+  if (isDurationValue(lhs) && isDurationValue(rhs)) {
+    return lhs.compare(rhs);
+  }
+  if (isTimestampValue(lhs) && isTimestampValue(rhs)) {
+    return lhs.compare(rhs);
+  }
+  if (isNumericKind(lhs.kind) && isNumericKind(rhs.kind)) {
+    const left = toNumber(lhs);
+    const right = toNumber(rhs);
+    if (Number.isNaN(left) || Number.isNaN(right)) {
+      return ErrorValue.of("cannot compare NaN");
+    }
+    return left < right ? -1 : left > right ? 1 : 0;
+  }
+  return ErrorValue.of(`cannot compare ${lhs.type()} with ${rhs.type()}`);
+}
 
-  static isError(val: Value): val is ErrorValue {
-    return val instanceof ErrorValue;
-  }
+function isNumericKind(kind: ValueKind): boolean {
+  return kind === "int" || kind === "uint" || kind === "double";
+}
 
-  static isUnknown(val: Value): val is UnknownValue {
-    return val instanceof UnknownValue;
+function toNumber(value: Value): number {
+  if (isDoubleValue(value)) return value.value();
+  if (isIntValue(value) || isUintValue(value)) {
+    return Number(value.value());
   }
+  return Number.NaN;
+}
 
-  static isErrorOrUnknown(val: Value): boolean {
-    return ValueUtil.isError(val) || ValueUtil.isUnknown(val);
+function compareIntUint(lhs: IntValue, rhs: UintValue): number {
+  const left = lhs.value();
+  if (left < 0n) {
+    return -1;
   }
+  const right = rhs.value();
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }
 
 /**
@@ -1156,7 +1369,7 @@ export class DurationValue extends BaseValue {
     return new DurationValue(BigInt(Math.trunc(millis * 1e6)));
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.Duration;
   }
 
@@ -1166,7 +1379,7 @@ export class DurationValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof DurationValue) {
+    if (isDurationValue(other)) {
       return BoolValue.of(this.nanos === other.nanos);
     }
     return BoolValue.False;
@@ -1249,7 +1462,7 @@ export class TimestampValue extends BaseValue {
     return TimestampValue.fromDate(new Date());
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.Timestamp;
   }
 
@@ -1258,7 +1471,7 @@ export class TimestampValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof TimestampValue) {
+    if (isTimestampValue(other)) {
       return BoolValue.of(this.nanos === other.nanos);
     }
     return BoolValue.False;
@@ -1277,7 +1490,7 @@ export class TimestampValue extends BaseValue {
   }
 
   subtract(other: TimestampValue | DurationValue): TimestampValue | DurationValue | ErrorValue {
-    if (other instanceof TimestampValue) {
+    if (isTimestampValue(other)) {
       const diff = this.nanos - other.nanos;
       if (!isDurationInRange(diff)) {
         return ErrorValue.of("duration out of range");
@@ -1488,7 +1701,7 @@ export class ErrorValue extends BaseValue {
     return ErrorValue.of(`type mismatch: expected ${expected}, got ${actual.type()}`, exprId);
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return PrimitiveTypes.Error;
   }
 
@@ -1535,7 +1748,7 @@ export class UnknownValue extends BaseValue {
     return new UnknownValue(attributeIds);
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return UnknownType;
   }
 
@@ -1576,7 +1789,7 @@ export class OptionalValue extends BaseValue {
     return OptionalValue.None;
   }
 
-  type(): ValueType {
+  type(): RuntimeType {
     return RuntimeOptionalType;
   }
 
@@ -1588,7 +1801,7 @@ export class OptionalValue extends BaseValue {
   }
 
   equal(other: Value): Value {
-    if (other instanceof OptionalValue) {
+    if (isOptionalValue(other)) {
       if (this.inner === undefined && other.inner === undefined) {
         return BoolValue.True;
       }

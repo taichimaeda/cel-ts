@@ -1,8 +1,15 @@
 import { type EnvOptions, Function, Overload, PrimitiveTypes } from "../cel";
-import { BytesValue, ErrorValue, StringValue, type Value } from "../interpreter/values";
+import {
+  BytesValue,
+  ErrorValue,
+  isBytesValue,
+  isStringValue,
+  StringValue,
+  type Value,
+} from "../interpreter/values";
 import { type Macro, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
-import { macroTargetMatchesNamespace } from "./macros";
+import { macroTargetMatchesNamespace } from "./utils";
 
 /**
  * Encoders extension.
@@ -31,24 +38,21 @@ export class EncodersExtension implements Extension {
         new Function(
           "base64.decode",
           new Overload("base64_decode_string", [PrimitiveTypes.String], PrimitiveTypes.Bytes, (arg: Value) => {
-            if (!(arg instanceof StringValue)) {
+            if (!isStringValue(arg)) {
               return ErrorValue.typeMismatch("string", arg);
             }
             const decoded = decodeBase64(arg.value());
-            if (decoded instanceof ErrorValue) {
-              return decoded;
-            }
-            return BytesValue.of(decoded);
+            return decoded;
           })
         ),
         new Function(
           "base64.encode",
           new Overload("base64_encode_bytes", [PrimitiveTypes.Bytes], PrimitiveTypes.String, (arg: Value) => {
-            if (!(arg instanceof BytesValue)) {
+            if (!isBytesValue(arg)) {
               return ErrorValue.typeMismatch("bytes", arg);
             }
             const encoded = encodeBase64(arg.value());
-            if (encoded instanceof ErrorValue) {
+            if (typeof encoded !== "string") {
               return encoded;
             }
             return StringValue.of(encoded);
@@ -59,17 +63,17 @@ export class EncodersExtension implements Extension {
   }
 }
 
-function decodeBase64(value: string): Uint8Array | ErrorValue {
+function decodeBase64(value: string): BytesValue | ErrorValue {
   try {
     if (typeof Buffer !== "undefined") {
-      return new Uint8Array(Buffer.from(value, "base64"));
+      return BytesValue.of(new Uint8Array(Buffer.from(value, "base64")));
     }
     const decoded = atob(value);
     const bytes = new Uint8Array(decoded.length);
     for (let i = 0; i < decoded.length; i++) {
       bytes[i] = decoded.charCodeAt(i);
     }
-    return bytes;
+    return BytesValue.of(bytes);
   } catch (error) {
     const message = error instanceof Error ? error.message : "invalid base64 input";
     return ErrorValue.of(`base64.decode: ${message}`);

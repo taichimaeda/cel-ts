@@ -1,9 +1,16 @@
 import { type EnvOptions, Function, Overload } from "../cel";
 import { MapType, TypeParamType } from "../checker/types";
-import { AccumulatorName, type Expr, IdentExpr, Operators } from "../common/ast";
-import { ErrorValue, type MapEntry, MapValue, type Value } from "../interpreter/values";
+import { AccumulatorName, Operators } from "../common/ast";
+import {
+  ErrorValue,
+  isMapValue,
+  type MapEntry,
+  MapValue,
+  type Value,
+} from "../interpreter/values";
 import { type Macro, MacroError, type MacroExpander, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
+import { extractIdentName } from "./utils";
 
 /**
  * Two-variable comprehensions extension.
@@ -45,8 +52,8 @@ export class TwoVarComprehensionsExtension implements Extension {
 }
 
 const quantifierAll: MacroExpander = (helper, target, args) => {
-  const iterVar1 = extractIdent(args[0]);
-  const iterVar2 = extractIdent(args[1]);
+  const iterVar1 = extractIdentName(args[0]);
+  const iterVar2 = extractIdentName(args[1]);
   if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
@@ -72,8 +79,8 @@ const quantifierAll: MacroExpander = (helper, target, args) => {
 };
 
 const quantifierExists: MacroExpander = (helper, target, args) => {
-  const iterVar1 = extractIdent(args[0]);
-  const iterVar2 = extractIdent(args[1]);
+  const iterVar1 = extractIdentName(args[0]);
+  const iterVar2 = extractIdentName(args[1]);
   if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
@@ -102,8 +109,8 @@ const quantifierExists: MacroExpander = (helper, target, args) => {
 };
 
 const quantifierExistsOne: MacroExpander = (helper, target, args) => {
-  const iterVar1 = extractIdent(args[0]);
-  const iterVar2 = extractIdent(args[1]);
+  const iterVar1 = extractIdentName(args[0]);
+  const iterVar2 = extractIdentName(args[1]);
   if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
@@ -138,8 +145,8 @@ const quantifierExistsOne: MacroExpander = (helper, target, args) => {
 };
 
 const transformList: MacroExpander = (helper, target, args) => {
-  const iterVar1 = extractIdent(args[0]);
-  const iterVar2 = extractIdent(args[1]);
+  const iterVar1 = extractIdentName(args[0]);
+  const iterVar2 = extractIdentName(args[1]);
   if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
@@ -175,8 +182,8 @@ const transformList: MacroExpander = (helper, target, args) => {
 };
 
 const transformMap: MacroExpander = (helper, target, args) => {
-  const iterVar1 = extractIdent(args[0]);
-  const iterVar2 = extractIdent(args[1]);
+  const iterVar1 = extractIdentName(args[0]);
+  const iterVar2 = extractIdentName(args[1]);
   if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
@@ -213,8 +220,8 @@ const transformMap: MacroExpander = (helper, target, args) => {
 };
 
 const transformMapEntry: MacroExpander = (helper, target, args) => {
-  const iterVar1 = extractIdent(args[0]);
-  const iterVar2 = extractIdent(args[1]);
+  const iterVar1 = extractIdentName(args[0]);
+  const iterVar2 = extractIdentName(args[1]);
   if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
@@ -245,18 +252,11 @@ const transformMapEntry: MacroExpander = (helper, target, args) => {
   );
 };
 
-function extractIdent(expr: Expr | undefined): string | undefined {
-  if (expr instanceof IdentExpr) {
-    return expr.name;
-  }
-  return undefined;
-}
-
 function mapInsertKeyValue(args: Value[]): Value {
   const map = args[0];
   const key = args[1];
   const value = args[2];
-  if (!(map instanceof MapValue)) {
+  if (map === undefined || !isMapValue(map)) {
     return ErrorValue.typeMismatch("map", map!);
   }
   if (key === undefined || value === undefined) {
@@ -270,7 +270,7 @@ function mapInsertKeyValue(args: Value[]): Value {
 }
 
 function mapInsertMap(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof MapValue) || !(rhs instanceof MapValue)) {
+  if (!isMapValue(lhs) || !isMapValue(rhs)) {
     return ErrorValue.of("cel.@mapInsert expects map arguments");
   }
   const entries: MapEntry[] = [...lhs.value()];

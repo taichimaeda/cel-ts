@@ -58,12 +58,13 @@ import {
   DoubleValue,
   EnumValue,
   ErrorValue,
+  isStringValue,
   IntValue,
   NullValue,
   StringValue,
   UintValue,
   type Value,
-  ValueUtil,
+  toTypeValue,
 } from "../interpreter/values";
 
 /**
@@ -185,7 +186,7 @@ export class Planner {
     if (identType?.kind === "type") {
       const targetType = identType.parameters[0];
       if (targetType !== undefined) {
-        return new ConstValue(expr.id, ValueUtil.toTypeValue(targetType));
+        return new ConstValue(expr.id, toTypeValue(targetType));
       }
     }
     const attr = this.attributeForName(expr.id, expr.name);
@@ -204,7 +205,7 @@ export class Planner {
     if (selectType?.kind === "type") {
       const targetType = selectType.parameters[0];
       if (targetType !== undefined) {
-        return new ConstValue(expr.id, ValueUtil.toTypeValue(targetType));
+        return new ConstValue(expr.id, toTypeValue(targetType));
       }
     }
     if (!expr.testOnly && !expr.optional) {
@@ -777,7 +778,7 @@ export class Planner {
   ): Qualifier {
     if ("type" in value && typeof value.type === "function") {
       const literal = value as Value;
-      if (literal instanceof StringValue) {
+      if (isStringValue(literal)) {
         return new StringQualifier(exprId, literal.value(), isOptional);
       }
       return new IndexQualifier(exprId, literal, isOptional);

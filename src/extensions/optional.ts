@@ -3,24 +3,26 @@ import { ListType, MapType, OptionalType, TypeParamType } from "../checker/types
 import { Operators } from "../common/ast";
 import {
   BoolValue,
-  BytesValue,
-  DoubleValue,
-  DurationValue,
   ErrorValue,
-  IntValue,
-  ListValue,
-  MapValue,
+  isBoolValue,
+  isBytesValue,
+  isDoubleValue,
+  isDurationValue,
+  isIntValue,
+  isListValue,
+  isMapValue,
+  isOptionalValue,
+  isStringValue,
+  isStructValue,
+  isTimestampValue,
+  isUintValue,
   NullValue,
   OptionalValue,
-  StringValue,
-  StructValue,
-  TimestampValue,
-  UintValue,
   type Value,
 } from "../interpreter/values";
 import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
-import { extractIdentName } from "./macros";
+import { extractIdentName } from "./utils";
 
 const unusedIterVar = "#unused";
 
@@ -118,7 +120,7 @@ export class OptionalTypesExtension implements Extension {
           [optionalTypeV],
           PrimitiveTypes.Bool,
           (arg: Value) => {
-            if (!(arg instanceof OptionalValue)) {
+            if (!isOptionalValue(arg)) {
               return ErrorValue.typeMismatch("optional", arg);
             }
             return BoolValue.of(arg.hasValue());
@@ -133,7 +135,7 @@ export class OptionalTypesExtension implements Extension {
           [optionalTypeV],
           typeParamV,
           (arg: Value) => {
-            if (!(arg instanceof OptionalValue)) {
+            if (!isOptionalValue(arg)) {
               return ErrorValue.typeMismatch("optional", arg);
             }
             if (!arg.hasValue()) {
@@ -151,7 +153,7 @@ export class OptionalTypesExtension implements Extension {
           [optionalTypeV, optionalTypeV],
           optionalTypeV,
           (lhs: Value, rhs: Value) => {
-            if (!(lhs instanceof OptionalValue) || !(rhs instanceof OptionalValue)) {
+            if (!isOptionalValue(lhs) || !isOptionalValue(rhs)) {
               return ErrorValue.of("optional.or expects optional arguments");
             }
             return lhs.hasValue() ? lhs : rhs;
@@ -166,7 +168,7 @@ export class OptionalTypesExtension implements Extension {
           [optionalTypeV, typeParamV],
           typeParamV,
           (lhs: Value, rhs: Value) => {
-            if (!(lhs instanceof OptionalValue)) {
+            if (!isOptionalValue(lhs)) {
               return ErrorValue.of("optional.orValue expects optional receiver");
             }
             return lhs.hasValue() ? (lhs.value() ?? NullValue.Instance) : rhs;
@@ -225,18 +227,34 @@ export class OptionalTypesExtension implements Extension {
 }
 
 function isZeroValue(value: Value): boolean {
-  if (value instanceof NullValue) return true;
-  if (value instanceof BoolValue) return !value.value();
-  if (value instanceof IntValue) return value.value() === 0n;
-  if (value instanceof UintValue) return value.value() === 0n;
-  if (value instanceof DoubleValue) return value.value() === 0;
-  if (value instanceof StringValue) return value.value() === "";
-  if (value instanceof BytesValue) return value.value().length === 0;
-  if (value instanceof ListValue) return value.value().length === 0;
-  if (value instanceof MapValue) return value.value().length === 0;
-  if (value instanceof DurationValue) return value.value() === 0n;
-  if (value instanceof TimestampValue) return value.value() === 0n;
-  if (value instanceof OptionalValue) return !value.hasValue();
-  if (value instanceof StructValue) return Object.keys(value.value()).length === 0;
-  return false;
+  switch (value.kind) {
+    case "null":
+      return true;
+    case "bool":
+      return isBoolValue(value) && !value.value();
+    case "int":
+      return isIntValue(value) && value.value() === 0n;
+    case "uint":
+      return isUintValue(value) && value.value() === 0n;
+    case "double":
+      return isDoubleValue(value) && value.value() === 0;
+    case "string":
+      return isStringValue(value) && value.value() === "";
+    case "bytes":
+      return isBytesValue(value) && value.value().length === 0;
+    case "list":
+      return isListValue(value) && value.value().length === 0;
+    case "map":
+      return isMapValue(value) && value.value().length === 0;
+    case "duration":
+      return isDurationValue(value) && value.value() === 0n;
+    case "timestamp":
+      return isTimestampValue(value) && value.value() === 0n;
+    case "optional":
+      return isOptionalValue(value) && !value.hasValue();
+    case "struct":
+      return isStructValue(value) && Object.keys(value.value()).length === 0;
+    default:
+      return false;
+  }
 }

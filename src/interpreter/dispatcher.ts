@@ -2,7 +2,7 @@
 // Function call dispatcher
 // Implementation based on cel-go's interpret/dispatcher.go
 
-import { ErrorValue, type Value, ValueUtil } from "./values";
+import { ErrorValue, isErrorValue, type Value } from "./values";
 
 export type Overload = UnaryDispatcherOverload | BinaryDispatcherOverload | NaryDispatcherOverload;
 
@@ -138,7 +138,7 @@ export class TryAllResolvedCall {
       }
 
       // Return result if not an error
-      if (!ValueUtil.isError(result)) {
+      if (!isErrorValue(result)) {
         return result;
       }
       lastError = result;

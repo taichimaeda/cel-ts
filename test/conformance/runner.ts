@@ -1,8 +1,6 @@
-import { readdirSync } from "node:fs";
-import path from "node:path";
 import type * as protobuf from "protobufjs";
-import { Env, Function, MemberOverload, Overload, ProtobufTypeProvider, Struct, Variable } from "../../src/cel";
-import { DynType, type Type, TypeKind } from "../../src/checker/types";
+import { Env, Function, MemberOverload, Overload, Struct, Variable } from "../../src/cel";
+import { PrimitiveTypes, type Type } from "../../src/checker/types";
 import {
   BindingsExtension,
   EncodersExtension,
@@ -14,463 +12,343 @@ import {
   TwoVarComprehensionsExtension,
   applyExtensions,
 } from "../../src/extensions";
-import { BoolValue, type Value, ValueUtil, setAnyResolver } from "../../src/interpreter/values";
-import { decodeTextProto, ensureDescriptorSet, protoToSimpleTestFile, stripTypeUrl } from "./proto";
+import { BoolValue, type Value, isUnknownValue, setAnyResolver } from "../../src/interpreter/values";
 import {
+  type ProtoLoader,
   type ProtoObject,
   type RunStats,
   type SimpleTest,
   type SimpleTestFile,
-  registerExtensionFields,
-  runtime,
-} from "./runtime";
+  protoLoader,
+  stripTypeUrl,
+} from "./protos";
+import { ConformanceReporter, type TestContext } from "./reporter";
 import { messageToValue, protoToType, protoToValue } from "./values";
-import type { ConformanceReporter } from "./reporter";
 
-export async function runConformance(reporter?: ConformanceReporter): Promise<RunStats> {
-  ensureDescriptorSet();
+/**
+ * Test runner for CEL conformance tests.
+ */
+export class TestRunner {
+  private readonly stats: RunStats = { total: 0, passed: 0, failed: 0, skipped: 0 };
 
-  await runtime.root.load(
-    [...runtime.protoFiles.conformanceProtoFiles, ...runtime.protoFiles.extraProtoFiles],
-    { keepCase: true }
-  );
-  runtime.root.resolveAll();
-  registerExtensionFields(runtime.root, { legacyProto2: true });
-  runtime.protobufTypeProvider = new ProtobufTypeProvider(runtime.root, { legacyProto2: true });
+  constructor(
+    private readonly loader: ProtoLoader,
+    private readonly reporter?: ConformanceReporter
+  ) { }
 
-  setAnyResolver((typeUrl, bytes) => {
-    const typeName = stripTypeUrl(typeUrl);
-    let messageType: protobuf.Type;
-    try {
-      messageType = runtime.root.lookupType(typeName);
-    } catch {
-      return null;
+  /**
+   * Run all conformance tests.
+   */
+  async run(): Promise<RunStats> {
+    await this.loader.init();
+    this.setupAnyResolver();
+
+    for (const fileName of this.loader.listTestFiles()) {
+      this.processFile(fileName);
     }
-    const decoded = messageType.decode(bytes);
-    const object = messageType.toObject(decoded, runtime.options) as ProtoObject;
-    return messageToValue(messageType, object, decoded as unknown as ProtoObject);
-  });
 
-  const files = readdirSync(runtime.paths.testdataRoot)
-    .filter((file) => file.endsWith(".textproto"))
-    .sort();
-
-  const stats: RunStats = { total: 0, passed: 0, failed: 0, skipped: 0 };
-
-  for (const fileName of files) {
-    const fileObj = loadSimpleTestFile(fileName);
-    if (runtime.skipFiles.has(fileName)) {
-      const tests = collectTests(fileObj);
-      stats.skipped += tests.length;
-      for (const { sectionName, test } of tests) {
-        reporter?.skipTest(
-          {
-            fileName,
-            sectionName,
-            testName: test.name ?? "<test>",
-            expr: test.expr,
-          },
-          "file skipped"
-        );
-      }
-      continue;
-    }
-    runSimpleTestFile(fileName, fileObj, stats, reporter);
+    return this.stats;
   }
 
-  return stats;
-}
-
-function loadSimpleTestFile(fileName: string): SimpleTestFile {
-  const filePath = path.join(runtime.paths.testdataRoot, fileName);
-  const testFile = decodeTextProto(filePath);
-  return protoToSimpleTestFile(
-    testFile.type.toObject(testFile.message, runtime.options) as SimpleTestFile
-  );
-}
-
-function runSimpleTestFile(
-  fileName: string,
-  fileObj: SimpleTestFile,
-  stats: RunStats,
-  reporter?: ConformanceReporter
-): void {
-  for (const { sectionName, test } of collectTests(fileObj)) {
-    stats.total += 1;
-    const testName = test.name ?? "<test>";
-    const uuid = reporter?.startTest({
-      fileName,
-      sectionName,
-      testName,
-      expr: test.expr,
+  private setupAnyResolver(): void {
+    setAnyResolver((typeUrl, bytes) => {
+      const typeName = stripTypeUrl(typeUrl);
+      let messageType: protobuf.Type;
+      try {
+        messageType = this.loader.root.lookupType(typeName);
+      } catch {
+        return undefined;
+      }
+      const decoded = messageType.decode(bytes);
+      const object = messageType.toObject(decoded, this.loader.options) as ProtoObject;
+      return messageToValue(messageType, object, decoded as unknown as ProtoObject);
     });
+  }
 
-    try {
-      const result = runSimpleTest(test, fileName, sectionName);
-      if (result) {
-        stats.passed += 1;
-        if (uuid) {
-          reporter?.passTest(uuid);
+  private processFile(fileName: string): void {
+    const file = this.loader.loadTestFile(fileName);
+
+    if (this.loader.skipFiles.has(fileName)) {
+      this.skipAllTests(fileName, file);
+      return;
+    }
+
+    for (const { sectionName, test } of flattenTests(file)) {
+      this.stats.total += 1;
+      const ctx = buildTestContext(fileName, sectionName, test);
+      const uuid = this.reporter?.onTestStart(ctx);
+
+      try {
+        if (this.executeTest(test, fileName, sectionName)) {
+          this.stats.passed += 1;
+          uuid && this.reporter?.onTestPass(uuid, fileName);
+        } else {
+          this.stats.failed += 1;
+          uuid && this.reporter?.onTestFail(uuid, ctx, "assertion failed");
         }
-      } else {
-        stats.failed += 1;
-        if (uuid) {
-          reporter?.failTest(uuid, { fileName, sectionName, testName }, "assertion failed");
+      } catch (err) {
+        this.stats.failed += 1;
+        uuid && this.reporter?.onTestError(uuid, ctx, err);
+      }
+    }
+  }
+
+  private skipAllTests(fileName: string, file: SimpleTestFile): void {
+    for (const { sectionName, test } of flattenTests(file)) {
+      this.stats.skipped += 1;
+      this.reporter?.onTestSkip(buildTestContext(fileName, sectionName, test), "file skipped");
+    }
+  }
+
+  private executeTest(test: SimpleTest, fileName: string, sectionName: string): boolean {
+    const expr = test.expr;
+    if (!expr) return false;
+
+    const env = new Env(this.buildEnvOptions(test, fileName, sectionName));
+    const ast = test.disableCheck ? env.parse(expr) : env.compile(expr);
+
+    // Check-only test: verify deduced type
+    if (test.checkOnly) {
+      const deducedType = test.typedResult?.["deduced_type"] as ProtoObject | undefined;
+      if (!deducedType) return false;
+      const expectedType = protoToType(deducedType);
+      if (!expectedType) return false;
+      return expectedType.isEquivalentType(ast.outputType ?? PrimitiveTypes.Dyn);
+    }
+
+    // Evaluate
+    const program = env.program(ast);
+    const bindings = convertBindings(test.bindings);
+    const { value, error } = tryEval(program, bindings);
+
+    // Check error expectations
+    if (test.resultMatcher === "eval_error" || test.evalError) {
+      return !!error;
+    }
+    if (test.resultMatcher === "any_eval_errors" || test.anyEvalErrors) {
+      return !!error;
+    }
+
+    // Check unknown expectations
+    if (test.resultMatcher === "unknown" || test.unknown) {
+      return checkUnknown(test.unknown, value);
+    }
+    if (test.resultMatcher === "any_unknowns" || test.anyUnknowns) {
+      return checkAnyUnknowns(test.anyUnknowns, value);
+    }
+
+    if (error || !value) return false;
+
+    // Check typed result type
+    if (test.typedResult) {
+      const deducedType = test.typedResult["deduced_type"] as ProtoObject | undefined;
+      if (deducedType) {
+        const expectedType = protoToType(deducedType);
+        if (!expectedType?.isEquivalentType(ast.outputType ?? PrimitiveTypes.Dyn)) {
+          return false;
         }
       }
-    } catch (error) {
-      stats.failed += 1;
-      if (uuid) {
-        reporter?.errorTest(uuid, { fileName, sectionName, testName }, error);
+    }
+
+    // Check expected value
+    const expected = extractExpectedValue(test);
+    if (!expected) {
+      return value instanceof BoolValue && value.value();
+    }
+
+    const eq = expected.equal(value);
+    return eq instanceof BoolValue && eq.value();
+  }
+
+  private buildEnvOptions(
+    test: SimpleTest,
+    fileName: string,
+    sectionName: string
+  ): ConstructorParameters<typeof Env>[0] {
+    const variables: Variable[] = [];
+    const structs: Struct[] = [];
+    const functions = new Map<string, Overload[]>();
+
+    for (const decl of test.typeEnv ?? []) {
+      if (decl["function"]) {
+        const func = convertFunctionDecl(decl);
+        if (func) {
+          const existing = functions.get(func.name) ?? [];
+          functions.set(func.name, [...existing, ...func.overloads]);
+        }
+        continue;
       }
-    }
-  }
-}
 
-function runSimpleTest(test: SimpleTest, fileName: string, sectionName: string): boolean {
-  const envOptions = testToEnvOptions(test, fileName, sectionName);
-  const env = new Env(envOptions);
+      const ident = decl["ident"] as ProtoObject | undefined;
+      if (!ident) continue;
 
-  const expr = test.expr;
-  if (!expr) {
-    return false;
-  }
-  const disableCheck = Boolean(test.disableCheck);
-  const checkOnly = Boolean(test.checkOnly);
+      const type = protoToType(ident["type"] as ProtoObject);
+      const name = decl["name"] as string;
+      if (!type || !name) continue;
 
-  const ast = disableCheck ? env.parse(expr) : env.compile(expr);
-
-  if (checkOnly) {
-    const typedResult = test.typedResult;
-    if (!typedResult?.["deduced_type"]) {
-      return false;
-    }
-    const expectedType = protoToType(typedResult["deduced_type"] as ProtoObject);
-    if (!expectedType) {
-      return false;
-    }
-    const actualType = ast.outputType ?? DynType;
-    return expectedType.isEquivalentType(actualType);
-  }
-
-  const program = env.program(ast);
-  const bindings = bindingsToValueMap(test.bindings);
-  const evalResult = evalProgram(program, bindings);
-  const resultKind = test.resultMatcher;
-
-  if (resultKind === "eval_error" || test.evalError) {
-    if (!evalResult.error) {
-      return false;
-    }
-    return matchesEvalError(test.evalError, evalResult.error);
-  }
-  if (resultKind === "any_eval_errors" || test.anyEvalErrors) {
-    if (!evalResult.error) {
-      return false;
-    }
-    return matchesAnyEvalErrors(test.anyEvalErrors, evalResult.error);
-  }
-  if (resultKind === "unknown" || test.unknown) {
-    return matchesUnknown(test.unknown, evalResult.value);
-  }
-  if (resultKind === "any_unknowns" || test.anyUnknowns) {
-    return matchesAnyUnknowns(test.anyUnknowns, evalResult.value);
-  }
-
-  if (evalResult.error || !evalResult.value) {
-    return false;
-  }
-  const actual = evalResult.value;
-
-  if (test.typedResult) {
-    const typedResult = test.typedResult;
-    const expectedType = protoToType(typedResult["deduced_type"] as ProtoObject);
-    if (!expectedType) {
-      return false;
-    }
-    const actualType = ast.outputType ?? DynType;
-    if (!expectedType.isEquivalentType(actualType)) {
-      return false;
-    }
-  }
-
-  const expected = testToExpectedValue(test);
-  if (!expected) {
-    return actual instanceof BoolValue && actual.value();
-  }
-
-  const eq = expected.equal(actual);
-  return eq instanceof BoolValue && eq.value();
-}
-
-function testToEnvOptions(
-  test: SimpleTest,
-  fileName: string,
-  sectionName: string
-): ConstructorParameters<typeof Env>[0] {
-  const variables: Variable[] = [];
-  const structs: Struct[] = [];
-  const functionsByName = new Map<string, Overload[]>();
-  const container = test.container as string | undefined;
-  const typeEnv = typeEnvToList(test.typeEnv);
-
-  for (const decl of typeEnv) {
-    if (decl["function"]) {
-      const func = declToFunctionOverloads(decl);
-      if (func) {
-        const existing = functionsByName.get(func.name) ?? [];
-        functionsByName.set(func.name, [...existing, ...func.overloads]);
+      if (type.kind === "struct") {
+        structs.push(new Struct(type.runtimeTypeName, []));
       }
-      continue;
+      variables.push(new Variable(name, type));
     }
-    if (!decl["ident"]) {
-      continue;
-    }
-    const ident = decl["ident"] as ProtoObject;
-    const type = protoToType(ident["type"] as ProtoObject);
-    const name = decl["name"] as string;
-    if (!type || !name) {
-      continue;
-    }
-    if (type.kind === TypeKind.Struct) {
-      structs.push(new Struct(type.runtimeTypeName, []));
-    }
-    variables.push(new Variable(name, type));
-  }
 
-  const baseOptions: ConstructorParameters<typeof Env>[0] = {
-    variables,
-    structs,
-    functions: [...functionsByName.entries()].map(
-      ([name, overloads]) => new Function(name, ...overloads)
-    ),
-    typeProvider: runtime.protobufTypeProvider,
-    disableTypeChecking: Boolean(test.disableCheck),
-    enumValuesAsInt: fileName === "enums.textproto" ? sectionName.startsWith("legacy_") : true,
-  };
-  if (container !== undefined) {
-    baseOptions.container = container;
-  }
-  return applyExtensions(baseOptions, ...fileToExtensions(fileName));
-}
+    const base: ConstructorParameters<typeof Env>[0] = {
+      variables,
+      structs,
+      functions: [...functions].map(([name, overloads]) => new Function(name, ...overloads)),
+      typeProvider: this.loader.typeProvider,
+      disableTypeChecking: !!test.disableCheck,
+      enumValuesAsInt: fileName === "enums.textproto" ? sectionName.startsWith("legacy_") : true,
+      ...(test.container && { container: test.container as string }),
+    };
 
-function typeEnvToList(typeEnv: SimpleTest["typeEnv"]): ProtoObject[] {
-  if (!typeEnv) return [];
-  return Array.isArray(typeEnv) ? typeEnv : [typeEnv];
-}
-
-function fileToExtensions(fileName: string): Extension[] {
-  const options: Extension[] = [new OptionalTypesExtension()];
-  switch (fileName) {
-    case "bindings_ext.textproto":
-      options.push(new BindingsExtension());
-      return options;
-    case "block_ext.textproto":
-      options.push(new BindingsExtension());
-      return options;
-    case "encoders_ext.textproto":
-      options.push(new EncodersExtension());
-      return options;
-    case "math_ext.textproto":
-      options.push(new MathExtension());
-      return options;
-    case "string_ext.textproto":
-      options.push(new StringsExtension());
-      return options;
-    case "macros2.textproto":
-      options.push(new TwoVarComprehensionsExtension());
-      return options;
-    case "proto2_ext.textproto":
-      options.push(new ProtosExtension());
-      return options;
-    default:
-      return options;
+    return applyExtensions(base, ...extensionsForFile(fileName));
   }
 }
 
-function bindingsToValueMap(bindings: Record<string, unknown> | undefined): Map<string, Value> {
-  const result = new Map<string, Value>();
-  if (!bindings) return result;
+// Public entry point
+export async function runConformance(reporter?: ConformanceReporter): Promise<RunStats> {
+  const runner = new TestRunner(protoLoader, reporter);
+  return runner.run();
+}
 
-  for (const [name, exprValue] of Object.entries(bindings)) {
-    const value = bindingExprToValue(exprValue as ProtoObject);
-    if (value) {
-      result.set(name, value);
+// Helper functions
+
+function flattenTests(file: SimpleTestFile): Array<{ sectionName: string; test: SimpleTest }> {
+  const result: Array<{ sectionName: string; test: SimpleTest }> = [];
+  for (const section of file.section ?? []) {
+    for (const test of section.test ?? []) {
+      result.push({ sectionName: section.name ?? "", test });
     }
   }
   return result;
 }
 
-function bindingExprToValue(exprValue: ProtoObject): Value | null {
-  const kind = exprValue["kind"] as string | undefined;
-  if (!kind || kind !== "value") {
-    return null;
-  }
-  return protoToValue(exprValue["value"] as ProtoObject);
+function buildTestContext(fileName: string, sectionName: string, test: SimpleTest): TestContext {
+  return {
+    fileName,
+    sectionName,
+    testName: test.name ?? "<test>",
+    ...(test.expr !== undefined && { expr: test.expr }),
+    ...(test.container !== undefined && { container: test.container as string }),
+    ...(test.bindings !== undefined && { bindings: test.bindings }),
+    ...(test.disableCheck && { disableCheck: true }),
+    ...(test.disableMacros && { disableMacros: true }),
+    ...(test.checkOnly && { checkOnly: true }),
+    ...(test.value !== undefined && { expectedValue: test.value }),
+    ...(test.typedResult !== undefined && { expectedValue: test.typedResult }),
+    ...((test.evalError !== undefined || test.anyEvalErrors !== undefined) && { expectedError: true }),
+  };
 }
 
-function testToExpectedValue(test: SimpleTest): Value | null {
-  if (test.value) {
-    return protoToValue(test.value as ProtoObject);
-  }
-  if (test.typedResult) {
-    const typed = test.typedResult;
-    if (!typed["result"]) {
-      return null;
+function extensionsForFile(fileName: string): Extension[] {
+  const base: Extension[] = [new OptionalTypesExtension()];
+  const map: Record<string, Extension> = {
+    "bindings_ext.textproto": new BindingsExtension(),
+    "block_ext.textproto": new BindingsExtension(),
+    "encoders_ext.textproto": new EncodersExtension(),
+    "math_ext.textproto": new MathExtension(),
+    "string_ext.textproto": new StringsExtension(),
+    "macros2.textproto": new TwoVarComprehensionsExtension(),
+    "proto2_ext.textproto": new ProtosExtension(),
+  };
+  const ext = map[fileName];
+  return ext ? [...base, ext] : base;
+}
+
+function convertBindings(bindings?: Record<string, unknown>): Map<string, Value> {
+  const result = new Map<string, Value>();
+  if (!bindings) return result;
+
+  for (const [name, expr] of Object.entries(bindings)) {
+    const obj = expr as ProtoObject;
+    if (obj["kind"] === "value") {
+      const val = protoToValue(obj["value"] as ProtoObject);
+      if (val) result.set(name, val);
     }
-    return protoToValue(typed["result"] as ProtoObject);
+  }
+  return result;
+}
+
+function extractExpectedValue(test: SimpleTest): Value | null {
+  if (test.value) return protoToValue(test.value);
+  if (test.typedResult?.["result"]) {
+    return protoToValue(test.typedResult["result"] as ProtoObject);
   }
   return null;
 }
 
-function evalProgram(
+function tryEval(
   program: ReturnType<Env["program"]>,
   bindings: Map<string, Value>
 ): { value?: Value; error?: string } {
   try {
     return { value: program.eval(bindings) };
-  } catch (error) {
-    if (error instanceof Error) {
-      return { error: error.message };
-    }
-    return { error: String(error) };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
 }
 
-function matchesEvalError(expected: ProtoObject | undefined, actualError: string): boolean {
-  return actualError.length > 0;
-}
-
-function matchesAnyEvalErrors(expected: ProtoObject | undefined, actualError: string): boolean {
-  return matchesEvalError(expected, actualError);
-}
-
-function matchesUnknown(expected: ProtoObject | undefined, actual: Value | undefined): boolean {
-  if (!actual || !ValueUtil.isUnknown(actual)) {
-    return false;
-  }
-  const expectedIds = unknownSetToIds(expected);
-  if (expectedIds.length === 0) {
-    return true;
-  }
-  const actualIds = actual.value() as readonly number[];
-  return expectedIds.every((id) => actualIds.includes(id));
-}
-
-function matchesAnyUnknowns(expected: ProtoObject | undefined, actual: Value | undefined): boolean {
-  const unknownSets = unknownSetMatcherToList(expected);
-  if (unknownSets.length === 0) {
-    return matchesUnknown(undefined, actual);
-  }
-  return unknownSets.some((unknownSet) => matchesUnknown(unknownSet, actual));
-}
-
-function unknownSetToIds(unknownSet: ProtoObject | undefined): number[] {
-  if (!unknownSet) return [];
-  const exprs = unknownSet["exprs"];
+function extractUnknownIds(obj: ProtoObject | undefined): number[] {
+  const exprs = obj?.["exprs"];
   if (!Array.isArray(exprs)) return [];
-  return exprs
-    .map((id) => (typeof id === "string" || typeof id === "number" ? Number(id) : NaN))
-    .filter((id) => Number.isFinite(id));
+  return exprs.map((id) => Number(id)).filter((n) => Number.isFinite(n));
 }
 
-function unknownSetMatcherToList(matcher: ProtoObject | undefined): ProtoObject[] {
-  if (!matcher) return [];
-  const unknowns = matcher["unknowns"];
-  return Array.isArray(unknowns) ? (unknowns as ProtoObject[]) : [];
+function checkUnknown(expected: ProtoObject | undefined, actual: Value | undefined): boolean {
+  if (!actual || !isUnknownValue(actual)) return false;
+  const ids = extractUnknownIds(expected);
+  if (!ids.length) return true;
+  const actualIds = actual.value() as readonly number[];
+  return ids.every((id) => actualIds.includes(id));
 }
 
-function isDeclUnsupported(decl: ProtoObject): boolean {
-  if (decl["function"]) {
-    return false;
-  }
-  if (!decl["ident"]) {
-    return true;
-  }
-  const ident = decl["ident"] as ProtoObject;
-  if (ident["value"]) {
-    return true;
-  }
-  const type = ident["type"] as ProtoObject | undefined;
-  if (!type) {
-    return true;
-  }
-  const kind = type["type_kind"] ?? type["typeKind"];
-  return false;
+function checkAnyUnknowns(expected: ProtoObject | undefined, actual: Value | undefined): boolean {
+  const unknowns = (expected?.["unknowns"] ?? []) as ProtoObject[];
+  if (!unknowns.length) return checkUnknown(undefined, actual);
+  return unknowns.some((u) => checkUnknown(u, actual));
 }
 
-export type { RunStats };
-
-function declToFunctionOverloads(
-  decl: ProtoObject
-): { name: string; overloads: Overload[] } | null {
+function convertFunctionDecl(decl: ProtoObject): { name: string; overloads: Overload[] } | null {
   const name = decl["name"];
-  if (typeof name !== "string") {
-    return null;
-  }
-  const fnDecl = decl["function"] as ProtoObject | undefined;
-  if (!fnDecl) {
-    return null;
-  }
-  const overloads = (fnDecl["overloads"] ?? fnDecl["overload"]) as ProtoObject[] | undefined;
-  if (!overloads || !Array.isArray(overloads)) {
-    return null;
-  }
-  const overloadOptions: Overload[] = [];
+  if (typeof name !== "string") return null;
+
+  const func = decl["function"] as ProtoObject | undefined;
+  const overloads = (func?.["overloads"] ?? func?.["overload"]) as ProtoObject[] | undefined;
+  if (!overloads?.length) return null;
+
+  const result: Overload[] = [];
   for (const overload of overloads) {
-    const id =
-      (overload["overload_id"] as string | undefined) ??
-      (overload["overloadId"] as string | undefined);
-    if (!id) {
-      continue;
-    }
+    const id = (overload["overload_id"] ?? overload["overloadId"]) as string | undefined;
+    if (!id) continue;
+
     const params = (overload["params"] ?? []) as ProtoObject[];
-    const argTypes = params.map((param) => protoToType(param) ?? DynType);
-    const resultType = protoToType(
-      (overload["result_type"] ?? overload["resultType"]) as ProtoObject
-    ) ?? DynType;
-    const typeParams = overloadTypeParams(overload, argTypes, resultType);
-    const isInstance =
-      (overload["is_instance_function"] as boolean | undefined) ??
-      (overload["isInstanceFunction"] as boolean | undefined) ??
-      false;
-    const option = isInstance
-      ? new MemberOverload(id, argTypes as Type[], resultType, undefined, { typeParams })
-      : new Overload(id, argTypes as Type[], resultType, undefined, { typeParams });
-    overloadOptions.push(option);
+    const argTypes = params.map((p) => protoToType(p) ?? PrimitiveTypes.Dyn);
+    const resultType = protoToType((overload["result_type"] ?? overload["resultType"]) as ProtoObject) ?? PrimitiveTypes.Dyn;
+    const typeParams = extractTypeParams(overload, argTypes, resultType);
+    const isInstance = !!(overload["is_instance_function"] ?? overload["isInstanceFunction"]);
+
+    result.push(
+      isInstance
+        ? new MemberOverload(id, argTypes as Type[], resultType, undefined, { typeParams })
+        : new Overload(id, argTypes as Type[], resultType, undefined, { typeParams })
+    );
   }
-  return { name, overloads: overloadOptions };
+
+  return { name, overloads: result };
 }
 
-function overloadTypeParams(overload: ProtoObject, argTypes: Type[], resultType: Type): string[] {
+function extractTypeParams(overload: ProtoObject, argTypes: Type[], resultType: Type): string[] {
   const declared = (overload["type_params"] ?? overload["typeParams"]) as string[] | undefined;
-  if (declared && Array.isArray(declared) && declared.length > 0) {
-    return declared;
-  }
+  if (declared?.length) return declared;
+
   const params = new Set<string>();
-  for (const type of [...argTypes, resultType]) {
-    collectTypeParams(type, params);
-  }
+  const collect = (t: Type) => {
+    if (t.kind === "type_param") params.add(t.runtimeTypeName);
+    t.parameters.forEach(collect);
+  };
+  [...argTypes, resultType].forEach(collect);
   return [...params];
 }
 
-function collectTypeParams(type: Type, params: Set<string>): void {
-  if (type.kind === TypeKind.TypeParam) {
-    params.add(type.runtimeTypeName);
-  }
-  for (const param of type.parameters) {
-    collectTypeParams(param, params);
-  }
-}
-
-function collectTests(fileObj: SimpleTestFile): Array<{ sectionName: string; test: SimpleTest }> {
-  const tests: Array<{ sectionName: string; test: SimpleTest }> = [];
-  const sections = fileObj.section ?? [];
-  for (const section of sections) {
-    const sectionName = section.name ?? "";
-    for (const test of section.test ?? []) {
-      tests.push({ sectionName, test });
-    }
-  }
-  return tests;
-}
+export type { RunStats, TestContext };

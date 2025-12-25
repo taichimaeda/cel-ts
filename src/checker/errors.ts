@@ -16,7 +16,7 @@ export interface Location {
 /**
  * Represents a single type checking error
  */
-export interface CheckerError {
+export interface Error {
   message: string;
   location?: Location | undefined;
   exprId?: ExprId | undefined;
@@ -25,13 +25,13 @@ export interface CheckerError {
 /**
  * Error collector for accumulating type checking errors
  */
-export class CheckerErrors {
-  private readonly errors: CheckerError[] = [];
+export class Errors {
+  private readonly errors: Error[] = [];
 
   /**
    * Get all collected errors
    */
-  getErrors(): readonly CheckerError[] {
+  getErrors(): readonly Error[] {
     return this.errors;
   }
 

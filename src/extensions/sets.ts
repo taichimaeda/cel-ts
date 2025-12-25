@@ -1,9 +1,17 @@
 import { type EnvOptions, Function, Overload, PrimitiveTypes } from "../cel";
 import { ListType, TypeParamType } from "../checker/types";
-import { BoolValue, ErrorValue, ListValue, type Value } from "../interpreter/values";
+import {
+  BoolValue,
+  ErrorValue,
+  isBoolValue,
+  isErrorValue,
+  isListValue,
+  ListValue,
+  type Value,
+} from "../interpreter/values";
 import { ReceiverVarArgMacro } from "../parser";
 import type { Extension } from "./extensions";
-import { macroTargetMatchesNamespace } from "./macros";
+import { macroTargetMatchesNamespace } from "./utils";
 
 /**
  * Sets extension.
@@ -52,12 +60,12 @@ export class SetsExtension implements Extension {
 }
 
 function setsContains(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof ListValue) || !(rhs instanceof ListValue)) {
+  if (!isListValue(lhs) || !isListValue(rhs)) {
     return ErrorValue.of("sets.contains expects list arguments");
   }
   for (const elem of rhs.value()) {
     const contains = listContains(lhs, elem);
-    if (contains instanceof ErrorValue) {
+    if (typeof contains !== "boolean") {
       return contains;
     }
     if (!contains) {
@@ -68,29 +76,29 @@ function setsContains(lhs: Value, rhs: Value): Value {
 }
 
 function setsEquivalent(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof ListValue) || !(rhs instanceof ListValue)) {
+  if (!isListValue(lhs) || !isListValue(rhs)) {
     return ErrorValue.of("sets.equivalent expects list arguments");
   }
   const leftContains = setsContains(lhs, rhs);
-  if (leftContains instanceof ErrorValue) {
+  if (isErrorValue(leftContains)) {
     return leftContains;
   }
   const rightContains = setsContains(rhs, lhs);
-  if (rightContains instanceof ErrorValue) {
+  if (isErrorValue(rightContains)) {
     return rightContains;
   }
-  const leftBool = leftContains instanceof BoolValue ? leftContains.value() : false;
-  const rightBool = rightContains instanceof BoolValue ? rightContains.value() : false;
+  const leftBool = isBoolValue(leftContains) ? leftContains.value() : false;
+  const rightBool = isBoolValue(rightContains) ? rightContains.value() : false;
   return BoolValue.of(leftBool && rightBool);
 }
 
 function setsIntersects(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof ListValue) || !(rhs instanceof ListValue)) {
+  if (!isListValue(lhs) || !isListValue(rhs)) {
     return ErrorValue.of("sets.intersects expects list arguments");
   }
   for (const elem of rhs.value()) {
     const contains = listContains(lhs, elem);
-    if (contains instanceof ErrorValue) {
+    if (typeof contains !== "boolean") {
       return contains;
     }
     if (contains) {
@@ -103,10 +111,10 @@ function setsIntersects(lhs: Value, rhs: Value): Value {
 function listContains(list: ListValue, value: Value): boolean | ErrorValue {
   for (const elem of list.value()) {
     const eq = elem.equal(value);
-    if (eq instanceof ErrorValue) {
+    if (isErrorValue(eq)) {
       return eq;
     }
-    if (eq.value()) {
+    if (isBoolValue(eq) && eq.value()) {
       return true;
     }
   }

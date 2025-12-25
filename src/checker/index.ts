@@ -21,8 +21,8 @@ export type { LookupResult } from "./env";
 export { CompositeTypeProvider, ProtobufTypeProvider, StructTypeProvider } from "./provider";
 export type { TypeProvider } from "./provider";
 
-export { CheckerErrors } from "./error";
-export type { CheckerError, Location } from "./error";
+export { Errors } from "./errors";
+export type { Error, Location } from "./errors";
 
 export { TypeMapping } from "./mapping";
 export {
@@ -39,7 +39,7 @@ export {
   Type,
   TypeParamType,
   wellKnownTypeNameToKind,
-  wrapperTypeNameToKind,
+  wrapperTypeNameToKind
 } from "./types";
 
 export type {
@@ -52,7 +52,7 @@ export type {
   WellKnownTypeKind,
   WellKnownTypeName,
   WrapperTypeKind,
-  WrapperTypeName,
+  WrapperTypeName
 } from "./types";
 
 export { StandardLibrary } from "./stdlib";

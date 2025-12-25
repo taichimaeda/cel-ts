@@ -2,17 +2,20 @@ import { type EnvOptions, Function, MemberOverload, Overload, PrimitiveTypes } f
 import { ListType, type Type, TypeParamType } from "../checker/types";
 import { CallExpr, ComprehensionExpr, IdentExpr, ListExpr, SelectExpr } from "../common/ast";
 import {
-  DoubleValue,
   ErrorValue,
   IntValue,
   ListValue,
-  UintValue,
   type Value,
+  compareValues,
+  isBoolValue,
+  isErrorValue,
+  isIntValue,
+  isListValue,
+  isComparableValue,
 } from "../interpreter/values";
 import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import { makeMap } from "../parser/macros";
 import type { Extension } from "./extensions";
-import { compareValues, isComparableValue } from "./utils";
 
 /** Options for configuring the lists extension version. */
 export type ListsOptions = { version?: number };
@@ -56,7 +59,7 @@ export class ListsExtension implements Extension {
           (args: Value[]) => {
             const list = args[0];
             const depth = args[1];
-            if (!(depth instanceof IntValue)) {
+            if (depth === undefined || !isIntValue(depth)) {
               return ErrorValue.typeMismatch("int", depth!);
             }
             return flattenList(list!, Number(depth.value()));
@@ -146,18 +149,18 @@ function sliceList(args: Value[]): Value {
   const list = args[0];
   const start = args[1];
   const end = args[2];
-  if (!(list instanceof ListValue)) {
+  if (list === undefined || !isListValue(list)) {
     return ErrorValue.typeMismatch("list", list!);
   }
-  if (!(start instanceof IntValue) || !(end instanceof IntValue)) {
+  if (!isIntValue(start!) || !isIntValue(end!)) {
     return ErrorValue.of(`slice requires int start and end indexes`);
   }
   const startNum = toSafeNumber(start);
   const endNum = toSafeNumber(end);
-  if (startNum instanceof ErrorValue) {
+  if (typeof startNum !== "number") {
     return startNum;
   }
-  if (endNum instanceof ErrorValue) {
+  if (typeof endNum !== "number") {
     return endNum;
   }
   if (startNum < 0 || endNum < 0) {
@@ -180,14 +183,14 @@ function sliceList(args: Value[]): Value {
 }
 
 function flattenList(value: Value, depth: number): Value {
-  if (!(value instanceof ListValue)) {
+  if (!isListValue(value)) {
     return ErrorValue.typeMismatch("list", value);
   }
   if (depth < 0) {
     return ErrorValue.of("level must be non-negative");
   }
   const flattened = flattenRecursive(value.value(), depth);
-  if (flattened instanceof ErrorValue) {
+  if (!Array.isArray(flattened)) {
     return flattened;
   }
   return ListValue.of(flattened);
@@ -196,9 +199,9 @@ function flattenList(value: Value, depth: number): Value {
 function flattenRecursive(values: readonly Value[], depth: number): Value[] | ErrorValue {
   const out: Value[] = [];
   for (const val of values) {
-    if (depth > 0 && val instanceof ListValue) {
+    if (depth > 0 && isListValue(val)) {
       const nested = flattenRecursive(val.value(), depth - 1);
-      if (nested instanceof ErrorValue) {
+      if (!Array.isArray(nested)) {
         return nested;
       }
       out.push(...nested);
@@ -210,7 +213,7 @@ function flattenRecursive(values: readonly Value[], depth: number): Value[] | Er
 }
 
 function reverseList(value: Value): Value {
-  if (!(value instanceof ListValue)) {
+  if (!isListValue(value)) {
     return ErrorValue.typeMismatch("list", value);
   }
   const reversed = [...value.value()].reverse();
@@ -218,7 +221,7 @@ function reverseList(value: Value): Value {
 }
 
 function distinctList(value: Value): Value {
-  if (!(value instanceof ListValue)) {
+  if (!isListValue(value)) {
     return ErrorValue.typeMismatch("list", value);
   }
   const unique: Value[] = [];
@@ -226,10 +229,10 @@ function distinctList(value: Value): Value {
     let seen = false;
     for (const existing of unique) {
       const eq = existing.equal(elem);
-      if (eq instanceof ErrorValue) {
+      if (isErrorValue(eq)) {
         return eq;
       }
-      if (eq.value()) {
+      if (isBoolValue(eq) && eq.value()) {
         seen = true;
         break;
       }
@@ -242,7 +245,7 @@ function distinctList(value: Value): Value {
 }
 
 function sortList(value: Value): Value {
-  if (!(value instanceof ListValue)) {
+  if (!isListValue(value)) {
     return ErrorValue.typeMismatch("list", value);
   }
   const elements = [...value.value()];
@@ -250,7 +253,7 @@ function sortList(value: Value): Value {
     return value;
   }
   const comparator = buildComparator(elements);
-  if (comparator instanceof ErrorValue) {
+  if (typeof comparator !== "function") {
     return comparator;
   }
   elements.sort(comparator);
@@ -260,7 +263,7 @@ function sortList(value: Value): Value {
 function sortByAssociatedKeys(args: Value[]): Value {
   const list = args[0];
   const keys = args[1];
-  if (!(list instanceof ListValue) || !(keys instanceof ListValue)) {
+  if (list === undefined || keys === undefined || !isListValue(list) || !isListValue(keys)) {
     return ErrorValue.of("@sortByAssociatedKeys expects list arguments");
   }
   const elements = list.value();
@@ -274,7 +277,7 @@ function sortByAssociatedKeys(args: Value[]): Value {
     return list;
   }
   const comparator = buildComparator(keyList);
-  if (comparator instanceof ErrorValue) {
+  if (typeof comparator !== "function") {
     return comparator;
   }
 
@@ -285,11 +288,11 @@ function sortByAssociatedKeys(args: Value[]): Value {
 }
 
 function rangeList(value: Value): Value {
-  if (!(value instanceof IntValue)) {
+  if (!isIntValue(value)) {
     return ErrorValue.typeMismatch("int", value);
   }
   const count = toSafeNumber(value);
-  if (count instanceof ErrorValue) {
+  if (typeof count !== "number") {
     return count;
   }
   if (count < 0) {
@@ -311,6 +314,7 @@ function buildComparator(values: readonly Value[]): ((a: Value, b: Value) => num
     return ErrorValue.of("list elements are not comparable");
   }
   const allowMixedNumeric = isNumericValue(first);
+  const firstKind = first.kind;
   for (const value of values) {
     if (!isComparableValue(value)) {
       return ErrorValue.of("list elements are not comparable");
@@ -319,13 +323,13 @@ function buildComparator(values: readonly Value[]): ((a: Value, b: Value) => num
       if (!isNumericValue(value)) {
         return ErrorValue.of("list elements must be of a comparable numeric type");
       }
-    } else if (value.constructor !== first.constructor) {
+    } else if (value.kind !== firstKind) {
       return ErrorValue.of("list elements must be the same comparable type");
     }
   }
   return (left, right) => {
     const cmp = compareValues(left, right);
-    if (cmp instanceof ErrorValue) {
+    if (typeof cmp !== "number") {
       return 0;
     }
     return cmp;
@@ -333,7 +337,7 @@ function buildComparator(values: readonly Value[]): ((a: Value, b: Value) => num
 }
 
 function isNumericValue(value: Value): boolean {
-  return value instanceof IntValue || value instanceof UintValue || value instanceof DoubleValue;
+  return value.kind === "int" || value.kind === "uint" || value.kind === "double";
 }
 
 function toSafeNumber(value: IntValue): number | ErrorValue {

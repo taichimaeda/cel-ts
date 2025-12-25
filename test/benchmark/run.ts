@@ -1,23 +1,12 @@
-import { writeFileSync } from "node:fs";
-import { bench, do_not_optimize, run, summary } from "mitata";
-import { preparedCases } from "./cases";
-import { buildResults } from "./results";
+import { rmSync } from "node:fs";
+import { BenchmarkRunner } from "./runner";
 
-summary(() => {
-  for (const benchCase of preparedCases) {
-    bench(benchCase.name, () => {
-      const value = benchCase.program.eval(benchCase.activation);
-      do_not_optimize(value);
-    });
-  }
-});
+const resultsPath = "test/benchmark/results.json";
 
-const runResult = await run({ format: "mitata" });
+// Clean up previous results
+rmSync(resultsPath, { force: true });
 
-const output = {
-  timestamp: new Date().toISOString(),
-  results: buildResults(runResult),
-};
-
-const outputPath = "test/benchmark/results.json";
-writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`);
+// Run benchmarks
+const runner = new BenchmarkRunner();
+await runner.run();
+runner.writeResults(resultsPath);

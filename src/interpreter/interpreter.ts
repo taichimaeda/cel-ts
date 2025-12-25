@@ -23,7 +23,7 @@ import { Dispatcher } from "./dispatcher";
 import { standardFunctions } from "./functions";
 import type { Interpretable } from "./interpretable";
 import { formatRuntimeError, isActivation } from "./utils";
-import { ErrorValue, type Value, ValueUtil } from "./values";
+import { ErrorValue, isErrorValue, type Value } from "./values";
 
 /**
  * Program input types for evaluation.
@@ -268,8 +268,8 @@ export class Program {
     try {
       const value = this.interpretable.eval(activation);
 
-      if (ValueUtil.isError(value)) {
-        const formatted = formatRuntimeError(value as ErrorValue, this.sourceInfo);
+      if (isErrorValue(value)) {
+        const formatted = formatRuntimeError(value, this.sourceInfo);
         return {
           value,
           success: false,
@@ -295,4 +295,3 @@ export class Program {
     return this.checkResultValue;
   }
 }
-

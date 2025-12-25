@@ -2,7 +2,7 @@ import type { EnvOptions } from "../cel";
 import { type Expr, IdentExpr, SelectExpr } from "../common/ast";
 import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
-import { macroTargetMatchesNamespace } from "./macros";
+import { macroTargetMatchesNamespace } from "./utils";
 
 const protoNamespace = "proto";
 

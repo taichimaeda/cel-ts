@@ -1,7 +1,25 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm add:*)"
+      "Bash(pnpm add:*)",
+      "Bash(pnpm conformance:*)",
+      "Bash(pnpm remove:*)",
+      "Bash(grep:*)",
+      "Bash(cat:*)",
+      "Bash(xargs cat:*)",
+      "Bash(trash:*)",
+      "Bash(pnpm benchmark:*)",
+      "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && cat {}')",
+      "Bash(done)",
+      "Bash(while read f)",
+      "Bash(do cat \"$f\")",
+      "Bash(git stash:*)",
+      "Bash(git checkout:*)",
+      "Bash(for i in 1 2 3 4 5)",
+      "Bash(do echo \"=== Run $i ===\" rm -rf test/conformance/results pnpm conformance)",
+      "Bash(xargs:*)",
+      "Bash(for:*)",
+      "Bash(do echo \"=== Run $i ===\")"
     ]
   }
 }

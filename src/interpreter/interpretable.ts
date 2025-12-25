@@ -14,15 +14,31 @@ import {
   googleStructToMapValue,
   googleStructToValue,
   googleValueToValue,
+  normalizeIndexValue,
   structValueToMapValue,
 } from "./utils";
 import {
   BoolValue,
   BytesValue,
   DoubleValue,
-  DurationValue,
   EnumValue,
   ErrorValue,
+  isBoolValue,
+  isBytesValue,
+  isDoubleValue,
+  isDurationValue,
+  isEnumValue,
+  isErrorValue,
+  isIntValue,
+  isListValue,
+  isMapValue,
+  isNullValue,
+  isOptionalValue,
+  isStringValue,
+  isStructValue,
+  isTimestampValue,
+  isUintValue,
+  isUnknownValue,
   IntLimits,
   IntValue,
   ListValue,
@@ -32,11 +48,9 @@ import {
   OptionalValue,
   StringValue,
   StructValue,
-  TimestampValue,
   UintValue,
-  type UnknownValue,
   type Value,
-  ValueUtil,
+  toTypeValue,
 } from "./values";
 
 export type InterpretableKind =
@@ -181,10 +195,10 @@ export class NotValue {
 
   eval(activation: Activation): Value {
     const val = this.operand.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(val)) {
+    if (isErrorValue(val) || isUnknownValue(val)) {
       return val;
     }
-    if (val instanceof BoolValue) {
+    if (isBoolValue(val)) {
       return val.negate();
     }
     return ErrorValue.typeMismatch("bool", val, this.exprId);
@@ -215,11 +229,11 @@ export class NotStrictlyFalseValue {
   eval(activation: Activation): Value {
     const val = this.operand.eval(activation);
     // Treat errors as true (keeps the loop running)
-    if (val instanceof ErrorValue) {
+    if (val.kind === "error") {
       return BoolValue.True;
     }
     // Only literal false returns false
-    if (val instanceof BoolValue) {
+    if (isBoolValue(val)) {
       return val.value() === false ? BoolValue.False : BoolValue.True;
     }
     // Treat every other value as true
@@ -248,13 +262,13 @@ export class NegValue {
 
   eval(activation: Activation): Value {
     const val = this.operand.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(val)) {
+    if (isErrorValue(val) || isUnknownValue(val)) {
       return val;
     }
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       return val.negate();
     }
-    if (val instanceof DoubleValue) {
+    if (isDoubleValue(val)) {
       return val.negate();
     }
     return ErrorValue.typeMismatch("int or double", val, this.exprId);
@@ -285,35 +299,35 @@ export class AndValue {
     const lhsVal = this.lhs.eval(activation);
 
     // Short-circuit evaluation: return false immediately if lhs is false
-    if (lhsVal instanceof BoolValue && !lhsVal.value()) {
+    if (isBoolValue(lhsVal) && !lhsVal.value()) {
       return BoolValue.False;
     }
 
     const rhsVal = this.rhs.eval(activation);
 
     // Short-circuit evaluation: return false if rhs is false (even if lhs is error/unknown)
-    if (rhsVal instanceof BoolValue && !rhsVal.value()) {
+    if (isBoolValue(rhsVal) && !rhsVal.value()) {
       return BoolValue.False;
     }
 
     // Both are true
-    if (lhsVal instanceof BoolValue && lhsVal.value()) {
-      if (rhsVal instanceof BoolValue && rhsVal.value()) {
+    if (isBoolValue(lhsVal) && lhsVal.value()) {
+      if (isBoolValue(rhsVal) && rhsVal.value()) {
         return BoolValue.True;
       }
-      if (ValueUtil.isErrorOrUnknown(rhsVal)) {
+      if (isErrorValue(rhsVal) || isUnknownValue(rhsVal)) {
         return rhsVal;
       }
       return ErrorValue.typeMismatch("bool", rhsVal, this.rhs.id());
     }
 
     // lhs is error or unknown
-    if (ValueUtil.isErrorOrUnknown(lhsVal)) {
-      if (rhsVal instanceof BoolValue && rhsVal.value()) {
+    if (isErrorValue(lhsVal) || isUnknownValue(lhsVal)) {
+      if (isBoolValue(rhsVal) && rhsVal.value()) {
         return lhsVal;
       }
-      if (ValueUtil.isUnknown(lhsVal) && ValueUtil.isUnknown(rhsVal)) {
-        return lhsVal.merge(rhsVal as UnknownValue);
+      if (isUnknownValue(lhsVal) && isUnknownValue(rhsVal)) {
+        return lhsVal.merge(rhsVal);
       }
       return lhsVal;
     }
@@ -346,35 +360,35 @@ export class OrValue {
     const lhsVal = this.lhs.eval(activation);
 
     // Short-circuit evaluation: return true immediately if lhs is true
-    if (lhsVal instanceof BoolValue && lhsVal.value()) {
+    if (isBoolValue(lhsVal) && lhsVal.value()) {
       return BoolValue.True;
     }
 
     const rhsVal = this.rhs.eval(activation);
 
     // Short-circuit evaluation: return true if rhs is true (even if lhs is error/unknown)
-    if (rhsVal instanceof BoolValue && rhsVal.value()) {
+    if (isBoolValue(rhsVal) && rhsVal.value()) {
       return BoolValue.True;
     }
 
     // Both are false
-    if (lhsVal instanceof BoolValue && !lhsVal.value()) {
-      if (rhsVal instanceof BoolValue && !rhsVal.value()) {
+    if (isBoolValue(lhsVal) && !lhsVal.value()) {
+      if (isBoolValue(rhsVal) && !rhsVal.value()) {
         return BoolValue.False;
       }
-      if (ValueUtil.isErrorOrUnknown(rhsVal)) {
+      if (isErrorValue(rhsVal) || isUnknownValue(rhsVal)) {
         return rhsVal;
       }
       return ErrorValue.typeMismatch("bool", rhsVal, this.rhs.id());
     }
 
     // lhs is error or unknown
-    if (ValueUtil.isErrorOrUnknown(lhsVal)) {
-      if (rhsVal instanceof BoolValue && !rhsVal.value()) {
+    if (isErrorValue(lhsVal) || isUnknownValue(lhsVal)) {
+      if (isBoolValue(rhsVal) && !rhsVal.value()) {
         return lhsVal;
       }
-      if (ValueUtil.isUnknown(lhsVal) && ValueUtil.isUnknown(rhsVal)) {
-        return lhsVal.merge(rhsVal as UnknownValue);
+      if (isUnknownValue(lhsVal) && isUnknownValue(rhsVal)) {
+        return lhsVal.merge(rhsVal);
       }
       return lhsVal;
     }
@@ -407,11 +421,11 @@ export class ConditionalValue {
   eval(activation: Activation): Value {
     const condVal = this.condition.eval(activation);
 
-    if (ValueUtil.isError(condVal)) {
+    if (isErrorValue(condVal)) {
       return condVal;
     }
 
-    if (ValueUtil.isUnknown(condVal)) {
+    if (isUnknownValue(condVal)) {
       // Evaluate both branches
       const truthyVal = this.truthy.eval(activation);
       const falsyVal = this.falsy.eval(activation);
@@ -423,7 +437,7 @@ export class ConditionalValue {
       return condVal;
     }
 
-    if (condVal instanceof BoolValue) {
+    if (isBoolValue(condVal)) {
       return condVal.value() ? this.truthy.eval(activation) : this.falsy.eval(activation);
     }
 
@@ -454,12 +468,12 @@ export class BinaryValue {
 
   eval(activation: Activation): Value {
     const lhsVal = this.lhs.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(lhsVal)) {
+    if (isErrorValue(lhsVal) || isUnknownValue(lhsVal)) {
       return lhsVal;
     }
 
     const rhsVal = this.rhs.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(rhsVal)) {
+    if (isErrorValue(rhsVal) || isUnknownValue(rhsVal)) {
       return rhsVal;
     }
 
@@ -486,7 +500,7 @@ export class BinaryValue {
         return lhs.equal(rhs);
       case "!=": {
         const eq = lhs.equal(rhs);
-        if (eq instanceof BoolValue) {
+        if (isBoolValue(eq)) {
           return eq.negate();
         }
         return eq;
@@ -512,28 +526,28 @@ export class BinaryValue {
     if (leftInt !== undefined && rightInt !== undefined) {
       return leftInt.add(rightInt);
     }
-    if (lhs instanceof UintValue && rhs instanceof UintValue) {
+    if (isUintValue(lhs) && isUintValue(rhs)) {
       return lhs.add(rhs);
     }
-    if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
+    if (isDoubleValue(lhs) && isDoubleValue(rhs)) {
       return lhs.add(rhs);
     }
-    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+    if (isStringValue(lhs) && isStringValue(rhs)) {
       return lhs.add(rhs);
     }
-    if (lhs instanceof BytesValue && rhs instanceof BytesValue) {
+    if (isBytesValue(lhs) && isBytesValue(rhs)) {
       return lhs.add(rhs);
     }
-    if (lhs instanceof ListValue && rhs instanceof ListValue) {
+    if (isListValue(lhs) && isListValue(rhs)) {
       return lhs.add(rhs);
     }
-    if (lhs instanceof DurationValue && rhs instanceof DurationValue) {
+    if (isDurationValue(lhs) && isDurationValue(rhs)) {
       return lhs.add(rhs);
     }
-    if (lhs instanceof TimestampValue && rhs instanceof DurationValue) {
+    if (isTimestampValue(lhs) && isDurationValue(rhs)) {
       return lhs.add(rhs);
     }
-    if (lhs instanceof DurationValue && rhs instanceof TimestampValue) {
+    if (isDurationValue(lhs) && isTimestampValue(rhs)) {
       return rhs.add(lhs);
     }
     return ErrorValue.of(`cannot add ${lhs.type()} and ${rhs.type()}`, this.exprId);
@@ -545,19 +559,19 @@ export class BinaryValue {
     if (leftInt !== undefined && rightInt !== undefined) {
       return leftInt.subtract(rightInt);
     }
-    if (lhs instanceof UintValue && rhs instanceof UintValue) {
+    if (isUintValue(lhs) && isUintValue(rhs)) {
       return lhs.subtract(rhs);
     }
-    if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
+    if (isDoubleValue(lhs) && isDoubleValue(rhs)) {
       return lhs.subtract(rhs);
     }
-    if (lhs instanceof DurationValue && rhs instanceof DurationValue) {
+    if (isDurationValue(lhs) && isDurationValue(rhs)) {
       return lhs.subtract(rhs);
     }
-    if (lhs instanceof TimestampValue && rhs instanceof DurationValue) {
+    if (isTimestampValue(lhs) && isDurationValue(rhs)) {
       return lhs.subtract(rhs);
     }
-    if (lhs instanceof TimestampValue && rhs instanceof TimestampValue) {
+    if (isTimestampValue(lhs) && isTimestampValue(rhs)) {
       return lhs.subtract(rhs);
     }
     return ErrorValue.of(`cannot subtract ${rhs.type()} from ${lhs.type()}`, this.exprId);
@@ -569,10 +583,10 @@ export class BinaryValue {
     if (leftInt !== undefined && rightInt !== undefined) {
       return leftInt.multiply(rightInt);
     }
-    if (lhs instanceof UintValue && rhs instanceof UintValue) {
+    if (isUintValue(lhs) && isUintValue(rhs)) {
       return lhs.multiply(rhs);
     }
-    if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
+    if (isDoubleValue(lhs) && isDoubleValue(rhs)) {
       return lhs.multiply(rhs);
     }
     return ErrorValue.of(`cannot multiply ${lhs.type()} and ${rhs.type()}`, this.exprId);
@@ -584,10 +598,10 @@ export class BinaryValue {
     if (leftInt !== undefined && rightInt !== undefined) {
       return leftInt.divide(rightInt);
     }
-    if (lhs instanceof UintValue && rhs instanceof UintValue) {
+    if (isUintValue(lhs) && isUintValue(rhs)) {
       return lhs.divide(rhs);
     }
-    if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
+    if (isDoubleValue(lhs) && isDoubleValue(rhs)) {
       return lhs.divide(rhs);
     }
     return ErrorValue.of(`cannot divide ${lhs.type()} by ${rhs.type()}`, this.exprId);
@@ -599,7 +613,7 @@ export class BinaryValue {
     if (leftInt !== undefined && rightInt !== undefined) {
       return leftInt.modulo(rightInt);
     }
-    if (lhs instanceof UintValue && rhs instanceof UintValue) {
+    if (isUintValue(lhs) && isUintValue(rhs)) {
       return lhs.modulo(rhs);
     }
     return ErrorValue.of(`cannot modulo ${lhs.type()} by ${rhs.type()}`, this.exprId);
@@ -611,33 +625,35 @@ export class BinaryValue {
     if (leftInt !== undefined && rightInt !== undefined) {
       return BoolValue.of(predicate(leftInt.compare(rightInt)));
     }
-    if (lhs instanceof IntValue && rhs instanceof IntValue) {
+    if (isIntValue(lhs) && isIntValue(rhs)) {
       return BoolValue.of(predicate(lhs.compare(rhs)));
     }
-    if (lhs instanceof UintValue && rhs instanceof UintValue) {
+    if (isUintValue(lhs) && isUintValue(rhs)) {
       return BoolValue.of(predicate(lhs.compare(rhs)));
     }
-    if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
+    if (isDoubleValue(lhs) && isDoubleValue(rhs)) {
       const cmp = lhs.compare(rhs);
       if (Number.isNaN(cmp)) {
         return BoolValue.False;
       }
       return BoolValue.of(predicate(cmp));
     }
-    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+    if (isStringValue(lhs) && isStringValue(rhs)) {
       return BoolValue.of(predicate(lhs.compare(rhs)));
     }
-    if (lhs instanceof BoolValue && rhs instanceof BoolValue) {
-      const cmp = lhs.value() === rhs.value() ? 0 : lhs.value() ? 1 : -1;
+    if (isBoolValue(lhs) && isBoolValue(rhs)) {
+      const leftBool = lhs.value();
+      const rightBool = rhs.value();
+      const cmp = leftBool === rightBool ? 0 : leftBool ? 1 : -1;
       return BoolValue.of(predicate(cmp));
     }
-    if (lhs instanceof DurationValue && rhs instanceof DurationValue) {
+    if (isDurationValue(lhs) && isDurationValue(rhs)) {
       return BoolValue.of(predicate(lhs.compare(rhs)));
     }
-    if (lhs instanceof TimestampValue && rhs instanceof TimestampValue) {
+    if (isTimestampValue(lhs) && isTimestampValue(rhs)) {
       return BoolValue.of(predicate(lhs.compare(rhs)));
     }
-    if (lhs instanceof BytesValue && rhs instanceof BytesValue) {
+    if (isBytesValue(lhs) && isBytesValue(rhs)) {
       // Byte comparison
       const lhsBytes = lhs.value();
       const rhsBytes = rhs.value();
@@ -655,8 +671,8 @@ export class BinaryValue {
     }
     // Comparison between different types (int/uint/double)
     if (
-      (lhs instanceof IntValue || lhs instanceof UintValue || lhs instanceof DoubleValue) &&
-      (rhs instanceof IntValue || rhs instanceof UintValue || rhs instanceof DoubleValue)
+      (isIntValue(lhs) || isUintValue(lhs) || isDoubleValue(lhs)) &&
+      (isIntValue(rhs) || isUintValue(rhs) || isDoubleValue(rhs))
     ) {
       const lhsNum = this.toNumber(lhs);
       const rhsNum = this.toNumber(rhs);
@@ -667,36 +683,36 @@ export class BinaryValue {
   }
 
   private asIntValue(val: Value): IntValue | undefined {
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       return val;
     }
-    if (val instanceof EnumValue) {
+    if (isEnumValue(val)) {
       return IntValue.of(val.value());
     }
     return undefined;
   }
 
   private toNumber(val: Value): number {
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       return Number(val.value());
     }
-    if (val instanceof UintValue) {
+    if (isUintValue(val)) {
       return Number(val.value());
     }
-    if (val instanceof DoubleValue) {
+    if (isDoubleValue(val)) {
       return val.value();
     }
     return Number.NaN;
   }
 
   private contains(container: Value, elem: Value): Value {
-    if (container instanceof ListValue) {
+    if (isListValue(container)) {
       return container.contains(elem);
     }
-    if (container instanceof MapValue) {
+    if (isMapValue(container)) {
       return container.contains(elem);
     }
-    if (container instanceof StringValue && elem instanceof StringValue) {
+    if (isStringValue(container) && isStringValue(elem)) {
       return container.contains(elem);
     }
     return ErrorValue.of(
@@ -727,14 +743,14 @@ export class CallValue {
   eval(activation: Activation): Value {
     if (this.functionName === "or" && this.overloadId === "optional_or_optional") {
       const lhs = this.args[0]!.eval(activation);
-      if (ValueUtil.isErrorOrUnknown(lhs)) {
+      if (isErrorValue(lhs) || isUnknownValue(lhs)) {
         return lhs;
       }
-      if (lhs instanceof OptionalValue && lhs.hasValue()) {
+      if (isOptionalValue(lhs) && lhs.hasValue()) {
         return lhs;
       }
       const rhs = this.args[1]!.eval(activation);
-      if (ValueUtil.isErrorOrUnknown(rhs)) {
+      if (isErrorValue(rhs) || isUnknownValue(rhs)) {
         return rhs;
       }
       return rhs;
@@ -742,14 +758,14 @@ export class CallValue {
 
     if (this.functionName === "orValue" && this.overloadId === "optional_orValue_value") {
       const lhs = this.args[0]!.eval(activation);
-      if (ValueUtil.isErrorOrUnknown(lhs)) {
+      if (isErrorValue(lhs) || isUnknownValue(lhs)) {
         return lhs;
       }
-      if (lhs instanceof OptionalValue && lhs.hasValue()) {
+      if (isOptionalValue(lhs) && lhs.hasValue()) {
         return lhs.value() ?? NullValue.Instance;
       }
       const rhs = this.args[1]!.eval(activation);
-      if (ValueUtil.isErrorOrUnknown(rhs)) {
+      if (isErrorValue(rhs) || isUnknownValue(rhs)) {
         return rhs;
       }
       return rhs;
@@ -760,7 +776,7 @@ export class CallValue {
     for (const arg of this.args) {
       const val = arg.eval(activation);
       // Return error/unknown immediately unless it's a non-strict function
-      if (ValueUtil.isErrorOrUnknown(val)) {
+      if (isErrorValue(val) || isUnknownValue(val)) {
         return val;
       }
       argValues.push(val);
@@ -811,7 +827,7 @@ export class BlockValue {
     const blockActivation = new MutableActivation(activation);
     for (let i = 0; i < this.slots.length; i += 1) {
       const val = this.slots[i]!.eval(blockActivation);
-      if (ValueUtil.isErrorOrUnknown(val)) {
+      if (isErrorValue(val) || isUnknownValue(val)) {
         return val;
       }
       blockActivation.set(`@index${i}`, val);
@@ -850,13 +866,13 @@ export class CreateListValue {
     for (let i = 0; i < this.elements.length; i++) {
       const val = this.elements[i]!.eval(activation);
 
-      if (ValueUtil.isError(val)) {
+      if (isErrorValue(val)) {
         return val;
       }
 
       // Process optional elements
       if (this.optionalIndices.has(i)) {
-        if (val instanceof OptionalValue) {
+        if (isOptionalValue(val)) {
           if (val.hasValue()) {
             values.push(val.value()!);
           }
@@ -865,7 +881,7 @@ export class CreateListValue {
         }
       }
 
-      if (ValueUtil.isUnknown(val)) {
+      if (isUnknownValue(val)) {
         return val;
       }
 
@@ -907,7 +923,7 @@ export class CreateMapValue {
 
     for (let i = 0; i < this.keys.length; i++) {
       const key = this.keys[i]!.eval(activation);
-      if (ValueUtil.isErrorOrUnknown(key)) {
+      if (isErrorValue(key) || isUnknownValue(key)) {
         return key;
       }
       if (!isSupportedMapKey(key)) {
@@ -915,13 +931,13 @@ export class CreateMapValue {
       }
 
       const val = this.values[i]!.eval(activation);
-      if (ValueUtil.isError(val)) {
+      if (isErrorValue(val)) {
         return val;
       }
 
       // Process optional entries
       if (this.optionalIndices.has(i)) {
-        if (val instanceof OptionalValue) {
+        if (isOptionalValue(val)) {
           if (val.hasValue()) {
             entries.push({ key, value: val.value()! });
           }
@@ -930,7 +946,7 @@ export class CreateMapValue {
         }
       }
 
-      if (ValueUtil.isUnknown(val)) {
+      if (isUnknownValue(val)) {
         return val;
       }
 
@@ -986,13 +1002,13 @@ export class CreateStructValue {
     for (let i = 0; i < this.fields.length; i++) {
       const key = StringValue.of(this.fields[i]!);
       let val = this.values[i]!.eval(activation);
-      if (ValueUtil.isErrorOrUnknown(val)) {
+      if (isErrorValue(val) || isUnknownValue(val)) {
         return val;
       }
       const fieldType = this.fieldTypes.get(this.fields[i]!);
       const protoFieldType =
         this.typeProvider?.fieldProtoType(this.typeName, this.fields[i]!) ?? undefined;
-      if (val instanceof NullValue) {
+      if (isNullValue(val)) {
         if (fieldType !== undefined) {
           if (!isNullAssignableField(fieldType, protoFieldType)) {
             return ErrorValue.of("unsupported field type", this.exprId);
@@ -1008,7 +1024,7 @@ export class CreateStructValue {
         const wrapperKind = wrapperKindFromTypeName(fieldType.runtimeTypeName);
         if (wrapperKind !== undefined) {
           const coerced = coerceWrapperValue(wrapperKind, val);
-          if (coerced instanceof ErrorValue) {
+          if (isErrorValue(coerced)) {
             return coerced;
           }
           val = coerced;
@@ -1040,12 +1056,12 @@ export class CreateStructValue {
       }
       if (protoFieldType === "google.protobuf.Struct") {
         const mapValue = googleStructToMapValue(val);
-        if (mapValue instanceof ErrorValue) {
+        if (isErrorValue(mapValue)) {
           return mapValue;
         }
       }
       if (this.optionalFields.has(i)) {
-        if (val instanceof OptionalValue) {
+        if (isOptionalValue(val)) {
           if (val.hasValue()) {
             const inner = val.value()!;
             entries.push({ key, value: inner });
@@ -1114,10 +1130,10 @@ function wrapperValueFromStruct(typeName: string, values: Map<string, Value>): V
     return undefined;
   }
   let value = values.get("value");
-  if (value instanceof OptionalValue) {
+  if (value !== undefined && isOptionalValue(value)) {
     value = value.hasValue() ? (value.value() ?? NullValue.Instance) : undefined;
   }
-  if (value instanceof NullValue) {
+  if (value !== undefined && isNullValue(value)) {
     return NullValue.Instance;
   }
   if (value === undefined) {
@@ -1191,14 +1207,14 @@ function wrapperDefaultValue(kind: WrapperScalarKind): Value {
 function coerceWrapperValue(kind: WrapperScalarKind, value: Value): Value {
   if (kind === "float") {
     const numeric = extractNumericValue(value);
-    if (numeric instanceof ErrorValue) {
+    if (typeof numeric !== "number") {
       return numeric;
     }
     return DoubleValue.of(fround(numeric));
   }
   if (kind === "int32" || kind === "int64") {
     const numeric = intValueFromNumeric(value);
-    if (numeric instanceof ErrorValue) {
+    if (typeof numeric !== "bigint") {
       return numeric;
     }
     const min = kind === "int32" ? -2147483648n : -(1n << 63n);
@@ -1210,7 +1226,7 @@ function coerceWrapperValue(kind: WrapperScalarKind, value: Value): Value {
   }
   if (kind === "uint32" || kind === "uint64") {
     const numeric = intValueFromNumeric(value);
-    if (numeric instanceof ErrorValue) {
+    if (typeof numeric !== "bigint") {
       return numeric;
     }
     const max = kind === "uint32" ? 4294967295n : (1n << 64n) - 1n;
@@ -1223,13 +1239,13 @@ function coerceWrapperValue(kind: WrapperScalarKind, value: Value): Value {
 }
 
 function coerceFloatValue(value: Value): Value {
-  if (value instanceof DoubleValue) {
+  if (isDoubleValue(value)) {
     return DoubleValue.of(fround(value.value()));
   }
-  if (value instanceof IntValue) {
+  if (isIntValue(value)) {
     return DoubleValue.of(fround(Number(value.value())));
   }
-  if (value instanceof UintValue) {
+  if (isUintValue(value)) {
     return DoubleValue.of(fround(Number(value.value())));
   }
   return value;
@@ -1265,26 +1281,26 @@ function isNullAssignableField(fieldType: CheckerType, protoFieldType?: string):
 function isDefaultFieldValue(fieldType: CheckerType, value: Value): boolean {
   switch (fieldType.kind) {
     case "bool":
-      return value instanceof BoolValue && !value.value();
+      return isBoolValue(value) && !value.value();
     case "int":
-      return value instanceof IntValue && value.value() === 0n;
+      return isIntValue(value) && value.value() === 0n;
     case "uint":
-      return value instanceof UintValue && value.value() === 0n;
+      return isUintValue(value) && value.value() === 0n;
     case "double":
-      return value instanceof DoubleValue && value.value() === 0;
+      return isDoubleValue(value) && value.value() === 0;
     case "string":
-      return value instanceof StringValue && value.value() === "";
+      return isStringValue(value) && value.value() === "";
     case "bytes":
-      return value instanceof BytesValue && value.value().length === 0;
+      return isBytesValue(value) && value.value().length === 0;
     case "list":
-      return value instanceof ListValue && value.value().length === 0;
+      return isListValue(value) && value.value().length === 0;
     case "map":
-      return value instanceof MapValue && value.value().length === 0;
+      return isMapValue(value) && value.value().length === 0;
     case "opaque": {
-      if (value instanceof EnumValue) {
+      if (isEnumValue(value)) {
         return value.value() === 0n;
       }
-      if (value instanceof IntValue) {
+      if (isIntValue(value)) {
         return value.value() === 0n;
       }
       return false;
@@ -1295,53 +1311,53 @@ function isDefaultFieldValue(fieldType: CheckerType, value: Value): boolean {
 }
 
 function coerceGoogleValue(value: Value): Value {
-  if (value instanceof NullValue) {
+  if (isNullValue(value)) {
     return value;
   }
-  if (value instanceof BoolValue) {
+  if (isBoolValue(value)) {
     return value;
   }
-  if (value instanceof DoubleValue) {
+  if (isDoubleValue(value)) {
     return value;
   }
-  if (value instanceof IntValue) {
+  if (isIntValue(value)) {
     return intToJsonValue(value.value());
   }
-  if (value instanceof UintValue) {
+  if (isUintValue(value)) {
     return uintToJsonValue(value.value());
   }
-  if (value instanceof EnumValue) {
+  if (isEnumValue(value)) {
     return intToJsonValue(value.value());
   }
-  if (value instanceof StringValue) {
+  if (isStringValue(value)) {
     return value;
   }
-  if (value instanceof BytesValue) {
+  if (isBytesValue(value)) {
     return StringValue.of(encodeBase64(value.value()));
   }
-  if (value instanceof DurationValue) {
+  if (isDurationValue(value)) {
     return StringValue.of(value.toString());
   }
-  if (value instanceof TimestampValue) {
+  if (isTimestampValue(value)) {
     return StringValue.of(value.toString());
   }
-  if (value instanceof ListValue) {
+  if (isListValue(value)) {
     return value;
   }
-  if (value instanceof MapValue) {
+  if (isMapValue(value)) {
     return value;
   }
-  if (value instanceof StructValue) {
+  if (isStructValue(value)) {
     const typeName = (value.type() as CheckerType).runtimeTypeName;
     if (typeName === "google.protobuf.Empty") {
       return MapValue.of([]);
     }
     if (typeName === "google.protobuf.FieldMask") {
       const paths = value.getField("paths");
-      if (paths instanceof ListValue) {
+      if (isListValue(paths)) {
         const parts: string[] = [];
         for (const entry of paths.value()) {
-          if (entry instanceof StringValue) {
+          if (isStringValue(entry)) {
             parts.push(entry.value());
           }
         }
@@ -1389,13 +1405,13 @@ function uintToJsonValue(value: bigint): Value {
 }
 
 function intValueFromNumeric(value: Value): bigint | ErrorValue {
-  if (value instanceof IntValue) {
+  if (isIntValue(value)) {
     return value.value();
   }
-  if (value instanceof UintValue) {
+  if (isUintValue(value)) {
     return value.value();
   }
-  if (value instanceof DoubleValue) {
+  if (isDoubleValue(value)) {
     const num = value.value();
     if (!Number.isFinite(num) || !Number.isInteger(num)) {
       return ErrorValue.typeMismatch("numeric", value);
@@ -1406,10 +1422,10 @@ function intValueFromNumeric(value: Value): bigint | ErrorValue {
 }
 
 function extractNumericValue(value: Value): number | ErrorValue {
-  if (value instanceof DoubleValue) {
+  if (isDoubleValue(value)) {
     return value.value();
   }
-  if (value instanceof IntValue || value instanceof UintValue) {
+  if (isIntValue(value) || isUintValue(value)) {
     return Number(value.value());
   }
   return ErrorValue.typeMismatch("numeric", value);
@@ -1422,20 +1438,20 @@ function fround(value: number): number {
 }
 
 function enumNumericValue(value: Value): bigint | undefined {
-  if (value instanceof IntValue) {
+  if (isIntValue(value)) {
     return value.value();
   }
-  if (value instanceof UintValue) {
+  if (isUintValue(value)) {
     return value.value();
   }
-  if (value instanceof DoubleValue) {
+  if (isDoubleValue(value)) {
     const num = value.value();
     if (!Number.isFinite(num) || !Number.isInteger(num)) {
       return undefined;
     }
     return BigInt(num);
   }
-  if (value instanceof EnumValue) {
+  if (isEnumValue(value)) {
     return value.value();
   }
   return undefined;
@@ -1447,24 +1463,21 @@ function isEnumInt32Range(value: bigint): boolean {
 
 function isSupportedMapKey(key: Value): boolean {
   return (
-    key instanceof BoolValue ||
-    key instanceof IntValue ||
-    key instanceof UintValue ||
-    key instanceof StringValue
+    isBoolValue(key) || isIntValue(key) || isUintValue(key) || isStringValue(key)
   );
 }
 
 function mapKeyId(key: Value): string {
-  if (key instanceof IntValue) {
+  if (isIntValue(key)) {
     return `num:${key.value().toString()}`;
   }
-  if (key instanceof UintValue) {
+  if (isUintValue(key)) {
     return `num:${key.value().toString()}`;
   }
-  if (key instanceof BoolValue) {
+  if (isBoolValue(key)) {
     return `bool:${key.value()}`;
   }
-  if (key instanceof StringValue) {
+  if (isStringValue(key)) {
     return `string:${key.value()}`;
   }
   return `${key.type()}:${String(key.value())}`;
@@ -1489,26 +1502,26 @@ export class IndexValue {
 
   eval(activation: Activation): Value {
     const obj = this.operand.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(obj)) {
+    if (isErrorValue(obj) || isUnknownValue(obj)) {
       return obj;
     }
 
     const idx = this.index.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(idx)) {
+    if (isErrorValue(idx) || isUnknownValue(idx)) {
       return idx;
     }
 
     // List access
-    if (obj instanceof ListValue) {
+    if (isListValue(obj)) {
       const normalized = normalizeIndexValue(idx);
-      if (normalized instanceof ErrorValue) {
+      if (isErrorValue(normalized)) {
         return normalized;
       }
       return obj.get(normalized);
     }
 
     // Map access
-    if (obj instanceof MapValue) {
+    if (isMapValue(obj)) {
       const hasKey = obj.contains(idx);
       if (hasKey.value()) {
         return obj.get(idx);
@@ -1520,18 +1533,18 @@ export class IndexValue {
     }
 
     // String access
-    if (obj instanceof StringValue) {
+    if (isStringValue(obj)) {
       const normalized = normalizeIndexValue(idx);
-      if (normalized instanceof ErrorValue) {
+      if (isErrorValue(normalized)) {
         return normalized;
       }
       return obj.charAt(normalized);
     }
 
     // Byte access
-    if (obj instanceof BytesValue) {
+    if (isBytesValue(obj)) {
       const normalized = normalizeIndexValue(idx);
-      if (normalized instanceof ErrorValue) {
+      if (isErrorValue(normalized)) {
         return normalized;
       }
       return obj.byteAt(normalized);
@@ -1543,23 +1556,6 @@ export class IndexValue {
   cost(): number {
     return 1 + this.operand.cost() + this.index.cost();
   }
-}
-
-function normalizeIndexValue(value: Value): IntValue | ErrorValue {
-  if (value instanceof IntValue) {
-    return value;
-  }
-  if (value instanceof UintValue) {
-    return IntValue.of(value.value());
-  }
-  if (value instanceof DoubleValue) {
-    const num = value.value();
-    if (Number.isFinite(num) && Number.isInteger(num)) {
-      return IntValue.of(num);
-    }
-    return ErrorValue.of("invalid_argument");
-  }
-  return ErrorValue.typeMismatch("int or uint", value);
 }
 
 /**
@@ -1581,12 +1577,12 @@ export class FieldValue {
 
   eval(activation: Activation): Value {
     const obj = this.operand.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(obj)) {
+    if (isErrorValue(obj) || isUnknownValue(obj)) {
       return obj;
     }
 
     // Map access
-    if (obj instanceof MapValue) {
+    if (isMapValue(obj)) {
       const key = StringValue.of(this.field);
       const hasKey = obj.contains(key);
       if (hasKey.value()) {
@@ -1625,10 +1621,10 @@ export class HasFieldValue {
 
   eval(activation: Activation): Value {
     let obj = this.operand.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(obj)) {
+    if (isErrorValue(obj) || isUnknownValue(obj)) {
       return obj;
     }
-    if (obj instanceof OptionalValue) {
+    if (isOptionalValue(obj)) {
       if (!obj.hasValue()) {
         return BoolValue.False;
       }
@@ -1636,12 +1632,12 @@ export class HasFieldValue {
     }
 
     // Map presence test
-    if (obj instanceof MapValue) {
+    if (isMapValue(obj)) {
       const key = StringValue.of(this.field);
       return obj.contains(key);
     }
 
-    if (obj instanceof StructValue) {
+    if (isStructValue(obj)) {
       if (obj.hasFieldDefinitions() && !obj.hasFieldDefinition(this.field)) {
         return ErrorValue.noSuchField(this.field, this.exprId);
       }
@@ -1682,13 +1678,13 @@ export class ComprehensionValue {
   eval(activation: Activation): Value {
     // Evaluate iteration range
     const range = this.iterRange.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(range)) {
+    if (isErrorValue(range) || isUnknownValue(range)) {
       return range;
     }
 
     // Initialize accumulator
     let accu = this.accuInit.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(accu)) {
+    if (isErrorValue(accu) || isUnknownValue(accu)) {
       return accu;
     }
 
@@ -1697,7 +1693,7 @@ export class ComprehensionValue {
     loopActivation.set(this.accuVar, accu);
 
     // Iteration
-    if (range instanceof ListValue) {
+    if (isListValue(range)) {
       if (this.iterVar2) {
         const elements = range.value();
         for (let i = 0; i < elements.length; i++) {
@@ -1706,15 +1702,15 @@ export class ComprehensionValue {
           loopActivation.set(this.accuVar, accu);
 
           const cond = this.loopCondition.eval(loopActivation);
-          if (ValueUtil.isErrorOrUnknown(cond)) {
+          if (isErrorValue(cond) || isUnknownValue(cond)) {
             return cond;
           }
-          if (cond instanceof BoolValue && !cond.value()) {
+          if (isBoolValue(cond) && !cond.value()) {
             break;
           }
 
           accu = this.loopStep.eval(loopActivation);
-          if (ValueUtil.isUnknown(accu)) {
+          if (isUnknownValue(accu)) {
             return accu;
           }
         }
@@ -1724,20 +1720,20 @@ export class ComprehensionValue {
           loopActivation.set(this.accuVar, accu);
 
           const cond = this.loopCondition.eval(loopActivation);
-          if (ValueUtil.isErrorOrUnknown(cond)) {
+          if (isErrorValue(cond) || isUnknownValue(cond)) {
             return cond;
           }
-          if (cond instanceof BoolValue && !cond.value()) {
+          if (isBoolValue(cond) && !cond.value()) {
             break;
           }
 
           accu = this.loopStep.eval(loopActivation);
-          if (ValueUtil.isUnknown(accu)) {
+          if (isUnknownValue(accu)) {
             return accu;
           }
         }
       }
-    } else if (range instanceof MapValue) {
+    } else if (isMapValue(range)) {
       if (this.iterVar2) {
         for (const entry of range) {
           loopActivation.set(this.iterVar, entry.key);
@@ -1745,15 +1741,15 @@ export class ComprehensionValue {
           loopActivation.set(this.accuVar, accu);
 
           const cond = this.loopCondition.eval(loopActivation);
-          if (ValueUtil.isErrorOrUnknown(cond)) {
+          if (isErrorValue(cond) || isUnknownValue(cond)) {
             return cond;
           }
-          if (cond instanceof BoolValue && !cond.value()) {
+          if (isBoolValue(cond) && !cond.value()) {
             break;
           }
 
           accu = this.loopStep.eval(loopActivation);
-          if (ValueUtil.isUnknown(accu)) {
+          if (isUnknownValue(accu)) {
             return accu;
           }
         }
@@ -1763,15 +1759,15 @@ export class ComprehensionValue {
           loopActivation.set(this.accuVar, accu);
 
           const cond = this.loopCondition.eval(loopActivation);
-          if (ValueUtil.isErrorOrUnknown(cond)) {
+          if (isErrorValue(cond) || isUnknownValue(cond)) {
             return cond;
           }
-          if (cond instanceof BoolValue && !cond.value()) {
+          if (isBoolValue(cond) && !cond.value()) {
             break;
           }
 
           accu = this.loopStep.eval(loopActivation);
-          if (ValueUtil.isUnknown(accu)) {
+          if (isUnknownValue(accu)) {
             return accu;
           }
         }
@@ -1816,7 +1812,7 @@ export class TypeConversionValue {
 
   eval(activation: Activation): Value {
     const val = this.operand.eval(activation);
-    if (ValueUtil.isErrorOrUnknown(val)) {
+    if (isErrorValue(val) || isUnknownValue(val)) {
       return val;
     }
 
@@ -1847,24 +1843,24 @@ export class TypeConversionValue {
   }
 
   private toInt(val: Value): Value {
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       return val;
     }
-    if (val instanceof EnumValue) {
+    if (isEnumValue(val)) {
       const raw = val.value();
       if (raw < IntLimits.Int64Min || raw > IntLimits.Int64Max) {
         return ErrorValue.of("range error", this.exprId);
       }
       return IntValue.of(raw);
     }
-    if (val instanceof UintValue) {
+    if (isUintValue(val)) {
       const raw = val.value();
       if (raw > IntLimits.Int64Max) {
         return ErrorValue.of("range error", this.exprId);
       }
       return IntValue.of(raw);
     }
-    if (val instanceof DoubleValue) {
+    if (isDoubleValue(val)) {
       const d = val.value();
       if (!Number.isFinite(d)) {
         return ErrorValue.of("cannot convert infinity or NaN to int", this.exprId);
@@ -1878,7 +1874,7 @@ export class TypeConversionValue {
       }
       return IntValue.of(truncated);
     }
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       try {
         const n = BigInt(val.value());
         if (n < IntLimits.Int64Min || n > IntLimits.Int64Max) {
@@ -1889,17 +1885,17 @@ export class TypeConversionValue {
         return ErrorValue.of(`cannot parse '${val.value()}' as int`, this.exprId);
       }
     }
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return IntValue.of(val.value() / 1_000_000_000n);
     }
     return ErrorValue.of(`cannot convert ${val.type()} to int`, this.exprId);
   }
 
   private toUint(val: Value): Value {
-    if (val instanceof UintValue) {
+    if (isUintValue(val)) {
       return val;
     }
-    if (val instanceof EnumValue) {
+    if (isEnumValue(val)) {
       const n = val.value();
       if (n < 0n) {
         return ErrorValue.of("cannot convert negative enum to uint", this.exprId);
@@ -1909,7 +1905,7 @@ export class TypeConversionValue {
       }
       return UintValue.of(n);
     }
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       const n = val.value();
       if (n < 0n) {
         return ErrorValue.of("cannot convert negative int to uint", this.exprId);
@@ -1919,7 +1915,7 @@ export class TypeConversionValue {
       }
       return UintValue.of(n);
     }
-    if (val instanceof DoubleValue) {
+    if (isDoubleValue(val)) {
       const d = val.value();
       if (!Number.isFinite(d) || d < 0) {
         return ErrorValue.of("cannot convert to uint", this.exprId);
@@ -1930,7 +1926,7 @@ export class TypeConversionValue {
       }
       return UintValue.of(truncated);
     }
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       try {
         const n = BigInt(val.value());
         if (n < 0n) {
@@ -1948,19 +1944,19 @@ export class TypeConversionValue {
   }
 
   private toDouble(val: Value): Value {
-    if (val instanceof DoubleValue) {
+    if (isDoubleValue(val)) {
       return val;
     }
-    if (val instanceof EnumValue) {
+    if (isEnumValue(val)) {
       return DoubleValue.of(Number(val.value()));
     }
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       return DoubleValue.of(Number(val.value()));
     }
-    if (val instanceof UintValue) {
+    if (isUintValue(val)) {
       return DoubleValue.of(Number(val.value()));
     }
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       const text = val.value();
       const d = Number.parseFloat(text);
       if (Number.isNaN(d) && text !== "NaN") {
@@ -1972,22 +1968,22 @@ export class TypeConversionValue {
   }
 
   private toString(val: Value): Value {
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       return val;
     }
-    if (val instanceof EnumValue) {
+    if (isEnumValue(val)) {
       return StringValue.of(val.toString());
     }
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       return StringValue.of(val.value().toString());
     }
-    if (val instanceof UintValue) {
+    if (isUintValue(val)) {
       return StringValue.of(val.value().toString());
     }
-    if (val instanceof DoubleValue) {
+    if (isDoubleValue(val)) {
       return StringValue.of(val.value().toString());
     }
-    if (val instanceof BytesValue) {
+    if (isBytesValue(val)) {
       const decoder = new TextDecoder("utf-8", { fatal: true });
       try {
         return StringValue.of(decoder.decode(val.value()));
@@ -1995,33 +1991,33 @@ export class TypeConversionValue {
         return ErrorValue.of("invalid UTF-8 in bytes", this.exprId);
       }
     }
-    if (val instanceof BoolValue) {
+    if (isBoolValue(val)) {
       return StringValue.of(val.value() ? "true" : "false");
     }
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return StringValue.of(val.toString());
     }
-    if (val instanceof DurationValue) {
+    if (isDurationValue(val)) {
       return StringValue.of(val.toString());
     }
     return ErrorValue.of(`cannot convert ${val.type()} to string`, this.exprId);
   }
 
   private toBytes(val: Value): Value {
-    if (val instanceof BytesValue) {
+    if (isBytesValue(val)) {
       return val;
     }
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       return BytesValue.fromString(val.value());
     }
     return ErrorValue.of(`cannot convert ${val.type()} to bytes`, this.exprId);
   }
 
   private toBool(val: Value): Value {
-    if (val instanceof BoolValue) {
+    if (isBoolValue(val)) {
       return val;
     }
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       const s = val.value();
       if (s === "true" || s === "TRUE" || s === "True" || s === "t" || s === "1") {
         return BoolValue.True;
@@ -2042,12 +2038,12 @@ export class TypeConversionValue {
     if (enumType === undefined) {
       return ErrorValue.of(`unknown type conversion: ${this.targetType}`, this.exprId);
     }
-    if (val instanceof EnumValue && val.typeName() === enumType.runtimeTypeName) {
+    if (isEnumValue(val) && val.typeName() === enumType.runtimeTypeName) {
       return val;
     }
     const numeric = this.enumNumericValue(val);
     if (numeric === undefined) {
-      if (val instanceof StringValue) {
+      if (isStringValue(val)) {
         const name = val.value();
         const enumValue = this.typeProvider.findEnumValue(enumType.runtimeTypeName, name);
         if (enumValue === undefined) {
@@ -2064,26 +2060,26 @@ export class TypeConversionValue {
   }
 
   private enumNumericValue(val: Value): bigint | undefined {
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       return val.value();
     }
-    if (val instanceof UintValue) {
+    if (isUintValue(val)) {
       return val.value();
     }
-    if (val instanceof DoubleValue) {
+    if (isDoubleValue(val)) {
       const num = val.value();
       if (!Number.isFinite(num) || !Number.isInteger(num)) {
         return undefined;
       }
       return BigInt(num);
     }
-    if (val instanceof EnumValue) {
+    if (isEnumValue(val)) {
       return val.value();
     }
     return undefined;
   }
 
   private getType(val: Value): Value {
-    return ValueUtil.toTypeValue(val.type());
+    return toTypeValue(val.type());
   }
 }

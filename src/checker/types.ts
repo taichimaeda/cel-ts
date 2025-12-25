@@ -46,6 +46,13 @@ export class Type {
   }
 
   /**
+   * Unique key representation for type maps.
+   */
+  typeKey(): string {
+    return this.toString();
+  }
+
+  /**
    * Check if types are exactly equal (including type parameter names)
    */
   isExactType(other: Type): boolean {
@@ -96,13 +103,6 @@ export class Type {
       default:
         return false;
     }
-  }
-
-  /**
-   * Unique key representation for type maps.
-   */
-  typeKey(): string {
-    return this.toString();
   }
 
   /**

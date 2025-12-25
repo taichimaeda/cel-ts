@@ -12,7 +12,7 @@ import {
   VariableDecl,
 } from "./checker/decls";
 import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
-import type { CheckerError } from "./checker/error";
+import { Errors } from "./checker/errors";
 import { CompositeTypeProvider, StructTypeProvider, type TypeProvider } from "./checker/provider";
 import {
   ListType,
@@ -40,7 +40,7 @@ import {
   UnaryDispatcherOverload,
 } from "./interpreter/dispatcher";
 import { formatRuntimeError, isActivation } from "./interpreter/utils";
-import { type ErrorValue, TypeValue, type Value, ValueUtil } from "./interpreter/values";
+import { isErrorValue, TypeValue, type Value } from "./interpreter/values";
 import { AllMacros, type Macro, Parser, ParserHelper } from "./parser";
 import { Planner } from "./planner";
 
@@ -56,7 +56,7 @@ export class CELError extends Error {
 
   constructor(
     message: string,
-    readonly issues: Issues = new Issues([])
+    readonly issues: Issues = new Issues()
   ) {
     super(message);
   }
@@ -145,7 +145,7 @@ export const Types = new TypeBuilder();
  */
 export class Issues {
   constructor(
-    readonly errors: readonly CheckerError[] = [],
+    readonly errors: Errors = new Errors(),
     _source = ""
   ) { }
 
@@ -153,24 +153,24 @@ export class Issues {
    * Returns true if there are any errors.
    */
   get hasErrors(): boolean {
-    return this.errors.length > 0;
+    return this.errors.hasErrors();
   }
 
   /**
    * Get the error count.
    */
   get length(): number {
-    return this.errors.length;
+    return this.errors.count();
   }
 
   /**
    * Format all errors as a string.
    */
   toString(): string {
-    return this.errors.map((e) => this.formatError(e)).join("\n");
+    return this.errors.getErrors().map((e) => this.formatError(e)).join("\n");
   }
 
-  private formatError(error: CheckerError): string {
+  private formatError(error: ReturnType<Errors["getErrors"]>[number]): string {
     if (error.location) {
       return `ERROR: ${error.location.line}:${error.location.column}: ${error.message}`;
     }
@@ -245,8 +245,8 @@ export class Program {
 
     const value = this.interpretable.eval(activation);
 
-    if (ValueUtil.isError(value)) {
-      const message = formatRuntimeError(value as ErrorValue, this.sourceInfo);
+    if (isErrorValue(value)) {
+      const message = formatRuntimeError(value, this.sourceInfo);
       throw new CELError(message);
     }
 
@@ -642,7 +642,7 @@ export class Env {
     const checkResult = new Checker(this.checkerEnv, ast.typeMap, ast.refMap).check(ast);
 
     if (checkResult.errors.hasErrors()) {
-      const issues = new Issues(checkResult.errors.getErrors().slice(), expression);
+      const issues = new Issues(checkResult.errors, expression);
       throw new CompileError(issues.toString(), issues);
     }
 
@@ -663,7 +663,7 @@ export class Env {
     );
 
     if (checkResult.errors.hasErrors()) {
-      const issues = new Issues(checkResult.errors.getErrors().slice(), celAst.source);
+      const issues = new Issues(checkResult.errors, celAst.source);
       throw new CompileError(issues.toString(), issues);
     }
 
@@ -802,14 +802,13 @@ export {
   DurationValue,
   EnumValue,
   ErrorValue,
-  IntValue,
-  ListValue,
+  IntValue, isErrorValue,
+  isUnknownValue, ListValue,
   MapValue,
   NullValue,
   StringValue,
-  TimestampValue,
-  TypeValue,
-  UintValue,
-  ValueUtil
+  TimestampValue, toTypeValue, TypeValue,
+  UintValue
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";
+

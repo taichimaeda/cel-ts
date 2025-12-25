@@ -5,22 +5,21 @@
 import type { ExprId } from "../common/ast";
 import type { Activation } from "./activation";
 import type { Interpretable } from "./interpretable";
-import { nativeToValue } from "./utils";
+import { nativeToValue, normalizeIndexValue } from "./utils";
 import {
-  BoolValue,
-  BytesValue,
-  DoubleValue,
   ErrorValue,
-  IntValue,
-  ListValue,
-  MapValue,
+  isBoolValue,
+  isBytesValue,
+  isErrorValue,
+  isListValue,
+  isMapValue,
+  isOptionalValue,
+  isStringValue,
+  isStructValue,
+  isUnknownValue,
   OptionalValue,
   StringValue,
-  StructValue,
-  UintValue,
-  type UnknownValue,
   type Value,
-  ValueUtil,
 } from "./values";
 
 export type Attribute = AbsoluteAttribute | RelativeAttribute | ConditionalAttribute | MaybeAttribute;
@@ -49,12 +48,12 @@ export class StringQualifier {
 
   qualify(_activation: Activation, obj: Value): Value {
     // Propagate errors or unknown values
-    if (ValueUtil.isError(obj) || ValueUtil.isUnknown(obj)) {
+    if (isErrorValue(obj) || isUnknownValue(obj)) {
       return obj;
     }
 
-    const optionalSelection = this.optional || obj instanceof OptionalValue;
-    if (obj instanceof OptionalValue) {
+    const optionalSelection = this.optional || isOptionalValue(obj);
+    if (isOptionalValue(obj)) {
       if (!obj.hasValue()) {
         return OptionalValue.none();
       }
@@ -62,24 +61,24 @@ export class StringQualifier {
     }
 
     // Struct access
-    if (obj instanceof StructValue) {
+    if (isStructValue(obj)) {
       if (optionalSelection && !obj.hasField(this.field)) {
         return OptionalValue.none();
       }
       const value = obj.getField(this.field);
-      if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+      if (optionalSelection && !(isErrorValue(value) || isUnknownValue(value))) {
         return OptionalValue.of(value);
       }
       return value;
     }
 
     // Map access
-    if (obj instanceof MapValue) {
+    if (isMapValue(obj)) {
       const key = StringValue.of(this.field);
       const hasKey = obj.contains(key);
       if (hasKey.value()) {
         const value = obj.get(key);
-        if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+        if (optionalSelection && !(isErrorValue(value) || isUnknownValue(value))) {
           return OptionalValue.of(value);
         }
         return value;
@@ -132,15 +131,15 @@ export class IndexQualifier {
 
   qualify(_activation: Activation, obj: Value): Value {
     // Propagate errors or unknown values
-    if (ValueUtil.isError(obj) || ValueUtil.isUnknown(obj)) {
+    if (isErrorValue(obj) || isUnknownValue(obj)) {
       return obj;
     }
-    if (ValueUtil.isError(this.index) || ValueUtil.isUnknown(this.index)) {
+    if (isErrorValue(this.index) || isUnknownValue(this.index)) {
       return this.index;
     }
 
-    const optionalSelection = this.optional || obj instanceof OptionalValue;
-    if (obj instanceof OptionalValue) {
+    const optionalSelection = this.optional || isOptionalValue(obj);
+    if (isOptionalValue(obj)) {
       if (!obj.hasValue()) {
         return OptionalValue.none();
       }
@@ -148,27 +147,27 @@ export class IndexQualifier {
     }
 
     // List access
-    if (obj instanceof ListValue) {
+    if (isListValue(obj)) {
       const idx = normalizeIndexValue(this.index);
-      if (idx instanceof ErrorValue) {
+      if (isErrorValue(idx)) {
         return idx;
       }
       const value = obj.get(idx);
-      if (optionalSelection && value instanceof ErrorValue) {
+      if (optionalSelection && value.kind === "error") {
         return OptionalValue.none();
       }
-      if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+      if (optionalSelection && !(isErrorValue(value) || isUnknownValue(value))) {
         return OptionalValue.of(value);
       }
       return value;
     }
 
     // Map access
-    if (obj instanceof MapValue) {
+    if (isMapValue(obj)) {
       const hasKey = obj.contains(this.index);
       if (hasKey.value()) {
         const value = obj.get(this.index);
-        if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+        if (optionalSelection && !(isErrorValue(value) || isUnknownValue(value))) {
           return OptionalValue.of(value);
         }
         return value;
@@ -180,31 +179,31 @@ export class IndexQualifier {
     }
 
     // String access
-    if (obj instanceof StringValue) {
+    if (isStringValue(obj)) {
       const idx = normalizeIndexValue(this.index);
-      if (idx instanceof ErrorValue) {
+      if (isErrorValue(idx)) {
         return idx;
       }
       const value = obj.charAt(idx);
-      if (optionalSelection && value instanceof ErrorValue) {
+      if (optionalSelection && value.kind === "error") {
         return OptionalValue.none();
       }
-      if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+      if (optionalSelection && !(isErrorValue(value) || isUnknownValue(value))) {
         return OptionalValue.of(value);
       }
       return value;
     }
 
-    if (obj instanceof BytesValue) {
+    if (isBytesValue(obj)) {
       const idx = normalizeIndexValue(this.index);
-      if (idx instanceof ErrorValue) {
+      if (isErrorValue(idx)) {
         return idx;
       }
       const value = obj.byteAt(idx);
-      if (optionalSelection && value instanceof ErrorValue) {
+      if (optionalSelection && value.kind === "error") {
         return OptionalValue.none();
       }
-      if (optionalSelection && !ValueUtil.isErrorOrUnknown(value)) {
+      if (optionalSelection && !(isErrorValue(value) || isUnknownValue(value))) {
         return OptionalValue.of(value);
       }
       return value;
@@ -216,23 +215,6 @@ export class IndexQualifier {
   isConstant(): boolean {
     return true;
   }
-}
-
-function normalizeIndexValue(value: Value): IntValue | ErrorValue {
-  if (value instanceof IntValue) {
-    return value;
-  }
-  if (value instanceof UintValue) {
-    return IntValue.of(value.value() as bigint);
-  }
-  if (value instanceof DoubleValue) {
-    const num = value.value() as number;
-    if (Number.isFinite(num) && Number.isInteger(num)) {
-      return IntValue.of(num);
-    }
-    return ErrorValue.of("invalid_argument");
-  }
-  return ErrorValue.typeMismatch("int or uint", value);
 }
 
 /**
@@ -253,13 +235,13 @@ export class ComputedQualifier {
 
   qualify(activation: Activation, obj: Value): Value {
     // Propagate errors or unknown values
-    if (ValueUtil.isError(obj) || ValueUtil.isUnknown(obj)) {
+    if (isErrorValue(obj) || isUnknownValue(obj)) {
       return obj;
     }
 
     // Evaluate the index
     const index = this.operand.eval(activation);
-    if (ValueUtil.isError(index) || ValueUtil.isUnknown(index)) {
+    if (isErrorValue(index) || isUnknownValue(index)) {
       return index;
     }
 
@@ -321,7 +303,7 @@ export class AbsoluteAttribute {
       for (let i = 1; i < this.namePath.length; i++) {
         const qual = new StringQualifier(this.exprId, this.namePath[i]!, false);
         value = qual.qualify(activation, value);
-        if (ValueUtil.isError(value) || ValueUtil.isUnknown(value)) {
+        if (isErrorValue(value) || isUnknownValue(value)) {
           return value;
         }
       }
@@ -330,7 +312,7 @@ export class AbsoluteAttribute {
     // Apply additional qualifiers
     for (const qual of this.quals) {
       value = qual.qualify(activation, value);
-      if (ValueUtil.isError(value) || ValueUtil.isUnknown(value)) {
+      if (isErrorValue(value) || isUnknownValue(value)) {
         return value;
       }
     }
@@ -371,14 +353,14 @@ export class RelativeAttribute {
   resolve(activation: Activation): Value {
     // Evaluate the operand
     let value = this.operand.eval(activation);
-    if (ValueUtil.isError(value) || ValueUtil.isUnknown(value)) {
+    if (isErrorValue(value) || isUnknownValue(value)) {
       return value;
     }
 
     // Apply qualifiers
     for (const qual of this.quals) {
       value = qual.qualify(activation, value);
-      if (ValueUtil.isError(value) || ValueUtil.isUnknown(value)) {
+      if (isErrorValue(value) || isUnknownValue(value)) {
         return value;
       }
     }
@@ -422,21 +404,23 @@ export class ConditionalAttribute {
     // Evaluate the condition
     const condValue = this.condition.eval(activation);
 
-    if (ValueUtil.isError(condValue)) {
+    if (isErrorValue(condValue)) {
       return condValue;
     }
-    if (ValueUtil.isUnknown(condValue)) {
+    if (isUnknownValue(condValue)) {
       // Evaluate both branches and merge
       const truthyVal = this.truthy.resolve(activation);
       const falsyVal = this.falsy.resolve(activation);
-      if (ValueUtil.isUnknown(truthyVal) && ValueUtil.isUnknown(falsyVal)) {
-        return truthyVal.merge(falsyVal as UnknownValue);
+      if (isUnknownValue(truthyVal) && isUnknownValue(falsyVal)) {
+        return truthyVal.merge(falsyVal);
       }
       return condValue;
     }
 
-    if (condValue instanceof BoolValue) {
-      return condValue.value() ? this.truthy.resolve(activation) : this.falsy.resolve(activation);
+    if (isBoolValue(condValue)) {
+      return condValue.value()
+        ? this.truthy.resolve(activation)
+        : this.falsy.resolve(activation);
     }
 
     return ErrorValue.typeMismatch("bool", condValue, this.exprId);
@@ -484,7 +468,7 @@ export class MaybeAttribute {
     // Try each candidate and return the first one that succeeds
     for (const candidate of this.candidates) {
       const value = candidate.resolve(activation);
-      if (!ValueUtil.isError(value)) {
+      if (!isErrorValue(value)) {
         return value;
       }
     }

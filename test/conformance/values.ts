@@ -1,23 +1,13 @@
 import * as protobuf from "protobufjs";
 import {
-  BoolType,
-  BytesType,
-  DoubleType,
-  DurationType,
-  DynType,
-  ErrorType,
-  IntType,
   ListType,
   MapType,
-  NullType,
   OpaqueType,
-  StringType,
+  PolymorphicTypeType,
+  PrimitiveTypes,
   StructType,
-  TimestampType,
   type Type,
   TypeParamType,
-  PolymorphicTypeType,
-  UintType,
 } from "../../src/checker/types";
 import {
   BoolValue,
@@ -37,8 +27,7 @@ import {
   UintValue,
   type Value,
 } from "../../src/interpreter/values";
-import { stripTypeUrl } from "./proto";
-import { type ProtoObject, runtime } from "./runtime";
+import { type ProtoObject, protoLoader, stripTypeUrl } from "./protos";
 
 export function protoToValue(value: ProtoObject): Value | null {
   const kind = value["kind"] as string | undefined;
@@ -112,7 +101,7 @@ export function protoToObjectValue(anyValue: ProtoObject): Value | null {
   const typeName = stripTypeUrl(String(typeUrl));
   let messageType: protobuf.Type;
   try {
-    messageType = runtime.root.lookupType(typeName);
+    messageType = protoLoader.root.lookupType(typeName);
   } catch {
     return null;
   }
@@ -121,7 +110,7 @@ export function protoToObjectValue(anyValue: ProtoObject): Value | null {
   }
   const byteArray = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const decoded = messageType.decode(byteArray);
-  const object = messageType.toObject(decoded, runtime.options) as ProtoObject;
+  const object = messageType.toObject(decoded, protoLoader.options) as ProtoObject;
   return messageToValue(messageType, object, decoded as unknown as ProtoObject);
 }
 
@@ -220,12 +209,12 @@ export function anyToValue(typeUrl: string, bytes: Uint8Array): Value | null {
   const typeName = stripTypeUrl(typeUrl);
   let messageType: protobuf.Type;
   try {
-    messageType = runtime.root.lookupType(typeName);
+    messageType = protoLoader.root.lookupType(typeName);
   } catch {
     return null;
   }
   const decoded = messageType.decode(bytes);
-  const object = messageType.toObject(decoded, runtime.options) as ProtoObject;
+  const object = messageType.toObject(decoded, protoLoader.options) as ProtoObject;
   return messageToValue(messageType, object);
 }
 
@@ -284,7 +273,7 @@ export function messageToValue(
   for (const field of messageType.fieldsArray) {
     const protoFieldName = normalizeProtoFieldName(field.name);
     const fieldName = stripLeadingDot(protoFieldName);
-    const fieldType = runtime.protobufTypeProvider.findStructFieldType(typeName, fieldName);
+    const fieldType = protoLoader.typeProvider.findStructFieldType(typeName, fieldName);
     if (fieldType) {
       fieldTypes.set(fieldName, fieldType);
     }
@@ -306,7 +295,7 @@ export function messageToValue(
       presentFields.add(fieldName);
     }
   }
-  return StructValue.of(typeName, values, presentFields, fieldTypes, runtime.protobufTypeProvider);
+  return StructValue.of(typeName, values, presentFields, fieldTypes, protoLoader.typeProvider);
 }
 
 export function messageToWrapperValue(
@@ -460,9 +449,10 @@ export function fieldScalarOrMessageToValue(
   if (resolved instanceof protobuf.Type) {
     const decodedMessage = getDecodedMessage(raw) ?? getDecodedMessage(decodedRaw);
     const object = decodedMessage
-      ? (resolved.toObject(decodedMessage, runtime.options) as ProtoObject)
+      ? (resolved.toObject(decodedMessage, protoLoader.options) as ProtoObject)
       : ((raw ?? {}) as ProtoObject);
-    return messageToValue(resolved, object, decodedMessage ?? (raw as ProtoObject));
+    const decoded = decodedMessage ? (decodedMessage as unknown as ProtoObject) : (raw as ProtoObject | undefined);
+    return messageToValue(resolved, object, decoded);
   }
   return null;
 }
@@ -601,11 +591,11 @@ export function protoToType(type: ProtoObject): Type | null {
 
   switch (typeKind) {
     case "dyn":
-      return DynType;
+      return PrimitiveTypes.Dyn;
     case "null":
-      return NullType;
+      return PrimitiveTypes.Null;
     case "error":
-      return ErrorType;
+      return PrimitiveTypes.Error;
     case "primitive":
       return protoPrimitiveToType(type["primitive"] as string);
     case "wrapper":
@@ -615,16 +605,16 @@ export function protoToType(type: ProtoObject): Type | null {
     case "list_type": {
       const listType = type["list_type"] as ProtoObject | undefined;
       const elemType = listType ? protoToType(listType["elem_type"] as ProtoObject) : null;
-      return new ListType(elemType ?? DynType);
+      return new ListType(elemType ?? PrimitiveTypes.Dyn);
     }
     case "map_type": {
       const mapType = type["map_type"] as ProtoObject | undefined;
       if (!mapType) {
-        return new MapType(DynType, DynType);
+        return new MapType(PrimitiveTypes.Dyn, PrimitiveTypes.Dyn);
       }
       const key = protoToType(mapType["key_type"] as ProtoObject);
       const value = protoToType(mapType["value_type"] as ProtoObject);
-      return new MapType(key ?? DynType, value ?? DynType);
+      return new MapType(key ?? PrimitiveTypes.Dyn, value ?? PrimitiveTypes.Dyn);
     }
     case "message_type":
       return protoMessageNameToType(String(type["message_type"] ?? ""));
@@ -632,7 +622,7 @@ export function protoToType(type: ProtoObject): Type | null {
       return new TypeParamType(String(type["type_param"] ?? ""));
     case "type": {
       const nested = protoToType(type["type"] as ProtoObject);
-      return new PolymorphicTypeType(nested ?? DynType);
+      return new PolymorphicTypeType(nested ?? PrimitiveTypes.Dyn);
     }
     case "opaque":
     case "abstract_type": {
@@ -642,26 +632,26 @@ export function protoToType(type: ProtoObject): Type | null {
         return new OpaqueType("unknown");
       }
       const params = (opaque?.["parameter_types"] ?? []) as ProtoObject[];
-      return new OpaqueType(name, ...params.map((param) => protoToType(param) ?? DynType));
+      return new OpaqueType(name, ...params.map((param) => protoToType(param) ?? PrimitiveTypes.Dyn));
     }
     default:
-      return DynType;
+      return PrimitiveTypes.Dyn;
   }
 }
 
 export function protoMessageNameToType(name: string): Type {
   switch (name) {
     case "google.protobuf.Timestamp":
-      return TimestampType;
+      return PrimitiveTypes.Timestamp;
     case "google.protobuf.Duration":
-      return DurationType;
+      return PrimitiveTypes.Duration;
     case "google.protobuf.Any":
-      return DynType;
+      return PrimitiveTypes.Dyn;
     case "google.protobuf.Struct":
     case "google.protobuf.Value":
-      return DynType;
+      return PrimitiveTypes.Dyn;
     case "google.protobuf.ListValue":
-      return new ListType(DynType);
+      return new ListType(PrimitiveTypes.Dyn);
     default:
       return new StructType(name);
   }
@@ -670,23 +660,23 @@ export function protoMessageNameToType(name: string): Type {
 export function protoPrimitiveToType(value: string | undefined): Type {
   switch (value) {
     case "BOOL":
-      return BoolType;
+      return PrimitiveTypes.Bool;
     case "BYTES":
-      return BytesType;
+      return PrimitiveTypes.Bytes;
     case "DOUBLE":
-      return DoubleType;
+      return PrimitiveTypes.Double;
     case "INT64":
     case "INT32":
-      return IntType;
+      return PrimitiveTypes.Int;
     case "NULL_TYPE":
-      return NullType;
+      return PrimitiveTypes.Null;
     case "STRING":
-      return StringType;
+      return PrimitiveTypes.String;
     case "UINT64":
     case "UINT32":
-      return UintType;
+      return PrimitiveTypes.Uint;
     default:
-      return DynType;
+      return PrimitiveTypes.Dyn;
   }
 }
 
@@ -711,18 +701,18 @@ export function protoWrapperToType(value: string | undefined): Type {
     case "BYTES":
       return new StructType("google.protobuf.BytesValue");
     default:
-      return DynType;
+      return PrimitiveTypes.Dyn;
   }
 }
 
 export function protoWellKnownToType(value: string | undefined): Type {
   switch (value) {
     case "DURATION":
-      return DurationType;
+      return PrimitiveTypes.Duration;
     case "TIMESTAMP":
-      return TimestampType;
+      return PrimitiveTypes.Timestamp;
     default:
-      return DynType;
+      return PrimitiveTypes.Dyn;
   }
 }
 
@@ -755,7 +745,7 @@ export function typeNameToTypeValue(name: string): Value | null {
     default:
       break;
   }
-  const enumType = runtime.protobufTypeProvider.findEnumType(name);
+  const enumType = protoLoader.typeProvider.findEnumType(name);
   if (enumType) {
     return TypeValue.of(enumType);
   }

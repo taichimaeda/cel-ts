@@ -3,7 +3,7 @@ import { ListType, PrimitiveTypes, TypeParamType } from "../checker/types";
 import { type Expr, ListExpr, LiteralExpr } from "../common/ast";
 import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
-import { extractIdentName, macroTargetMatchesNamespace } from "./macros";
+import { extractIdentName, macroTargetMatchesNamespace } from "./utils";
 
 const celNamespace = "cel";
 const bindMacro = "bind";

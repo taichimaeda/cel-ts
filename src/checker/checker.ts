@@ -22,7 +22,7 @@ import {
 import type { SourceInfo } from "../common/source";
 import { type FunctionOverloadDecl, VariableDecl } from "./decls";
 import type { CheckerEnv } from "./env";
-import { CheckerErrors, type Location } from "./error";
+import { Errors, type Location } from "./errors";
 import { TypeMapping } from "./mapping";
 import {
   ListType,
@@ -41,7 +41,7 @@ export interface CheckResult {
   /** The AST with type information */
   ast: AST;
   /** Collected errors */
-  errors: CheckerErrors;
+  errors: Errors;
 }
 
 /**
@@ -50,7 +50,7 @@ export interface CheckResult {
 export class Checker {
   private sourceInfo!: SourceInfo;
   private mapping: TypeMapping = new TypeMapping();
-  private errors: CheckerErrors = new CheckerErrors();
+  private errors: Errors = new Errors();
   private typeVarCounter = 0;
 
   constructor(
