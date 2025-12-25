@@ -1,121 +1,99 @@
-import { applyExtensions, StringsExtension } from "../../src";
-import { type Env, type Program, StringType, Types, Variable } from "../../src/cel";
+export type BenchmarkEngineId =
+  | "taichimaeda/cel-ts"
+  | "chromegg/cel-js"
+  | "marcbachmann/cel-js";
 
-export type BenchCase = {
+export type BenchmarkCase = {
   name: string;
   expr: string;
-  env: ConstructorParameters<typeof Env>[0];
+  environment?: Record<string, unknown>;
   activation: Record<string, unknown>;
-  program?: Program;
+  engineIds: BenchmarkEngineId[];
 };
 
-export const cases: BenchCase[] = [
+export const cases: BenchmarkCase[] = [
   {
     name: "string_eq",
     expr: "string_value == 'value'",
-    env: {
-      variables: [new Variable("string_value", StringType)],
-    },
+    environment: { string_value: "string" },
     activation: { string_value: "value" },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "string_neq",
     expr: "string_value != 'value'",
-    env: {
-      variables: [new Variable("string_value", StringType)],
-    },
+    environment: { string_value: "string" },
     activation: { string_value: "value" },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "value_in_list_value",
     expr: "'value' in list_value",
-    env: {
-      variables: [new Variable("list_value", Types.list(StringType))],
-    },
+    environment: { list_value: { list: "string" } },
     activation: { list_value: ["a", "b", "c", "value"] },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "value_not_in_list_value",
     expr: "!('value' in list_value)",
-    env: {
-      variables: [new Variable("list_value", Types.list(StringType))],
-    },
+    environment: { list_value: { list: "string" } },
     activation: { list_value: ["a", "b", "c", "d"] },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "x_in_literal_list",
     expr: "x in ['a', 'b', 'c', 'd']",
-    env: {
-      variables: [new Variable("x", StringType)],
-    },
+    environment: { x: "string" },
     activation: { x: "c" },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "x_not_in_literal_list",
     expr: "!(x in ['a', 'b', 'c', 'd'])",
-    env: {
-      variables: [new Variable("x", StringType)],
-    },
+    environment: { x: "string" },
     activation: { x: "e" },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "x_in_list_value",
     expr: "x in list_value",
-    env: {
-      variables: [
-        new Variable("x", StringType),
-        new Variable("list_value", Types.list(StringType)),
-      ],
-    },
+    environment: { x: "string", list_value: { list: "string" } },
     activation: { x: "c", list_value: ["a", "b", "c", "d"] },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "x_not_in_list_value",
     expr: "!(x in list_value)",
-    env: {
-      variables: [
-        new Variable("x", StringType),
-        new Variable("list_value", Types.list(StringType)),
-      ],
-    },
+    environment: { x: "string", list_value: { list: "string" } },
     activation: { x: "e", list_value: ["a", "b", "c", "d"] },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "list_exists_contains",
     expr: "list_value.exists(e, e.contains('cd'))",
-    env: {
-      variables: [new Variable("list_value", Types.list(StringType))],
-    },
+    environment: { list_value: { list: "string" } },
     activation: { list_value: ["abc", "bcd", "cde", "def"] },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "list_exists_starts",
     expr: "list_value.exists(e, e.startsWith('cd'))",
-    env: {
-      variables: [new Variable("list_value", Types.list(StringType))],
-    },
+    environment: { list_value: { list: "string" } },
     activation: { list_value: ["abc", "bcd", "cde", "def"] },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "list_exists_matches",
     expr: "list_value.exists(e, e.matches('cd*'))",
-    env: {
-      variables: [new Variable("list_value", Types.list(StringType))],
-    },
+    environment: { list_value: { list: "string" } },
     activation: { list_value: ["abc", "bcd", "cde", "def"] },
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
   {
     name: "list_filter_matches",
     expr: "list_value.filter(e, e.matches('^cd+')) == ['cde']",
-    env: {
-      variables: [new Variable("list_value", Types.list(StringType))],
-    },
+    environment: { list_value: { list: "string" } },
     activation: { list_value: ["abc", "bcd", "cde", "def"] },
-  },
-  {
-    name: "string_format",
-    expr: "'formatted list: %s, size: %d'.format([['abc', 'cde'], 2])",
-    env: applyExtensions({}, new StringsExtension()),
-    activation: {},
+    engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
   },
 ];

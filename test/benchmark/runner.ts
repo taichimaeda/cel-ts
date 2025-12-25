@@ -1,19 +1,33 @@
+import { parse as marcbachmannParse } from "@marcbachmann/cel-js";
+import { evaluate as chromeggEvaluate, parse as chromeggParse } from "cel-js";
+import type { CstNode } from "chevrotain";
 import { bench, do_not_optimize, run, summary } from "mitata";
 import { writeFileSync } from "node:fs";
-import { Env } from "../../src/cel";
-import { type BenchCase, cases } from "./cases";
+import {
+  DynType,
+  Env,
+  Program,
+  Type,
+  Variable
+} from "../../src/cel";
+import { ListType, MapType, builtinTypeNameToType } from "../../src/checker/types";
+import { type BenchmarkCase, type BenchmarkEngineId, cases } from "./cases";
 
 export type BenchmarkResult = {
   name: string;
   opsPerSec: number;
   avgNs: number;
+  p25Ns: number;
   p50Ns: number;
+  p75Ns: number;
   samples: number;
 };
 
 type MitataStats = {
   avg: number;
+  p25: number;
   p50: number;
+  p75: number;
   samples: number[];
 };
 
@@ -30,48 +44,139 @@ type MitataRunResult = {
   benchmarks: MitataBenchmark[];
 };
 
+class CelTsBenchmarakEngine {
+  readonly id: BenchmarkEngineId = "taichimaeda/cel-ts";
+
+  build(benchCase: BenchmarkCase): Program | undefined {
+    try {
+      const env = new Env(this.buildEnvOptions(benchCase));
+      const ast = env.compile(benchCase.expr);
+      return env.program(ast);
+    } catch {
+      return undefined;
+    }
+  }
+
+  eval(benchCase: BenchmarkCase, program: unknown): unknown {
+    return (program as Program).eval(benchCase.activation);
+  }
+
+  private buildEnvOptions(
+    benchCase: BenchmarkCase
+  ): ConstructorParameters<typeof Env>[0] {
+    const variables = this.buildVarEnvOptions(benchCase);
+    return {
+      ...(variables.length > 0 && { variables }),
+    };
+  }
+
+  private buildVarEnvOptions(benchCase: BenchmarkCase): Variable[] {
+    if (!benchCase.environment) {
+      return [];
+    }
+    return Object.entries(benchCase.environment).map(([name, spec]) => {
+      return new Variable(name, this.typeSpecToType(spec));
+    });
+  }
+
+  private typeSpecToType(spec: unknown): Type {
+    if (this.isTypeSpecRecord(spec)) {
+      if ("list" in spec) {
+        return new ListType(this.typeSpecToType(spec["list"]));
+      }
+      if ("map" in spec && this.isTypeSpecRecord(spec["map"])) {
+        const mapSpec = spec["map"];
+        return new MapType(
+          this.typeSpecToType(mapSpec["key"]),
+          this.typeSpecToType(mapSpec["value"])
+        );
+      }
+    }
+    return builtinTypeNameToType(String(spec)) ?? DynType;
+  }
+
+  private isTypeSpecRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+  }
+}
+
+class ChromeGgBenchmarkEngine {
+  readonly id: BenchmarkEngineId = "chromegg/cel-js";
+
+  build(benchCase: BenchmarkCase): unknown | undefined {
+    try {
+      const parsed = chromeggParse(benchCase.expr);
+      if (!parsed.isSuccess) {
+        return undefined;
+      }
+      return parsed.cst;
+    } catch {
+      return undefined;
+    }
+  }
+
+  eval(benchCase: BenchmarkCase, cst: unknown): unknown {
+    return chromeggEvaluate(cst as CstNode, benchCase.activation);
+  }
+}
+
+class MarcbachmannBenchmarkEngine {
+  readonly id: BenchmarkEngineId = "marcbachmann/cel-js";
+
+  build(benchCase: BenchmarkCase): unknown | undefined {
+    try {
+      return marcbachmannParse(benchCase.expr);
+    } catch {
+      return undefined;
+    }
+  }
+
+  eval(benchCase: BenchmarkCase, evalFn: unknown): unknown {
+    type EvalFn = (activation: Record<string, unknown>) => unknown;
+    return (evalFn as EvalFn)(benchCase.activation);
+  }
+}
+
 /**
  * Benchmark runner for CEL expression evaluation.
  */
 export class BenchmarkRunner {
-  private readonly cases: BenchCase[];
   private results: BenchmarkResult[] = [];
 
-  constructor() {
-    this.cases = this.prepareCases();
-  }
+  async run(outputPath?: string): Promise<BenchmarkResult[]> {
+    const engines = [
+      new CelTsBenchmarakEngine(),
+      new ChromeGgBenchmarkEngine(),
+      new MarcbachmannBenchmarkEngine(),
+    ];
 
-  async run(): Promise<BenchmarkResult[]> {
-    summary(() => {
-      for (const benchCase of this.cases) {
-        bench(benchCase.name, () => {
-          const value = benchCase.program!.eval(benchCase.activation);
-          do_not_optimize(value);
-        });
-      }
-    });
+    for (const benchCase of cases) {
+      summary(() => {
+        for (const engineId of benchCase.engineIds) {
+          const engine = engines.find((item) => item.id === engineId);
+          if (!engine) continue;
+
+          const compiled = engine.build(benchCase);
+          if (!compiled) continue;
+
+          bench(`${engine.id}/${benchCase.name}`, () => {
+            const value = engine.eval(benchCase, compiled);
+            do_not_optimize(value);
+          });
+        }
+      });
+    }
 
     const runResult = (await run({ format: "mitata" })) as MitataRunResult;
     this.results = this.buildResults(runResult);
+    if (outputPath) {
+      const output = {
+        timestamp: new Date().toISOString(),
+        results: this.results,
+      };
+      writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`);
+    }
     return this.results;
-  }
-
-  writeResults(outputPath: string): void {
-    const output = {
-      timestamp: new Date().toISOString(),
-      results: this.results,
-    };
-    writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`);
-  }
-
-  private prepareCases(): BenchCase[] {
-    return cases.map((benchCase) => this.prepareCase(benchCase));
-  }
-
-  private prepareCase(benchCase: BenchCase): BenchCase {
-    const env = new Env(benchCase.env);
-    const ast = env.compile(benchCase.expr);
-    return { ...benchCase, program: env.program(ast) };
   }
 
   private buildResults(runResult: MitataRunResult): BenchmarkResult[] {
@@ -86,7 +191,9 @@ export class BenchmarkRunner {
           name: benchRun.name,
           opsPerSec: NS_PER_SEC / benchRun.stats.avg,
           avgNs: benchRun.stats.avg,
+          p25Ns: benchRun.stats.p25,
           p50Ns: benchRun.stats.p50,
+          p75Ns: benchRun.stats.p75,
           samples: benchRun.stats.samples.length,
         });
       }
