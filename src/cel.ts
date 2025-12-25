@@ -6,7 +6,7 @@ import { StandardLibrary } from "./checker";
 import { Checker } from "./checker/checker";
 import {
   FunctionDecl,
-  OverloadDecl,
+  FunctionOverloadDecl,
   StructDecl,
   StructFieldDecl,
   VariableDecl,
@@ -32,7 +32,7 @@ import {
   OptionalType,
   StructType,
   type Type,
-  TypeTypeWithParam,
+  PolymorphicTypeType,
 } from "./checker/types";
 import type { AST as CommonAST } from "./common/ast";
 import type { SourceInfo } from "./common/source";
@@ -50,14 +50,7 @@ import {
   NaryDispatcherOverload,
   UnaryDispatcherOverload,
 } from "./interpreter/dispatcher";
-import {
-  DefaultTypeAdapter,
-  type ErrorValue,
-  type TypeAdapter,
-  TypeValue,
-  type Value,
-  ValueUtil,
-} from "./interpreter/values";
+import { type ErrorValue, TypeValue, type Value, ValueUtil } from "./interpreter/values";
 import { AllMacros, type Macro, Parser, ParserHelper } from "./parser";
 import { Planner } from "./planner";
 
@@ -159,7 +152,7 @@ export class TypeBuilder {
    * Create a Type type (type of types).
    */
   type(type: Type): Type {
-    return new TypeTypeWithParam(type);
+    return new PolymorphicTypeType(type);
   }
 
   /**
@@ -266,21 +259,20 @@ type ProgramInput = Activation | Map<string, Value> | Record<string, unknown>;
 export class Program {
   constructor(
     private readonly interpretable: ReturnType<Planner["plan"]>,
-    private readonly adapter: TypeAdapter,
     private readonly sourceInfo: SourceInfo
   ) { }
 
   eval(vars?: ProgramInput): Value {
     let activation: Activation;
     const typeActivation = new MapActivation(typeValueBindings());
-    if (!vars) {
+    if (vars === undefined) {
       activation = typeActivation;
     } else if (isActivation(vars)) {
       activation = new HierarchicalActivation(typeActivation, vars);
     } else if (vars instanceof Map) {
       activation = new MapActivation(vars, typeActivation);
     } else {
-      activation = new LazyActivation(vars, this.adapter, typeActivation);
+      activation = new LazyActivation(vars, typeActivation);
     }
 
     const value = this.interpretable.eval(activation);
@@ -306,7 +298,7 @@ function typeValueBindings(): Map<string, Value> {
     ["list", TypeValue.ListType],
     ["map", TypeValue.MapType],
     ["type", TypeValue.TypeType],
-    ["optional_type", new TypeValue(new OptionalType(DynType))],
+    ["optional_type", TypeValue.of(new OptionalType(DynType))],
     ["google.protobuf.Timestamp", TypeValue.TimestampType],
     ["google.protobuf.Duration", TypeValue.DurationType],
   ]);
@@ -322,12 +314,12 @@ function isActivation(value: unknown): value is Activation {
 }
 
 function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): string {
-  const exprId = error.getExprId();
+  const exprId = error.exprId;
   if (exprId === undefined) {
     return error.getMessage();
   }
   const position = sourceInfo.getPosition(exprId);
-  if (!position) {
+  if (position === undefined) {
     return error.getMessage();
   }
   const { line, column } = sourceInfo.getLocation(position.start);
@@ -354,8 +346,6 @@ export interface EnvOptions {
   typeProvider?: TypeProvider;
   /** Container name for identifier resolution */
   container?: string;
-  /** Custom type adapter */
-  adapter?: TypeAdapter;
   /** Disable standard library registration */
   disableStandardLibrary?: boolean;
   /** Disable type checking */
@@ -389,9 +379,6 @@ export function mergeEnvOptions(...options: EnvOptions[]): EnvOptions {
     }
     if (option.container !== undefined) {
       merged.container = option.container;
-    }
-    if (option.adapter) {
-      merged.adapter = option.adapter;
     }
     if (option.disableStandardLibrary) {
       merged.disableStandardLibrary = true;
@@ -450,14 +437,14 @@ export class EnvFunctionOption {
   }
 
   register(config: EnvConfig): void {
-    const fnDecl = new FunctionDecl(this.name);
+    const funcDecl = new FunctionDecl(this.name);
     const runtimeOverloads: DispatcherOverload[] = [];
 
     for (const overload of this.overloads) {
-      overload.register(fnDecl, runtimeOverloads);
+      overload.register(funcDecl, runtimeOverloads);
     }
 
-    config.functions.push(fnDecl);
+    config.functions.push(funcDecl);
     if (runtimeOverloads.length > 0) {
       const existing = config.functionOverloads.get(this.name) ?? [];
       config.functionOverloads.set(this.name, [...existing, ...runtimeOverloads]);
@@ -528,7 +515,7 @@ class FunctionOverloadOption {
   }
 
   register(target: FunctionDecl, runtimeOverloads: DispatcherOverload[]): void {
-    const declaration = new OverloadDecl(
+    const declaration = new FunctionOverloadDecl(
       this.id,
       [...this.argTypes],
       this.resultType,
@@ -537,7 +524,7 @@ class FunctionOverloadOption {
     );
     target.addOverload(declaration);
 
-    if (!this.binding) {
+    if (this.binding === undefined) {
       return;
     }
 
@@ -641,14 +628,14 @@ export class Env {
     this.checkerEnv = new CheckerEnv(
       new CheckerContainer(config.container),
       provider,
-      config.enumValuesAsInt
+      { coerceEnumToInt: config.enumValuesAsInt }
     );
     this.dispatcher = new Dispatcher();
     this.parser = new Parser();
 
     if (!config.disableStandardLibrary) {
-      for (const fn of StandardLibrary.functions()) {
-        this.checkerEnv.addFunctions(fn);
+      for (const funcDecl of StandardLibrary.functions()) {
+        this.checkerEnv.addFunctions(funcDecl);
       }
       for (const overload of standardFunctions) {
         this.dispatcher.add(overload);
@@ -658,8 +645,8 @@ export class Env {
     for (const v of config.variables) {
       this.checkerEnv.addVariables(v);
     }
-    for (const fn of config.functions) {
-      this.checkerEnv.addFunctions(fn);
+    for (const funcDecl of config.functions) {
+      this.checkerEnv.addFunctions(funcDecl);
     }
 
     for (const [, overloads] of config.functionOverloads) {
@@ -675,7 +662,7 @@ export class Env {
    */
   parse(expression: string): Ast {
     const parseResult = this.parser.parse(expression);
-    if (!parseResult.tree) {
+    if (parseResult.tree === undefined) {
       throw new ParseError(parseResult.error ?? "failed to parse expression");
     }
 
@@ -691,7 +678,7 @@ export class Env {
    */
   compile(expression: string): Ast {
     const parseResult = this.parser.parse(expression);
-    if (!parseResult.tree) {
+    if (parseResult.tree === undefined) {
       throw new ParseError(parseResult.error ?? "failed to parse expression");
     }
 
@@ -752,7 +739,7 @@ export class Env {
     });
 
     const interpretable = planner.plan(celAst.ast);
-    return new Program(interpretable, this.config.adapter, celAst.ast.sourceInfo);
+    return new Program(interpretable, celAst.ast.sourceInfo);
   }
 
   /**
@@ -778,7 +765,6 @@ class EnvConfig {
   functionOverloads = new Map<string, DispatcherOverload[]>();
   structProvider: StructTypeProvider = new StructTypeProvider();
   typeProvider: TypeProvider | undefined = undefined;
-  adapter: TypeAdapter = new DefaultTypeAdapter();
   disableStandardLibrary = false;
   disableTypeChecking = false;
   macros: Macro[] = [...AllMacros];
@@ -794,7 +780,6 @@ class EnvConfig {
     );
     clone.structProvider = new StructTypeProvider(this.structProvider.structDecls());
     clone.typeProvider = this.typeProvider;
-    clone.adapter = this.adapter;
     clone.disableStandardLibrary = this.disableStandardLibrary;
     clone.disableTypeChecking = this.disableTypeChecking;
     clone.macros = [...this.macros];
@@ -811,8 +796,8 @@ class EnvConfig {
       constant.register(this);
     }
 
-    for (const fnOption of options.functions ?? []) {
-      fnOption.register(this);
+    for (const funcOption of options.functions ?? []) {
+      funcOption.register(this);
     }
 
     for (const structOption of options.structs ?? []) {
@@ -825,10 +810,6 @@ class EnvConfig {
 
     if (options.container !== undefined) {
       this.container = options.container;
-    }
-
-    if (options.adapter) {
-      this.adapter = options.adapter;
     }
 
     if (options.disableStandardLibrary) {
@@ -883,4 +864,3 @@ export {
   ValueUtil
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";
-

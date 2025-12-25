@@ -41,7 +41,7 @@ export class UnaryDispatcherOverload {
       return undefined;
     }
     const [arg] = args;
-    if (!arg) {
+    if (arg === undefined) {
       return undefined;
     }
     return this.unary(arg);
@@ -68,7 +68,7 @@ export class BinaryDispatcherOverload {
       return undefined;
     }
     const [left, right] = args;
-    if (!(left && right)) {
+    if (left === undefined || right === undefined) {
       return undefined;
     }
     return this.binary(left, right);
@@ -207,7 +207,7 @@ export class Dispatcher {
     }
 
     const [firstCandidate] = candidates;
-    if (!firstCandidate) {
+    if (firstCandidate === undefined) {
       return undefined;
     }
     return new TryResolvedCall(firstCandidate);
@@ -215,7 +215,7 @@ export class Dispatcher {
 
   resolveOverload(overloadId: string): ResolvedCall | undefined {
     const overload = this.findOverloadById(overloadId);
-    if (overload) {
+    if (overload !== undefined) {
       return new TryResolvedCall(overload);
     }
     return undefined;

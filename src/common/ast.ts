@@ -276,7 +276,7 @@ export class CallExpr extends BaseExpr {
     if (order === VisitOrder.Pre) {
       visitor.visitExpr(this);
     }
-    if (this.target) {
+    if (this.target !== undefined) {
       this.target.accept(visitor, order, depth + 1, maxDepth);
     }
     for (const arg of this.args) {

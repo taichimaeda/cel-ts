@@ -8,7 +8,6 @@ export { OptionalType, RuntimeType, UnknownType } from "./types";
 export {
   BoolValue,
   BytesValue,
-  DefaultTypeAdapter,
   DoubleValue,
   DurationValue,
   EnumValue,
@@ -26,7 +25,7 @@ export {
   UnknownValue,
   ValueUtil
 } from "./values";
-export type { MapEntry, TypeAdapter, Value, ValueType } from "./values";
+export type { MapEntry, Value, ValueType } from "./values";
 
 // Activation - Variable resolution
 export {
@@ -45,13 +44,11 @@ export {
   AbsoluteAttribute,
   ComputedQualifier,
   ConditionalAttribute,
-  DefaultAttributeFactory,
   IndexQualifier,
   MaybeAttribute,
   RelativeAttribute,
   StringQualifier,
   type Attribute,
-  type AttributeFactory,
   type Qualifier
 } from "./attributes";
 

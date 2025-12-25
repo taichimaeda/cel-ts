@@ -20,7 +20,7 @@ import {
   VariableReference,
 } from "../common/ast";
 import type { SourceInfo } from "../common/source";
-import { type OverloadDecl, VariableDecl } from "./decls";
+import { type FunctionOverloadDecl, VariableDecl } from "./decls";
 import type { CheckerEnv } from "./env";
 import { CheckerErrors, type Location } from "./error";
 import { TypeMapping } from "./mapping";
@@ -163,7 +163,7 @@ export class Checker {
 
     // Check if identifier is declared
     const ident = this.env.lookupIdent(identName);
-    if (ident) {
+    if (ident !== undefined) {
       const value = ident.kind === "enum" ? ident.value : undefined;
       this.setType(expr.id, ident.type);
       this.setRef(expr.id, new VariableReference(ident.name, value));
@@ -185,9 +185,9 @@ export class Checker {
   private checkSelect(expr: SelectExpr): void {
     // Before traversing down the tree, try to interpret as qualified name
     const name = this.resolveQualifiedName(expr);
-    if (name) {
+    if (name !== undefined) {
       const ident = this.env.lookupIdent(name);
-      if (ident) {
+      if (ident !== undefined) {
         const value = ident.kind === "enum" ? ident.value : undefined;
         this.setType(expr.id, ident.type);
         this.setRef(expr.id, new VariableReference(ident.name, value));
@@ -233,7 +233,7 @@ export class Checker {
       case TypeKind.Struct:
         // Structs yield their field type
         const fieldType = this.env.lookupFieldType(targetType, field);
-        if (fieldType) {
+        if (fieldType !== undefined) {
           resultType = fieldType;
         } else {
           this.errors.reportUndefinedField(id, field, this.getLocation(id));
@@ -278,25 +278,25 @@ export class Checker {
    * Check a global function call
    */
   private checkGlobalCall(expr: CallExpr): void {
-    const fnName = expr.funcName;
+    const funcName = expr.funcName;
 
     // Special-case the conditional (ternary) operator.
     // Join differing branch types with joinTypes.
-    if (fnName === Operators.Conditional && expr.args.length === 3) {
+    if (funcName === Operators.Conditional && expr.args.length === 3) {
       this.checkConditional(expr);
       return;
     }
 
     // Check function exists
-    const fn = this.env.lookupFunction(fnName);
-    if (!fn) {
-      const maybeType = this.env.lookupIdent(fnName);
+    const func = this.env.lookupFunction(funcName);
+    if (func === undefined) {
+      const maybeType = this.env.lookupIdent(funcName);
       if (maybeType?.kind === "type") {
         if (expr.args.length !== 1) {
           const argTypes = expr.args.map((arg) => this.getType(arg.id));
           this.errors.reportNoMatchingOverload(
             expr.id,
-            fnName,
+            funcName,
             argTypes,
             false,
             this.getLocation(expr.id)
@@ -312,7 +312,7 @@ export class Checker {
       this.errors.reportUndeclaredReference(
         expr.id,
         this.env.container.name,
-        fnName,
+        funcName,
         this.getLocation(expr.id)
       );
       this.setType(expr.id, ErrorType);
@@ -321,7 +321,7 @@ export class Checker {
 
     // Resolve overload
     const argTypes = expr.args.map((arg) => this.getType(arg.id));
-    const overloads = fn.overloads().filter((o) => !o.isMemberFunction);
+    const overloads = func.overloads().filter((o) => !o.isMemberFunction);
     this.resolveOverloadOrError(expr, overloads, argTypes, false);
   }
 
@@ -353,17 +353,17 @@ export class Checker {
    * Check a member function call
    */
   private checkMemberCall(expr: CallExpr): void {
-    const fnName = expr.funcName;
+    const funcName = expr.funcName;
     const target = expr.target!;
 
     // Try qualified name interpretation
     const name = this.resolveQualifiedName(target);
-    if (name) {
-      const maybeQualifiedName = `${name}.${fnName}`;
-      const fn = this.env.lookupFunction(maybeQualifiedName);
-      if (fn) {
+    if (name !== undefined) {
+      const maybeQualifiedName = `${name}.${funcName}`;
+      const func = this.env.lookupFunction(maybeQualifiedName);
+      if (func !== undefined) {
         const argTypes = expr.args.map((arg) => this.getType(arg.id));
-        const overloads = fn.overloads().filter((o) => !o.isMemberFunction);
+        const overloads = func.overloads().filter((o) => !o.isMemberFunction);
         this.resolveOverloadOrError(expr, overloads, argTypes, false, maybeQualifiedName);
         return;
       }
@@ -392,19 +392,19 @@ export class Checker {
     this.checkExpr(target);
 
     // Regular member call
-    const fn = this.env.lookupFunction(fnName);
-    if (fn) {
+    const func = this.env.lookupFunction(funcName);
+    if (func !== undefined) {
       const targetType = this.getType(target.id);
       const argTypes = [targetType, ...expr.args.map((arg) => this.getType(arg.id))];
-      const overloads = fn.overloads().filter((o) => o.isMemberFunction);
+      const overloads = func.overloads().filter((o) => o.isMemberFunction);
       this.resolveOverloadOrError(expr, overloads, argTypes, true);
       return;
     }
 
     // Check for type-specific methods
     const receiverType = this.getType(target.id);
-    const methodType = this.resolveMethodType(receiverType, fnName, expr.args.length);
-    if (methodType) {
+    const methodType = this.resolveMethodType(receiverType, funcName, expr.args.length);
+    if (methodType !== undefined) {
       this.setType(expr.id, methodType);
       return;
     }
@@ -412,7 +412,7 @@ export class Checker {
     this.errors.reportUndeclaredReference(
       expr.id,
       this.env.container.name,
-      fnName,
+      funcName,
       this.getLocation(expr.id)
     );
     this.setType(expr.id, ErrorType);
@@ -510,7 +510,7 @@ export class Checker {
 
     // Look up struct type
     const structType = this.env.lookupStructType(typeName);
-    if (!structType) {
+    if (structType === undefined) {
       this.errors.reportNotAMessageType(expr.id, typeName, this.getLocation(expr.id));
       this.setType(expr.id, DynType);
       return;
@@ -522,7 +522,7 @@ export class Checker {
 
       // Validate field exists
       const fieldType = this.env.lookupFieldType(structType, field.name);
-      if (!fieldType) {
+      if (fieldType === undefined) {
         this.errors.reportUndefinedField(field.id, field.name, this.getLocation(field.id));
       } else {
         let valueType = this.getType(field.value.id);
@@ -635,13 +635,13 @@ export class Checker {
    */
   private resolveOverloadOrError(
     expr: CallExpr,
-    overloads: OverloadDecl[],
+    overloads: FunctionOverloadDecl[],
     argTypes: Type[],
     isMemberCall: boolean,
     resolvedName?: string
   ): void {
     const resolved = this.resolveOverload(overloads, argTypes, isMemberCall);
-    if (!resolved) {
+    if (resolved === undefined) {
       this.errors.reportNoMatchingOverload(
         expr.id,
         expr.funcName,
@@ -654,7 +654,7 @@ export class Checker {
     }
 
     this.setType(expr.id, resolved.resultType);
-    if (resolvedName) {
+    if (resolvedName !== undefined) {
       this.setRef(expr.id, new FunctionReference(resolved.overloadIds, resolvedName));
     } else {
       this.setRef(expr.id, new FunctionReference(resolved.overloadIds));
@@ -665,12 +665,12 @@ export class Checker {
    * Resolve overload from candidates
    */
   private resolveOverload(
-    overloads: OverloadDecl[],
+    overloads: FunctionOverloadDecl[],
     argTypes: Type[],
     isMemberCall: boolean
-  ): { resultType: Type; overloadIds: string[] } | null {
-    const matchingOverloads: OverloadDecl[] = [];
-    let resultType: Type | null = null;
+  ): { resultType: Type; overloadIds: string[] } | undefined {
+    const matchingOverloads: FunctionOverloadDecl[] = [];
+    let resultType: Type | undefined;
 
     for (const overload of overloads) {
       if (this.env.isOverloadDisabled(overload.id)) continue;
@@ -699,7 +699,7 @@ export class Checker {
       if (matches) {
         matchingOverloads.push(overload);
         const overloadResultType = tempMapping.substitute(overload.resultType, false);
-        if (resultType === null) {
+        if (resultType === undefined) {
           resultType = overloadResultType;
         } else if (!resultType.isEquivalentType(overloadResultType)) {
           resultType = DynType;
@@ -707,7 +707,7 @@ export class Checker {
       }
     }
 
-    if (matchingOverloads.length === 0) return null;
+    if (matchingOverloads.length === 0) return undefined;
 
     return {
       resultType: resultType ?? DynType,
@@ -718,7 +718,11 @@ export class Checker {
   /**
    * Resolve method type for built-in type methods
    */
-  private resolveMethodType(receiverType: Type, methodName: string, argCount: number): Type | null {
+  private resolveMethodType(
+    receiverType: Type,
+    methodName: string,
+    argCount: number
+  ): Type | undefined {
     if (receiverType.isDynOrError()) {
       return DynType;
     }
@@ -774,25 +778,25 @@ export class Checker {
       }
     }
 
-    return null;
+    return undefined;
   }
 
   /**
    * Try to convert an expression to a qualified name
    */
-  private resolveQualifiedName(expr: Expr): string | null {
+  private resolveQualifiedName(expr: Expr): string | undefined {
     if (expr instanceof IdentExpr) {
       return expr.name;
     }
     if (expr instanceof SelectExpr) {
-      if (expr.testOnly || expr.optional) return null;
+      if (expr.testOnly || expr.optional) return undefined;
       const prefix = this.resolveQualifiedName(expr.operand);
-      if (prefix) {
+      if (prefix !== undefined) {
         return `${prefix}.${expr.field}`;
       }
-      return null;
+      return undefined;
     }
-    return null;
+    return undefined;
   }
 
   // ============================================================================
@@ -813,7 +817,7 @@ export class Checker {
 
   private getLocation(exprId: ExprId): Location | undefined {
     const position = this.sourceInfo.getPosition(exprId);
-    if (!position) {
+    if (position === undefined) {
       return undefined;
     }
     const { line, column } = this.sourceInfo.getLocation(position.start);

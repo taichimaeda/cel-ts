@@ -594,7 +594,7 @@ function parseTimestamp(value: string): TimestampValue | ErrorValue {
     /^(\d{4,})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?(Z|[+-]?\d{2}:\d{2})$/.exec(
       value
     );
-  if (!match) {
+  if (match === null) {
     return ErrorValue.create(`cannot parse '${value}' as timestamp`);
   }
 
@@ -612,7 +612,7 @@ function parseTimestamp(value: string): TimestampValue | ErrorValue {
   }
 
   const offsetMinutes = parseTimestampOffset(tz);
-  if (offsetMinutes === null) {
+  if (offsetMinutes === undefined) {
     return ErrorValue.create(`cannot parse '${value}' as timestamp`);
   }
 
@@ -634,7 +634,7 @@ function parseTimestamp(value: string): TimestampValue | ErrorValue {
   const utcMillis = baseMillis - offsetMinutes * 60_000;
 
   let nanos = 0n;
-  if (fraction) {
+  if (fraction !== undefined) {
     const digits = fraction.slice(1);
     nanos = BigInt(digits.padEnd(9, "0"));
   }
@@ -646,14 +646,14 @@ function parseTimestamp(value: string): TimestampValue | ErrorValue {
   return TimestampValue.of(timestampNanos);
 }
 
-function parseTimestampOffset(tz: string): number | null {
+function parseTimestampOffset(tz: string): number | undefined {
   const normalized = tz.trim();
   if (normalized === "Z" || normalized === "UTC") {
     return 0;
   }
   const match = /^([+-]?)(\d{2}):(\d{2})$/.exec(normalized);
-  if (!match) {
-    return null;
+  if (match === null) {
+    return undefined;
   }
   const sign = match[1] === "-" ? -1 : 1;
   const hours = Number(match[2]);

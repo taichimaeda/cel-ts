@@ -8,7 +8,7 @@ import {
   OpaqueType,
   type Type,
   TypeKind,
-  TypeTypeWithParam,
+  PolymorphicTypeType,
   wellKnownTypeToNative,
   wrapperTypeToPrimitive,
 } from "./types";
@@ -79,13 +79,13 @@ export class TypeMapping {
 
     const targetWrapper = wrapperTypeToPrimitive(target);
     const sourceWrapper = wrapperTypeToPrimitive(source);
-    if (targetWrapper || sourceWrapper) {
+    if (targetWrapper !== undefined || sourceWrapper !== undefined) {
       return this.isAssignable(targetWrapper ?? target, sourceWrapper ?? source);
     }
 
     const targetWellKnown = wellKnownTypeToNative(target);
     const sourceWellKnown = wellKnownTypeToNative(source);
-    if (targetWellKnown || sourceWellKnown) {
+    if (targetWellKnown !== undefined || sourceWellKnown !== undefined) {
       return this.isAssignable(targetWellKnown ?? target, sourceWellKnown ?? source);
     }
 
@@ -112,7 +112,7 @@ export class TypeMapping {
     for (let i = 0; i < target.parameters.length; i++) {
       const targetParam = target.parameters[i];
       const sourceParam = source.parameters[i];
-      if (!(targetParam && sourceParam)) {
+      if (targetParam === undefined || sourceParam === undefined) {
         return false;
       }
       if (!this.isAssignable(targetParam, sourceParam)) {
@@ -134,7 +134,7 @@ export class TypeMapping {
 
   private bindTargetTypeParam(target: Type, source: Type): boolean {
     const existing = this.find(target);
-    if (existing) {
+    if (existing !== undefined) {
       return this.isAssignable(existing, source);
     }
     if (source.kind === TypeKind.TypeParam && source.typeKey() === target.typeKey()) {
@@ -149,7 +149,7 @@ export class TypeMapping {
 
   private bindSourceTypeParam(target: Type, source: Type): boolean {
     const existing = this.find(source);
-    if (existing) {
+    if (existing !== undefined) {
       return this.isAssignable(target, existing);
     }
     if (target.kind === TypeKind.TypeParam && target.typeKey() === source.typeKey()) {
@@ -188,7 +188,7 @@ export class TypeMapping {
 
   private substituteTypeParam(type: Type, typeParamToDyn: boolean): Type {
     const bound = this.find(type);
-    if (bound) {
+    if (bound !== undefined) {
       return this.substituteType(bound, typeParamToDyn);
     }
     return typeParamToDyn ? DynType : type;
@@ -196,7 +196,7 @@ export class TypeMapping {
 
   private substituteList(type: Type, typeParamToDyn: boolean): Type {
     const elem = type.parameters[0];
-    if (!elem) {
+    if (elem === undefined) {
       return type;
     }
     const newElem = this.substituteType(elem, typeParamToDyn);
@@ -206,7 +206,7 @@ export class TypeMapping {
   private substituteMap(type: Type, typeParamToDyn: boolean): Type {
     const key = type.parameters[0];
     const val = type.parameters[1];
-    if (!(key && val)) {
+    if (key === undefined || val === undefined) {
       return type;
     }
     const newKey = this.substituteType(key, typeParamToDyn);
@@ -231,11 +231,11 @@ export class TypeMapping {
 
   private substituteTypeWrapper(type: Type, typeParamToDyn: boolean): Type {
     const param = type.parameters[0];
-    if (!param) {
+    if (param === undefined) {
       return type;
     }
     const newParam = this.substituteType(param, typeParamToDyn);
-    return newParam === param ? type : new TypeTypeWithParam(newParam);
+    return newParam === param ? type : new PolymorphicTypeType(newParam);
   }
 }
 

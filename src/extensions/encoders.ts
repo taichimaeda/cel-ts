@@ -9,13 +9,13 @@ export class EncodersExtension implements Extension {
     const macros: Macro[] = [
       new ReceiverMacro("decode", 1, (helper, target, args) => {
         if (!macroTargetMatchesNamespace("base64", target)) {
-          return null;
+          return undefined;
         }
         return helper.createCall("base64.decode", args[0]!);
       }),
       new ReceiverMacro("encode", 1, (helper, target, args) => {
         if (!macroTargetMatchesNamespace("base64", target)) {
-          return null;
+          return undefined;
         }
         return helper.createCall("base64.encode", args[0]!);
       }),

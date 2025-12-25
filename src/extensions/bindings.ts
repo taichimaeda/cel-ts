@@ -20,10 +20,10 @@ export class BindingsExtension implements Extension {
     const macros: Macro[] = [
       new ReceiverMacro(bindMacro, 3, (helper, target, args) => {
         if (!macroTargetMatchesNamespace(celNamespace, target)) {
-          return null;
+          return undefined;
         }
         const varName = extractIdentName(args[0]);
-        if (!varName) {
+        if (varName === undefined) {
           throw new MacroError("cel.bind() variable names must be simple identifiers");
         }
         const init = args[1]!;
@@ -41,7 +41,7 @@ export class BindingsExtension implements Extension {
       }),
       new ReceiverMacro(blockMacro, 2, (helper, target, args) => {
         if (!macroTargetMatchesNamespace(celNamespace, target)) {
-          return null;
+          return undefined;
         }
         const bindings = args[0];
         if (!(bindings instanceof ListExpr)) {
@@ -51,32 +51,32 @@ export class BindingsExtension implements Extension {
       }),
       new ReceiverMacro(indexMacro, 1, (helper, target, args) => {
         if (!macroTargetMatchesNamespace(celNamespace, target)) {
-          return null;
+          return undefined;
         }
         const index = extractNonNegativeInt(args[0]);
-        if (index === null) {
+        if (index === undefined) {
           throw new MacroError("cel.index requires a single non-negative int constant arg");
         }
         return helper.createIdent(`@index${index}`);
       }),
       new ReceiverMacro(iterVarMacro, 2, (helper, target, args) => {
         if (!macroTargetMatchesNamespace(celNamespace, target)) {
-          return null;
+          return undefined;
         }
         const depth = extractNonNegativeInt(args[0]);
         const unique = extractNonNegativeInt(args[1]);
-        if (depth === null || unique === null) {
+        if (depth === undefined || unique === undefined) {
           throw new MacroError("cel.iterVar requires two non-negative int constant args");
         }
         return helper.createIdent(`@it:${depth}:${unique}`);
       }),
       new ReceiverMacro(accuVarMacro, 2, (helper, target, args) => {
         if (!macroTargetMatchesNamespace(celNamespace, target)) {
-          return null;
+          return undefined;
         }
         const depth = extractNonNegativeInt(args[0]);
         const unique = extractNonNegativeInt(args[1]);
-        if (depth === null || unique === null) {
+        if (depth === undefined || unique === undefined) {
           throw new MacroError("cel.accuVar requires two non-negative int constant args");
         }
         return helper.createIdent(`@ac:${depth}:${unique}`);
@@ -97,18 +97,18 @@ export class BindingsExtension implements Extension {
   }
 }
 
-function extractNonNegativeInt(expr: Expr | undefined): number | null {
+function extractNonNegativeInt(expr: Expr | undefined): number | undefined {
   if (!(expr instanceof LiteralExpr)) {
-    return null;
+    return undefined;
   }
   if (expr.value.kind === "int") {
     if (expr.value.value < 0n) {
-      return null;
+      return undefined;
     }
     return Number(expr.value.value);
   }
   if (expr.value.kind === "uint") {
     return Number(expr.value.value);
   }
-  return null;
+  return undefined;
 }

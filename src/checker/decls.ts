@@ -10,7 +10,7 @@ export class VariableDecl {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) {}
+  ) { }
 }
 
 /**
@@ -20,7 +20,7 @@ export class StructFieldDecl {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) {}
+  ) { }
 }
 
 /**
@@ -35,7 +35,7 @@ export class StructDecl {
     readonly name: string,
     fields: StructFieldDecl[]
   ) {
-    this.fields = Object.freeze([...fields]);
+    this.fields = [...fields];
     this.type = new StructType(name);
     this.fieldMap = new Map(this.fields.map((field) => [field.name, field.type]));
   }
@@ -52,7 +52,7 @@ export class StructDecl {
 /**
  * Represents a function overload (one specific signature)
  */
-export class OverloadDecl {
+export class FunctionOverloadDecl {
   readonly argTypes: readonly Type[];
   readonly typeParams: readonly string[];
 
@@ -63,8 +63,8 @@ export class OverloadDecl {
     typeParams: string[] = [],
     readonly isMemberFunction = false
   ) {
-    this.argTypes = Object.freeze(argTypes);
-    this.typeParams = Object.freeze(typeParams);
+    this.argTypes = [...argTypes];
+    this.typeParams = [...typeParams];
   }
 
   /**
@@ -86,16 +86,16 @@ export class OverloadDecl {
  * Represents a function declaration with multiple overloads
  */
 export class FunctionDecl {
-  private readonly overloadMap: Map<string, OverloadDecl> = new Map();
+  private readonly overloadMap: Map<string, FunctionOverloadDecl> = new Map();
   private readonly overloadOrder: string[] = [];
   private disabledOverloads: Set<string> = new Set();
 
-  constructor(readonly name: string) {}
+  constructor(readonly name: string) { }
 
   /**
    * Add an overload to this function
    */
-  addOverload(overload: OverloadDecl): this {
+  addOverload(overload: FunctionOverloadDecl): this {
     if (!this.overloadMap.has(overload.id)) {
       this.overloadOrder.push(overload.id);
     }
@@ -106,17 +106,17 @@ export class FunctionDecl {
   /**
    * Get all overloads in declaration order
    */
-  overloads(): OverloadDecl[] {
+  overloads(): FunctionOverloadDecl[] {
     return this.overloadOrder
       .filter((id) => !this.disabledOverloads.has(id))
       .map((id) => this.overloadMap.get(id))
-      .filter((overload): overload is OverloadDecl => overload !== undefined);
+      .filter((overload): overload is FunctionOverloadDecl => overload !== undefined);
   }
 
   /**
    * Get a specific overload by ID
    */
-  getOverload(id: string): OverloadDecl | undefined {
+  getOverload(id: string): FunctionOverloadDecl | undefined {
     return this.overloadMap.get(id);
   }
 
@@ -148,11 +148,11 @@ export class FunctionDecl {
    * Create a copy of this function declaration
    */
   copy(): FunctionDecl {
-    const fn = new FunctionDecl(this.name);
+    const func = new FunctionDecl(this.name);
     for (const overload of this.overloads()) {
-      fn.addOverload(overload);
+      func.addOverload(overload);
     }
-    fn.disabledOverloads = new Set(this.disabledOverloads);
-    return fn;
+    func.disabledOverloads = new Set(this.disabledOverloads);
+    return func;
   }
 }

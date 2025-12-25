@@ -52,7 +52,7 @@ function applyConstantTernary(expr: Expr, ctx: LintContext): void {
 function applyDoubleNegation(expr: Expr, ctx: LintContext): void {
   if (!isLogicalNot(expr)) return;
   const inner = expr.args[0];
-  if (!inner || !isLogicalNot(inner)) return;
+  if (inner === undefined || !isLogicalNot(inner)) return;
   ctx.report({
     exprId: expr.id,
     message: "Double negation can be removed.",

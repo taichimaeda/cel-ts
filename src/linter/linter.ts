@@ -32,11 +32,11 @@ export class Linter {
     diagnostic: LintDiagnostic,
     sourceInfo: SourceInfo | undefined
   ): LintDiagnostic {
-    if (!sourceInfo) {
+    if (sourceInfo === undefined) {
       return diagnostic;
     }
     const range = sourceInfo.getPosition(diagnostic.exprId);
-    if (!range) {
+    if (range === undefined) {
       return diagnostic;
     }
     const start = sourceInfo.getLocation(range.start);

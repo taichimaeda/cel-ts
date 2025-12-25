@@ -3,7 +3,7 @@
 // Implemented based on checker/decls.go from cel-go
 
 import { Operators } from "../common/ast";
-import { FunctionDecl, OverloadDecl } from "./decls";
+import { FunctionDecl, FunctionOverloadDecl } from "./decls";
 import {
   BoolType,
   BytesType,
@@ -16,7 +16,7 @@ import {
   StringType,
   TimestampType,
   TypeParamType,
-  TypeTypeWithParam,
+  PolymorphicTypeType,
   UintType,
 } from "./types";
 
@@ -62,22 +62,22 @@ export class StandardLibrary {
    * size function - returns the size of strings, bytes, lists, and maps
    */
   private static sizeFunction(): FunctionDecl {
-    const fn = new FunctionDecl("size");
+    const funcDecl = new FunctionDecl("size");
 
     // size(string) -> int
-    fn.addOverload(new OverloadDecl("size_string", [StringType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("size_string", [StringType], IntType));
 
     // size(bytes) -> int
-    fn.addOverload(new OverloadDecl("size_bytes", [BytesType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("size_bytes", [BytesType], IntType));
 
     // size(list) -> int
-    fn.addOverload(
-      new OverloadDecl("size_list", [new ListType(new TypeParamType("T"))], IntType, ["T"])
+    funcDecl.addOverload(
+      new FunctionOverloadDecl("size_list", [new ListType(new TypeParamType("T"))], IntType, ["T"])
     );
 
     // size(map) -> int
-    fn.addOverload(
-      new OverloadDecl(
+    funcDecl.addOverload(
+      new FunctionOverloadDecl(
         "size_map",
         [new MapType(new TypeParamType("K"), new TypeParamType("V"))],
         IntType,
@@ -86,8 +86,8 @@ export class StandardLibrary {
     );
 
     // string.size() -> int (receiver style)
-    fn.addOverload(
-      new OverloadDecl(
+    funcDecl.addOverload(
+      new FunctionOverloadDecl(
         "string_size",
         [StringType],
         IntType,
@@ -97,16 +97,16 @@ export class StandardLibrary {
     );
 
     // bytes.size() -> int (receiver style)
-    fn.addOverload(new OverloadDecl("bytes_size", [BytesType], IntType, [], true));
+    funcDecl.addOverload(new FunctionOverloadDecl("bytes_size", [BytesType], IntType, [], true));
 
     // list.size() -> int (receiver style)
-    fn.addOverload(
-      new OverloadDecl("list_size", [new ListType(new TypeParamType("T"))], IntType, ["T"], true)
+    funcDecl.addOverload(
+      new FunctionOverloadDecl("list_size", [new ListType(new TypeParamType("T"))], IntType, ["T"], true)
     );
 
     // map.size() -> int (receiver style)
-    fn.addOverload(
-      new OverloadDecl(
+    funcDecl.addOverload(
+      new FunctionOverloadDecl(
         "map_size",
         [new MapType(new TypeParamType("K"), new TypeParamType("V"))],
         IntType,
@@ -115,180 +115,180 @@ export class StandardLibrary {
       )
     );
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * int() type conversion function
    */
   private static intFunction(): FunctionDecl {
-    const fn = new FunctionDecl("int");
+    const funcDecl = new FunctionDecl("int");
 
     // int(int) -> int
-    fn.addOverload(new OverloadDecl("int_int", [IntType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("int_int", [IntType], IntType));
     // int(uint) -> int
-    fn.addOverload(new OverloadDecl("int_uint", [UintType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("int_uint", [UintType], IntType));
     // int(double) -> int
-    fn.addOverload(new OverloadDecl("int_double", [DoubleType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("int_double", [DoubleType], IntType));
     // int(string) -> int
-    fn.addOverload(new OverloadDecl("int_string", [StringType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("int_string", [StringType], IntType));
     // int(timestamp) -> int (seconds since epoch)
-    fn.addOverload(new OverloadDecl("int_timestamp", [TimestampType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("int_timestamp", [TimestampType], IntType));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * uint() type conversion function
    */
   private static uintFunction(): FunctionDecl {
-    const fn = new FunctionDecl("uint");
+    const funcDecl = new FunctionDecl("uint");
 
     // uint(int) -> uint
-    fn.addOverload(new OverloadDecl("uint_int", [IntType], UintType));
+    funcDecl.addOverload(new FunctionOverloadDecl("uint_int", [IntType], UintType));
     // uint(uint) -> uint
-    fn.addOverload(new OverloadDecl("uint_uint", [UintType], UintType));
+    funcDecl.addOverload(new FunctionOverloadDecl("uint_uint", [UintType], UintType));
     // uint(double) -> uint
-    fn.addOverload(new OverloadDecl("uint_double", [DoubleType], UintType));
+    funcDecl.addOverload(new FunctionOverloadDecl("uint_double", [DoubleType], UintType));
     // uint(string) -> uint
-    fn.addOverload(new OverloadDecl("uint_string", [StringType], UintType));
+    funcDecl.addOverload(new FunctionOverloadDecl("uint_string", [StringType], UintType));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * double() type conversion function
    */
   private static doubleFunction(): FunctionDecl {
-    const fn = new FunctionDecl("double");
+    const funcDecl = new FunctionDecl("double");
 
     // double(int) -> double
-    fn.addOverload(new OverloadDecl("double_int", [IntType], DoubleType));
+    funcDecl.addOverload(new FunctionOverloadDecl("double_int", [IntType], DoubleType));
     // double(uint) -> double
-    fn.addOverload(new OverloadDecl("double_uint", [UintType], DoubleType));
+    funcDecl.addOverload(new FunctionOverloadDecl("double_uint", [UintType], DoubleType));
     // double(double) -> double
-    fn.addOverload(new OverloadDecl("double_double", [DoubleType], DoubleType));
+    funcDecl.addOverload(new FunctionOverloadDecl("double_double", [DoubleType], DoubleType));
     // double(string) -> double
-    fn.addOverload(new OverloadDecl("double_string", [StringType], DoubleType));
+    funcDecl.addOverload(new FunctionOverloadDecl("double_string", [StringType], DoubleType));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * string() type conversion function
    */
   private static stringFunction(): FunctionDecl {
-    const fn = new FunctionDecl("string");
+    const funcDecl = new FunctionDecl("string");
 
     // string(int) -> string
-    fn.addOverload(new OverloadDecl("string_int", [IntType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_int", [IntType], StringType));
     // string(uint) -> string
-    fn.addOverload(new OverloadDecl("string_uint", [UintType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_uint", [UintType], StringType));
     // string(double) -> string
-    fn.addOverload(new OverloadDecl("string_double", [DoubleType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_double", [DoubleType], StringType));
     // string(string) -> string
-    fn.addOverload(new OverloadDecl("string_string", [StringType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_string", [StringType], StringType));
     // string(bytes) -> string
-    fn.addOverload(new OverloadDecl("string_bytes", [BytesType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_bytes", [BytesType], StringType));
     // string(timestamp) -> string
-    fn.addOverload(new OverloadDecl("string_timestamp", [TimestampType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_timestamp", [TimestampType], StringType));
     // string(duration) -> string
-    fn.addOverload(new OverloadDecl("string_duration", [DurationType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_duration", [DurationType], StringType));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * bool() type conversion function
    */
   private static boolFunction(): FunctionDecl {
-    const fn = new FunctionDecl("bool");
+    const funcDecl = new FunctionDecl("bool");
 
     // bool(bool) -> bool
-    fn.addOverload(new OverloadDecl("bool_bool", [BoolType], BoolType));
+    funcDecl.addOverload(new FunctionOverloadDecl("bool_bool", [BoolType], BoolType));
     // bool(string) -> bool
-    fn.addOverload(new OverloadDecl("bool_string", [StringType], BoolType));
+    funcDecl.addOverload(new FunctionOverloadDecl("bool_string", [StringType], BoolType));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * bytes() type conversion function
    */
   private static bytesFunction(): FunctionDecl {
-    const fn = new FunctionDecl("bytes");
+    const funcDecl = new FunctionDecl("bytes");
 
     // bytes(string) -> bytes
-    fn.addOverload(new OverloadDecl("bytes_string", [StringType], BytesType));
+    funcDecl.addOverload(new FunctionOverloadDecl("bytes_string", [StringType], BytesType));
     // bytes(bytes) -> bytes
-    fn.addOverload(new OverloadDecl("bytes_bytes", [BytesType], BytesType));
+    funcDecl.addOverload(new FunctionOverloadDecl("bytes_bytes", [BytesType], BytesType));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * dyn() type conversion function
    */
   private static dynFunction(): FunctionDecl {
-    const fn = new FunctionDecl("dyn");
+    const funcDecl = new FunctionDecl("dyn");
 
     // dyn(dyn) -> dyn
-    fn.addOverload(new OverloadDecl("dyn_dyn", [DynType], DynType));
+    funcDecl.addOverload(new FunctionOverloadDecl("dyn_dyn", [DynType], DynType));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * type() function - returns the type of a value
    */
   private static typeFunction(): FunctionDecl {
-    const fn = new FunctionDecl("type");
+    const funcDecl = new FunctionDecl("type");
 
     // type(dyn) -> type
-    fn.addOverload(new OverloadDecl("type_dyn", [DynType], new TypeTypeWithParam(DynType), []));
+    funcDecl.addOverload(new FunctionOverloadDecl("type_dyn", [DynType], new PolymorphicTypeType(DynType), []));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * duration() function - creates duration from string
    */
   private static durationFunction(): FunctionDecl {
-    const fn = new FunctionDecl("duration");
+    const funcDecl = new FunctionDecl("duration");
 
     // duration(string) -> duration
-    fn.addOverload(new OverloadDecl("duration_string", [StringType], DurationType));
+    funcDecl.addOverload(new FunctionOverloadDecl("duration_string", [StringType], DurationType));
     // duration(duration) -> duration
-    fn.addOverload(new OverloadDecl("duration_duration", [DurationType], DurationType));
+    funcDecl.addOverload(new FunctionOverloadDecl("duration_duration", [DurationType], DurationType));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * timestamp() function - creates timestamp from string or int
    */
   private static timestampFunction(): FunctionDecl {
-    const fn = new FunctionDecl("timestamp");
+    const funcDecl = new FunctionDecl("timestamp");
 
     // timestamp(string) -> timestamp
-    fn.addOverload(new OverloadDecl("timestamp_string", [StringType], TimestampType));
+    funcDecl.addOverload(new FunctionOverloadDecl("timestamp_string", [StringType], TimestampType));
     // timestamp(int) -> timestamp (seconds since epoch)
-    fn.addOverload(new OverloadDecl("timestamp_int", [IntType], TimestampType));
+    funcDecl.addOverload(new FunctionOverloadDecl("timestamp_int", [IntType], TimestampType));
     // timestamp(timestamp) -> timestamp
-    fn.addOverload(new OverloadDecl("timestamp_timestamp", [TimestampType], TimestampType));
+    funcDecl.addOverload(new FunctionOverloadDecl("timestamp_timestamp", [TimestampType], TimestampType));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * contains() string method
    */
   private static containsFunction(): FunctionDecl {
-    const fn = new FunctionDecl("contains");
+    const funcDecl = new FunctionDecl("contains");
 
     // string.contains(string) -> bool
-    fn.addOverload(
-      new OverloadDecl(
+    funcDecl.addOverload(
+      new FunctionOverloadDecl(
         "contains_string",
         [StringType, StringType],
         BoolType,
@@ -297,63 +297,63 @@ export class StandardLibrary {
       )
     );
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * startsWith() string method
    */
   private static startsWithFunction(): FunctionDecl {
-    const fn = new FunctionDecl("startsWith");
+    const funcDecl = new FunctionDecl("startsWith");
 
     // string.startsWith(string) -> bool
-    fn.addOverload(
-      new OverloadDecl("startsWith_string", [StringType, StringType], BoolType, [], true)
+    funcDecl.addOverload(
+      new FunctionOverloadDecl("startsWith_string", [StringType, StringType], BoolType, [], true)
     );
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * endsWith() string method
    */
   private static endsWithFunction(): FunctionDecl {
-    const fn = new FunctionDecl("endsWith");
+    const funcDecl = new FunctionDecl("endsWith");
 
     // string.endsWith(string) -> bool
-    fn.addOverload(
-      new OverloadDecl("endsWith_string", [StringType, StringType], BoolType, [], true)
+    funcDecl.addOverload(
+      new FunctionOverloadDecl("endsWith_string", [StringType, StringType], BoolType, [], true)
     );
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * matches() string method for regex matching
    */
   private static matchesFunction(): FunctionDecl {
-    const fn = new FunctionDecl("matches");
+    const funcDecl = new FunctionDecl("matches");
 
     // string.matches(string) -> bool
-    fn.addOverload(
-      new OverloadDecl("matches_string", [StringType, StringType], BoolType, [], true)
+    funcDecl.addOverload(
+      new FunctionOverloadDecl("matches_string", [StringType, StringType], BoolType, [], true)
     );
 
     // matches(string, string) -> bool (global function style)
-    fn.addOverload(new OverloadDecl("matches_string_string", [StringType, StringType], BoolType));
+    funcDecl.addOverload(new FunctionOverloadDecl("matches_string_string", [StringType, StringType], BoolType));
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * in operator function
    */
   private static inFunction(): FunctionDecl {
-    const fn = new FunctionDecl(Operators.In);
+    const funcDecl = new FunctionDecl(Operators.In);
 
     // T in list<T> -> bool
-    fn.addOverload(
-      new OverloadDecl(
+    funcDecl.addOverload(
+      new FunctionOverloadDecl(
         "in_list",
         [new TypeParamType("T"), new ListType(new TypeParamType("T"))],
         BoolType,
@@ -362,8 +362,8 @@ export class StandardLibrary {
     );
 
     // K in map<K, V> -> bool
-    fn.addOverload(
-      new OverloadDecl(
+    funcDecl.addOverload(
+      new FunctionOverloadDecl(
         "in_map",
         [new TypeParamType("K"), new MapType(new TypeParamType("K"), new TypeParamType("V"))],
         BoolType,
@@ -371,18 +371,18 @@ export class StandardLibrary {
       )
     );
 
-    return fn;
+    return funcDecl;
   }
 
   /**
    * Index access operator (`_[_]`) providing list and map indexing.
    */
   private static indexFunction(): FunctionDecl {
-    const fn = new FunctionDecl(Operators.Index);
+    const funcDecl = new FunctionDecl(Operators.Index);
 
     // list<T>[int] -> T
-    fn.addOverload(
-      new OverloadDecl(
+    funcDecl.addOverload(
+      new FunctionOverloadDecl(
         "index_list",
         [new ListType(new TypeParamType("T")), IntType],
         new TypeParamType("T"),
@@ -391,8 +391,8 @@ export class StandardLibrary {
     );
 
     // map<K, V>[K] -> V
-    fn.addOverload(
-      new OverloadDecl(
+    funcDecl.addOverload(
+      new FunctionOverloadDecl(
         "index_map",
         [new MapType(new TypeParamType("K"), new TypeParamType("V")), new TypeParamType("K")],
         new TypeParamType("V"),
@@ -400,7 +400,7 @@ export class StandardLibrary {
       )
     );
 
-    return fn;
+    return funcDecl;
   }
 
   /**
@@ -428,18 +428,18 @@ export class StandardLibrary {
     ];
 
     return operators.map((op) => {
-      const fn = new FunctionDecl(op.name);
+      const funcDecl = new FunctionDecl(op.name);
 
       // Comparison between same types
       for (const t of types) {
         const typeName = t.toString().toLowerCase();
-        fn.addOverload(new OverloadDecl(`${op.id}_${typeName}`, [t, t], BoolType));
+        funcDecl.addOverload(new FunctionOverloadDecl(`${op.id}_${typeName}`, [t, t], BoolType));
       }
 
       // Comparison of Dyn type (for dynamic typing)
-      fn.addOverload(new OverloadDecl(`${op.id}_dyn`, [DynType, DynType], BoolType));
+      funcDecl.addOverload(new FunctionOverloadDecl(`${op.id}_dyn`, [DynType, DynType], BoolType));
 
-      return fn;
+      return funcDecl;
     });
   }
 
@@ -457,27 +457,27 @@ export class StandardLibrary {
 
     const numericTypes = [IntType, UintType, DoubleType];
 
-    const fns: FunctionDecl[] = [];
+    const funcDecls: FunctionDecl[] = [];
 
     for (const op of operators) {
-      const fn = new FunctionDecl(op.name);
+      const funcDecl = new FunctionDecl(op.name);
 
       // Numeric operations
       for (const t of numericTypes) {
         const typeName = t.toString().toLowerCase();
-        fn.addOverload(new OverloadDecl(`${op.id}_${typeName}`, [t, t], t));
+        funcDecl.addOverload(new FunctionOverloadDecl(`${op.id}_${typeName}`, [t, t], t));
       }
 
       // String concatenation (+)
       if (op.name === Operators.Add) {
-        fn.addOverload(new OverloadDecl("add_string", [StringType, StringType], StringType));
+        funcDecl.addOverload(new FunctionOverloadDecl("add_string", [StringType, StringType], StringType));
 
         // Bytes concatenation
-        fn.addOverload(new OverloadDecl("add_bytes", [BytesType, BytesType], BytesType));
+        funcDecl.addOverload(new FunctionOverloadDecl("add_bytes", [BytesType, BytesType], BytesType));
 
         // List concatenation
-        fn.addOverload(
-          new OverloadDecl(
+        funcDecl.addOverload(
+          new FunctionOverloadDecl(
             "add_list",
             [new ListType(new TypeParamType("T")), new ListType(new TypeParamType("T"))],
             new ListType(new TypeParamType("T")),
@@ -486,30 +486,30 @@ export class StandardLibrary {
         );
 
         // duration + duration
-        fn.addOverload(
-          new OverloadDecl("add_duration_duration", [DurationType, DurationType], DurationType)
+        funcDecl.addOverload(
+          new FunctionOverloadDecl("add_duration_duration", [DurationType, DurationType], DurationType)
         );
 
         // timestamp + duration
-        fn.addOverload(
-          new OverloadDecl("add_timestamp_duration", [TimestampType, DurationType], TimestampType)
+        funcDecl.addOverload(
+          new FunctionOverloadDecl("add_timestamp_duration", [TimestampType, DurationType], TimestampType)
         );
 
         // duration + timestamp
-        fn.addOverload(
-          new OverloadDecl("add_duration_timestamp", [DurationType, TimestampType], TimestampType)
+        funcDecl.addOverload(
+          new FunctionOverloadDecl("add_duration_timestamp", [DurationType, TimestampType], TimestampType)
         );
       }
 
       // duration - duration
       if (op.name === Operators.Subtract) {
-        fn.addOverload(
-          new OverloadDecl("subtract_duration_duration", [DurationType, DurationType], DurationType)
+        funcDecl.addOverload(
+          new FunctionOverloadDecl("subtract_duration_duration", [DurationType, DurationType], DurationType)
         );
 
         // timestamp - duration
-        fn.addOverload(
-          new OverloadDecl(
+        funcDecl.addOverload(
+          new FunctionOverloadDecl(
             "subtract_timestamp_duration",
             [TimestampType, DurationType],
             TimestampType
@@ -517,8 +517,8 @@ export class StandardLibrary {
         );
 
         // timestamp - timestamp
-        fn.addOverload(
-          new OverloadDecl(
+        funcDecl.addOverload(
+          new FunctionOverloadDecl(
             "subtract_timestamp_timestamp",
             [TimestampType, TimestampType],
             DurationType
@@ -526,61 +526,61 @@ export class StandardLibrary {
         );
       }
 
-      fns.push(fn);
+      funcDecls.push(funcDecl);
     }
 
     // Unary negation
-    const negFn = new FunctionDecl(Operators.Negate);
+    const negFunc = new FunctionDecl(Operators.Negate);
     for (const t of numericTypes) {
       const typeName = t.toString().toLowerCase();
-      negFn.addOverload(new OverloadDecl(`negate_${typeName}`, [t], t));
+      negFunc.addOverload(new FunctionOverloadDecl(`negate_${typeName}`, [t], t));
     }
-    fns.push(negFn);
+    funcDecls.push(negFunc);
 
-    return fns;
+    return funcDecls;
   }
 
   /**
    * Logical operator functions
    */
   private static logicalFunctions(): FunctionDecl[] {
-    const fns: FunctionDecl[] = [];
+    const funcDecls: FunctionDecl[] = [];
 
     // Logical NOT
-    const notFn = new FunctionDecl(Operators.LogicalNot);
-    notFn.addOverload(new OverloadDecl("logical_not", [BoolType], BoolType));
-    fns.push(notFn);
+    const notFunc = new FunctionDecl(Operators.LogicalNot);
+    notFunc.addOverload(new FunctionOverloadDecl("logical_not", [BoolType], BoolType));
+    funcDecls.push(notFunc);
 
     // Logical AND (short-circuit)
-    const andFn = new FunctionDecl(Operators.LogicalAnd);
-    andFn.addOverload(new OverloadDecl("logical_and", [BoolType, BoolType], BoolType));
-    fns.push(andFn);
+    const andFunc = new FunctionDecl(Operators.LogicalAnd);
+    andFunc.addOverload(new FunctionOverloadDecl("logical_and", [BoolType, BoolType], BoolType));
+    funcDecls.push(andFunc);
 
     // Logical OR (short-circuit)
-    const orFn = new FunctionDecl(Operators.LogicalOr);
-    orFn.addOverload(new OverloadDecl("logical_or", [BoolType, BoolType], BoolType));
-    fns.push(orFn);
+    const orFunc = new FunctionDecl(Operators.LogicalOr);
+    orFunc.addOverload(new FunctionOverloadDecl("logical_or", [BoolType, BoolType], BoolType));
+    funcDecls.push(orFunc);
 
     // Conditional (ternary)
-    const condFn = new FunctionDecl(Operators.Conditional);
-    condFn.addOverload(
-      new OverloadDecl(
+    const condFunc = new FunctionDecl(Operators.Conditional);
+    condFunc.addOverload(
+      new FunctionOverloadDecl(
         "conditional",
         [BoolType, new TypeParamType("T"), new TypeParamType("T")],
         new TypeParamType("T"),
         ["T"]
       )
     );
-    fns.push(condFn);
+    funcDecls.push(condFunc);
 
     // @not_strictly_false - internal helper used in comprehension loop conditions.
     // Accepts a bool and only returns false for strict false (errors count as true).
-    const notStrictlyFalseFn = new FunctionDecl(Operators.NotStrictlyFalse);
-    notStrictlyFalseFn.addOverload(
-      new OverloadDecl("not_strictly_false_bool", [BoolType], BoolType)
+    const notStrictlyFalseFunc = new FunctionDecl(Operators.NotStrictlyFalse);
+    notStrictlyFalseFunc.addOverload(
+      new FunctionOverloadDecl("not_strictly_false_bool", [BoolType], BoolType)
     );
-    fns.push(notStrictlyFalseFn);
+    funcDecls.push(notStrictlyFalseFunc);
 
-    return fns;
+    return funcDecls;
   }
 }

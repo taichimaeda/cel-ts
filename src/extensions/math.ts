@@ -41,7 +41,7 @@ export class MathExtension implements Extension {
     const macros: Macro[] = [
       new ReceiverVarArgMacro("least", (helper, target, args) => {
         if (!macroTargetMatchesNamespace(mathNamespace, target)) {
-          return null;
+          return undefined;
         }
         if (args.length === 0) {
           throw new MacroError("math.least() requires at least one argument");
@@ -56,7 +56,7 @@ export class MathExtension implements Extension {
       }),
       new ReceiverVarArgMacro("greatest", (helper, target, args) => {
         if (!macroTargetMatchesNamespace(mathNamespace, target)) {
-          return null;
+          return undefined;
         }
         if (args.length === 0) {
           throw new MacroError("math.greatest() requires at least one argument");
@@ -193,11 +193,11 @@ export class MathExtension implements Extension {
           new Overload("math_sign_int", [IntType], IntType, (arg: Value) => {
             if (!(arg instanceof IntValue)) return ErrorValue.typeMismatch("int", arg);
             const value = arg.value();
-            return IntValue.of(value == 0n ? 0n : value > 0n ? 1n : -1n);
+            return IntValue.of(value === 0n ? 0n : value > 0n ? 1n : -1n);
           }),
           new Overload("math_sign_uint", [UintType], IntType, (arg: Value) => {
             if (!(arg instanceof UintValue)) return ErrorValue.typeMismatch("uint", arg);
-            return IntValue.of(arg.value() == 0n ? 0n : 1n);
+            return IntValue.of(arg.value() === 0n ? 0n : 1n);
           })
         ),
         new Function(

@@ -9,6 +9,14 @@ import { type Activation, MutableActivation } from "./activation";
 import type { Attribute, Qualifier } from "./attributes";
 import type { Dispatcher } from "./dispatcher";
 import {
+  googleAnyToValue,
+  googleListToValue,
+  googleStructToMapValue,
+  googleStructToValue,
+  googleValueToValue,
+  structValueToMapValue,
+} from "./utils";
+import {
   BoolValue,
   BytesValue,
   DoubleValue,
@@ -31,7 +39,6 @@ import {
   type UnknownValue,
   type Value,
   ValueUtil,
-  resolveAnyValue,
 } from "./values";
 
 export type InterpretableKind =
@@ -504,7 +511,7 @@ export class BinaryValue {
   private add(lhs: Value, rhs: Value): Value {
     const leftInt = this.asIntValue(lhs);
     const rightInt = this.asIntValue(rhs);
-    if (leftInt && rightInt) {
+    if (leftInt !== undefined && rightInt !== undefined) {
       return leftInt.add(rightInt);
     }
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
@@ -537,7 +544,7 @@ export class BinaryValue {
   private subtract(lhs: Value, rhs: Value): Value {
     const leftInt = this.asIntValue(lhs);
     const rightInt = this.asIntValue(rhs);
-    if (leftInt && rightInt) {
+    if (leftInt !== undefined && rightInt !== undefined) {
       return leftInt.subtract(rightInt);
     }
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
@@ -561,7 +568,7 @@ export class BinaryValue {
   private multiply(lhs: Value, rhs: Value): Value {
     const leftInt = this.asIntValue(lhs);
     const rightInt = this.asIntValue(rhs);
-    if (leftInt && rightInt) {
+    if (leftInt !== undefined && rightInt !== undefined) {
       return leftInt.multiply(rightInt);
     }
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
@@ -576,7 +583,7 @@ export class BinaryValue {
   private divide(lhs: Value, rhs: Value): Value {
     const leftInt = this.asIntValue(lhs);
     const rightInt = this.asIntValue(rhs);
-    if (leftInt && rightInt) {
+    if (leftInt !== undefined && rightInt !== undefined) {
       return leftInt.divide(rightInt);
     }
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
@@ -591,7 +598,7 @@ export class BinaryValue {
   private modulo(lhs: Value, rhs: Value): Value {
     const leftInt = this.asIntValue(lhs);
     const rightInt = this.asIntValue(rhs);
-    if (leftInt && rightInt) {
+    if (leftInt !== undefined && rightInt !== undefined) {
       return leftInt.modulo(rightInt);
     }
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
@@ -603,7 +610,7 @@ export class BinaryValue {
   private compare(lhs: Value, rhs: Value, predicate: (cmp: number) => boolean): Value {
     const leftInt = this.asIntValue(lhs);
     const rightInt = this.asIntValue(rhs);
-    if (leftInt && rightInt) {
+    if (leftInt !== undefined && rightInt !== undefined) {
       return BoolValue.of(predicate(leftInt.compare(rightInt)));
     }
     if (lhs instanceof IntValue && rhs instanceof IntValue) {
@@ -661,14 +668,14 @@ export class BinaryValue {
     return ErrorValue.create(`cannot compare ${lhs.type()} and ${rhs.type()}`, this.exprId);
   }
 
-  private asIntValue(val: Value): IntValue | null {
+  private asIntValue(val: Value): IntValue | undefined {
     if (val instanceof IntValue) {
       return val;
     }
     if (val instanceof EnumValue) {
       return IntValue.of(val.value());
     }
-    return null;
+    return undefined;
   }
 
   private toNumber(val: Value): number {
@@ -763,10 +770,10 @@ export class CallValue {
 
     // Resolve overload
     const call = this.dispatcher.resolveOverload(this.overloadId);
-    if (!call) {
+    if (call === undefined) {
       // Try to resolve by name
       const byName = this.dispatcher.resolve(this.functionName, argValues);
-      if (byName) {
+      if (byName !== undefined) {
         return byName.invoke(argValues);
       }
       return ErrorValue.create(
@@ -985,9 +992,10 @@ export class CreateStructValue {
         return val;
       }
       const fieldType = this.fieldTypes.get(this.fields[i]!);
-      const protoFieldType = this.typeProvider?.fieldProtoType(this.typeName, this.fields[i]!);
+      const protoFieldType =
+        this.typeProvider?.fieldProtoType(this.typeName, this.fields[i]!) ?? undefined;
       if (val instanceof NullValue) {
-        if (fieldType) {
+        if (fieldType !== undefined) {
           if (!isNullAssignableField(fieldType, protoFieldType)) {
             return ErrorValue.create("unsupported field type", this.exprId);
           }
@@ -1000,7 +1008,7 @@ export class CreateStructValue {
       }
       if (fieldType?.kind === CheckerTypeKind.Struct) {
         const wrapperKind = wrapperKindFromTypeName(fieldType.runtimeTypeName);
-        if (wrapperKind) {
+        if (wrapperKind !== undefined) {
           const coerced = coerceWrapperValue(wrapperKind, val);
           if (coerced instanceof ErrorValue) {
             return coerced;
@@ -1010,18 +1018,18 @@ export class CreateStructValue {
       }
       if (fieldType?.kind === CheckerTypeKind.Opaque && this.typeProvider) {
         const enumType = this.typeProvider.findEnumType(fieldType.runtimeTypeName);
-        if (enumType) {
+        if (enumType !== undefined) {
           const numeric = enumNumericValue(val);
-          if (numeric !== null && !isEnumInt32Range(numeric)) {
+          if (numeric !== undefined && !isEnumInt32Range(numeric)) {
             return ErrorValue.create("range error", this.exprId);
           }
         }
       }
-      if (protoFieldType && this.typeProvider) {
+      if (protoFieldType !== undefined && this.typeProvider) {
         const enumType = this.typeProvider.findEnumType(protoFieldType);
-        if (enumType) {
+        if (enumType !== undefined) {
           const numeric = enumNumericValue(val);
-          if (numeric !== null && !isEnumInt32Range(numeric)) {
+          if (numeric !== undefined && !isEnumInt32Range(numeric)) {
             return ErrorValue.create("range error", this.exprId);
           }
         }
@@ -1033,7 +1041,7 @@ export class CreateStructValue {
         val = coerceGoogleValue(val);
       }
       if (protoFieldType === "google.protobuf.Struct") {
-        const mapValue = mapValueFromGoogleStruct(val);
+        const mapValue = googleStructToMapValue(val);
         if (mapValue instanceof ErrorValue) {
           return mapValue;
         }
@@ -1052,7 +1060,12 @@ export class CreateStructValue {
       const isOneofField = this.typeProvider?.fieldIsOneof(this.typeName, this.fields[i]!) ?? false;
       const hasPresence =
         this.typeProvider?.fieldHasPresence(this.typeName, this.fields[i]!) ?? false;
-      if (!isOneofField && !hasPresence && fieldType && isDefaultFieldValue(fieldType, val)) {
+      if (
+        !isOneofField &&
+        !hasPresence &&
+        fieldType !== undefined &&
+        isDefaultFieldValue(fieldType, val)
+      ) {
         continue;
       }
       entries.push({ key, value: val });
@@ -1061,29 +1074,29 @@ export class CreateStructValue {
     }
 
     const wrapperValue = wrapperValueFromStruct(this.typeName, valueMap);
-    if (wrapperValue) {
+    if (wrapperValue !== undefined) {
       return wrapperValue;
     }
 
     const normalizedType = normalizeTypeName(this.typeName);
     if (normalizedType === "google.protobuf.Value") {
-      return valueFromGoogleValue(valueMap);
+      return googleValueToValue(valueMap);
     }
     if (normalizedType === "google.protobuf.Struct") {
-      return valueFromGoogleStruct(valueMap);
+      return googleStructToValue(valueMap);
     }
     if (normalizedType === "google.protobuf.ListValue") {
-      return valueFromGoogleList(valueMap);
+      return googleListToValue(valueMap);
     }
     if (normalizedType === "google.protobuf.Any") {
-      const anyValue = valueFromGoogleAny(valueMap);
-      if (anyValue) {
+      const anyValue = googleAnyToValue(valueMap);
+      if (anyValue !== undefined) {
         return anyValue;
       }
       return ErrorValue.create("conversion error", this.exprId);
     }
 
-    return new StructValue(
+    return StructValue.of(
       this.typeName,
       valueMap,
       presentFields,
@@ -1097,10 +1110,10 @@ export class CreateStructValue {
   }
 }
 
-function wrapperValueFromStruct(typeName: string, values: Map<string, Value>): Value | null {
+function wrapperValueFromStruct(typeName: string, values: Map<string, Value>): Value | undefined {
   const kind = wrapperKindFromTypeName(typeName);
-  if (!kind) {
-    return null;
+  if (kind === undefined) {
+    return undefined;
   }
   let value = values.get("value");
   if (value instanceof OptionalValue) {
@@ -1109,7 +1122,7 @@ function wrapperValueFromStruct(typeName: string, values: Map<string, Value>): V
   if (value instanceof NullValue) {
     return NullValue.Instance;
   }
-  if (!value) {
+  if (value === undefined) {
     return wrapperDefaultValue(kind);
   }
   return coerceWrapperValue(kind, value);
@@ -1117,88 +1130,6 @@ function wrapperValueFromStruct(typeName: string, values: Map<string, Value>): V
 
 function normalizeTypeName(typeName: string): string {
   return typeName.startsWith(".") ? typeName.slice(1) : typeName;
-}
-
-function valueFromGoogleValue(values: Map<string, Value>): Value {
-  if (values.has("null_value")) {
-    return NullValue.Instance;
-  }
-  const numberValue = unwrapOptional(values.get("number_value"));
-  if (numberValue instanceof DoubleValue) {
-    return numberValue;
-  }
-  if (numberValue instanceof IntValue || numberValue instanceof UintValue) {
-    return DoubleValue.of(Number(numberValue.value()));
-  }
-  const stringValue = unwrapOptional(values.get("string_value"));
-  if (stringValue instanceof StringValue) {
-    return stringValue;
-  }
-  const boolValue = unwrapOptional(values.get("bool_value"));
-  if (boolValue instanceof BoolValue) {
-    return boolValue;
-  }
-  const structValue = unwrapOptional(values.get("struct_value"));
-  if (structValue instanceof MapValue) {
-    return structValue;
-  }
-  if (structValue instanceof StructValue) {
-    return mapFromStructValue(structValue);
-  }
-  const listValue = unwrapOptional(values.get("list_value"));
-  if (listValue instanceof ListValue) {
-    return listValue;
-  }
-  return NullValue.Instance;
-}
-
-function valueFromGoogleStruct(values: Map<string, Value>): Value {
-  const fieldsValue = unwrapOptional(values.get("fields"));
-  if (!fieldsValue || fieldsValue instanceof NullValue) {
-    return MapValue.of([]);
-  }
-  if (fieldsValue instanceof MapValue) {
-    return fieldsValue;
-  }
-  if (fieldsValue instanceof StructValue) {
-    return mapFromStructValue(fieldsValue);
-  }
-  return ErrorValue.typeMismatch("map", fieldsValue);
-}
-
-function valueFromGoogleList(values: Map<string, Value>): Value {
-  const valuesValue = unwrapOptional(values.get("values"));
-  if (!valuesValue || valuesValue instanceof NullValue) {
-    return ListValue.of([]);
-  }
-  if (valuesValue instanceof ListValue) {
-    return valuesValue;
-  }
-  return ErrorValue.typeMismatch("list", valuesValue);
-}
-
-function valueFromGoogleAny(values: Map<string, Value>): Value | null {
-  const typeUrl = unwrapOptional(values.get("type_url"));
-  const bytesValue = unwrapOptional(values.get("value"));
-  if (!(typeUrl instanceof StringValue) || !(bytesValue instanceof BytesValue)) {
-    return null;
-  }
-  return resolveAnyValue(typeUrl.value(), bytesValue.value());
-}
-
-function unwrapOptional(value: Value | undefined): Value | undefined {
-  if (value instanceof OptionalValue) {
-    return value.hasValue() ? (value.value() ?? NullValue.Instance) : NullValue.Instance;
-  }
-  return value;
-}
-
-function mapFromStructValue(structValue: StructValue): MapValue {
-  const entries: MapEntry[] = [];
-  for (const [key, value] of Object.entries(structValue.value())) {
-    entries.push({ key: StringValue.of(key), value });
-  }
-  return MapValue.of(entries);
 }
 
 type WrapperScalarKind =
@@ -1212,7 +1143,7 @@ type WrapperScalarKind =
   | "uint64"
   | "string";
 
-function wrapperKindFromTypeName(typeName: string): WrapperScalarKind | null {
+function wrapperKindFromTypeName(typeName: string): WrapperScalarKind | undefined {
   const normalized = typeName.startsWith(".") ? typeName.slice(1) : typeName;
   switch (normalized) {
     case "google.protobuf.BoolValue":
@@ -1234,7 +1165,7 @@ function wrapperKindFromTypeName(typeName: string): WrapperScalarKind | null {
     case "google.protobuf.StringValue":
       return "string";
     default:
-      return null;
+      return undefined;
   }
 }
 
@@ -1306,7 +1237,7 @@ function coerceFloatValue(value: Value): Value {
   return value;
 }
 
-function isNullAssignableField(fieldType: CheckerType, protoFieldType?: string | null): boolean {
+function isNullAssignableField(fieldType: CheckerType, protoFieldType?: string): boolean {
   if (fieldType.isOptionalType()) {
     return true;
   }
@@ -1420,10 +1351,10 @@ function coerceGoogleValue(value: Value): Value {
       }
     }
     if (typeName === "google.protobuf.Struct") {
-      return mapFromStructValue(value);
+      return structValueToMapValue(value);
     }
     if (typeName === "google.protobuf.Value") {
-      return valueFromGoogleValue(new Map(Object.entries(value.value())));
+      return googleValueToValue(new Map(Object.entries(value.value())));
     }
   }
   return value;
@@ -1492,7 +1423,7 @@ function fround(value: number): number {
   return buffer[0]!;
 }
 
-function enumNumericValue(value: Value): bigint | null {
+function enumNumericValue(value: Value): bigint | undefined {
   if (value instanceof IntValue) {
     return value.value();
   }
@@ -1502,40 +1433,18 @@ function enumNumericValue(value: Value): bigint | null {
   if (value instanceof DoubleValue) {
     const num = value.value();
     if (!Number.isFinite(num) || !Number.isInteger(num)) {
-      return null;
+      return undefined;
     }
     return BigInt(num);
   }
   if (value instanceof EnumValue) {
     return value.value();
   }
-  return null;
+  return undefined;
 }
 
 function isEnumInt32Range(value: bigint): boolean {
   return value >= -2147483648n && value <= 2147483647n;
-}
-
-function mapValueFromGoogleStruct(value: Value): MapValue | ErrorValue {
-  if (value instanceof MapValue) {
-    if (!mapKeysAreStrings(value)) {
-      return ErrorValue.create("bad key type");
-    }
-    return value;
-  }
-  if (value instanceof StructValue) {
-    return mapFromStructValue(value);
-  }
-  return ErrorValue.typeMismatch("map", value);
-}
-
-function mapKeysAreStrings(value: MapValue): boolean {
-  for (const entry of value.value()) {
-    if (!(entry.key instanceof StringValue)) {
-      return false;
-    }
-  }
-  return true;
 }
 
 function isSupportedMapKey(key: Value): boolean {
@@ -2128,35 +2037,35 @@ export class TypeConversionValue {
   }
 
   private convertEnum(val: Value): Value {
-    if (!this.typeProvider) {
+    if (this.typeProvider === undefined) {
       return ErrorValue.create(`unknown type conversion: ${this.targetType}`, this.exprId);
     }
     const enumType = this.typeProvider.findEnumType(this.targetType);
-    if (!enumType) {
+    if (enumType === undefined) {
       return ErrorValue.create(`unknown type conversion: ${this.targetType}`, this.exprId);
     }
     if (val instanceof EnumValue && val.typeName() === enumType.runtimeTypeName) {
       return val;
     }
     const numeric = this.enumNumericValue(val);
-    if (numeric === null) {
+    if (numeric === undefined) {
       if (val instanceof StringValue) {
         const name = val.value();
         const enumValue = this.typeProvider.findEnumValue(enumType.runtimeTypeName, name);
         if (enumValue === undefined) {
           return ErrorValue.create("invalid enum value", this.exprId);
         }
-        return new EnumValue(enumType.runtimeTypeName, BigInt(enumValue));
+        return EnumValue.of(enumType.runtimeTypeName, BigInt(enumValue));
       }
       return ErrorValue.create("invalid enum value", this.exprId);
     }
     if (!isEnumInt32Range(numeric)) {
       return ErrorValue.create("enum value out of range", this.exprId);
     }
-    return new EnumValue(enumType.runtimeTypeName, numeric);
+    return EnumValue.of(enumType.runtimeTypeName, numeric);
   }
 
-  private enumNumericValue(val: Value): bigint | null {
+  private enumNumericValue(val: Value): bigint | undefined {
     if (val instanceof IntValue) {
       return val.value();
     }
@@ -2166,14 +2075,14 @@ export class TypeConversionValue {
     if (val instanceof DoubleValue) {
       const num = val.value();
       if (!Number.isFinite(num) || !Number.isInteger(num)) {
-        return null;
+        return undefined;
       }
       return BigInt(num);
     }
     if (val instanceof EnumValue) {
       return val.value();
     }
-    return null;
+    return undefined;
   }
 
   private getType(val: Value): Value {

@@ -88,7 +88,7 @@ export class ParserHelper {
    */
   parse(tree: StartContext): AST {
     const exprCtx = tree.expr();
-    if (!exprCtx) {
+    if (exprCtx === undefined || exprCtx === null) {
       // Empty expression
       const expr = this.createUnspecified();
       return new AST(expr, this.sourceInfo);
@@ -130,12 +130,12 @@ export class ParserHelper {
     return new IdentExpr(this.nextId(), name);
   }
 
-  createCall(fn: string, ...args: Expr[]): CallExpr {
-    return new CallExpr(this.nextId(), fn, args);
+  createCall(funcName: string, ...args: Expr[]): CallExpr {
+    return new CallExpr(this.nextId(), funcName, args);
   }
 
-  createMemberCall(fn: string, target: Expr, ...args: Expr[]): CallExpr {
-    return new CallExpr(this.nextId(), fn, args, target);
+  createMemberCall(funcName: string, target: Expr, ...args: Expr[]): CallExpr {
+    return new CallExpr(this.nextId(), funcName, args, target);
   }
 
   createList(...elements: Expr[]): ListExpr {
@@ -213,7 +213,7 @@ export class ParserHelper {
 
   private buildExpr(ctx: ExprContext): Expr {
     const conditionalOr = ctx.conditionalOr(0);
-    if (!conditionalOr) {
+    if (conditionalOr === undefined || conditionalOr === null) {
       return this.createError(ctx, "missing expression");
     }
 
@@ -221,10 +221,10 @@ export class ParserHelper {
 
     // Check for ternary expression: e ? e1 : e2
     const questionMark = ctx.QUESTIONMARK();
-    if (questionMark) {
+    if (questionMark !== null && questionMark !== undefined) {
       const trueExpr = ctx.conditionalOr(1);
       const falseExpr = ctx.expr();
-      if (!trueExpr || !falseExpr) {
+      if (trueExpr === null || trueExpr === undefined || falseExpr === null || falseExpr === undefined) {
         return this.createError(ctx, "invalid ternary expression");
       }
 
@@ -275,7 +275,7 @@ export class ParserHelper {
 
   private buildRelation(ctx: RelationContext): Expr {
     const calcCtx = ctx.calc();
-    if (calcCtx) {
+    if (calcCtx !== null && calcCtx !== undefined) {
       return this.buildCalc(calcCtx);
     }
 
@@ -290,7 +290,7 @@ export class ParserHelper {
 
     // Determine operator
     const op = this.getRelationOp(ctx);
-    if (!op) {
+    if (op === undefined) {
       return this.createError(ctx, "invalid relation operator");
     }
     const result = new CallExpr(id, op, [left, right]);
@@ -298,7 +298,7 @@ export class ParserHelper {
     return result;
   }
 
-  private getRelationOp(ctx: RelationContext): string | null {
+  private getRelationOp(ctx: RelationContext): string | undefined {
     if (ctx.LESS()) return Operators.Less;
     if (ctx.LESS_EQUALS()) return Operators.LessEquals;
     if (ctx.GREATER()) return Operators.Greater;
@@ -306,12 +306,12 @@ export class ParserHelper {
     if (ctx.EQUALS()) return Operators.Equals;
     if (ctx.NOT_EQUALS()) return Operators.NotEquals;
     if (ctx.IN()) return Operators.In;
-    return null;
+    return undefined;
   }
 
   private buildCalc(ctx: CalcContext): Expr {
     const unaryCtx = ctx.unary();
-    if (unaryCtx) {
+    if (unaryCtx !== null && unaryCtx !== undefined) {
       return this.buildUnary(unaryCtx);
     }
 
@@ -327,7 +327,7 @@ export class ParserHelper {
 
     // Determine operator
     const op = this.getCalcOp(ctx);
-    if (!op) {
+    if (op === undefined) {
       return this.createError(ctx, "invalid calc operator");
     }
     const result = new CallExpr(id, op, [left, right]);
@@ -335,13 +335,13 @@ export class ParserHelper {
     return result;
   }
 
-  private getCalcOp(ctx: CalcContext): string | null {
+  private getCalcOp(ctx: CalcContext): string | undefined {
     if (ctx.STAR()) return Operators.Multiply;
     if (ctx.SLASH()) return Operators.Divide;
     if (ctx.PERCENT()) return Operators.Modulo;
     if (ctx.PLUS()) return Operators.Add;
     if (ctx.MINUS()) return Operators.Subtract;
-    return null;
+    return undefined;
   }
 
   private buildUnary(ctx: UnaryContext): Expr {
@@ -390,7 +390,7 @@ export class ParserHelper {
 
       // Get the field name from escapeIdent()
       const escapeIdentCtx = ctx.escapeIdent();
-      if (!escapeIdentCtx) {
+      if (escapeIdentCtx === undefined || escapeIdentCtx === null) {
         return this.createError(ctx, "missing field name");
       }
       const field = this.getEscapeIdentName(escapeIdentCtx);
@@ -409,7 +409,7 @@ export class ParserHelper {
 
       // Get method name - MemberCallContext has IDENTIFIER() not escapeIdent()
       const identToken = ctx.IDENTIFIER();
-      if (!identToken) {
+      if (identToken === undefined || identToken === null) {
         return this.createError(ctx, "missing method name");
       }
       const methodName = identToken.getText();
@@ -420,7 +420,7 @@ export class ParserHelper {
 
       // Try macro expansion first
       const expanded = this.expandMacro(id, methodName, target, args);
-      if (expanded) {
+      if (expanded !== undefined) {
         return expanded;
       }
 
@@ -451,7 +451,7 @@ export class ParserHelper {
       const leadingDot = ctx.DOT() !== null;
       // IdentContext has IDENTIFIER() not escapeIdent()
       const identToken = ctx.IDENTIFIER();
-      if (!identToken) {
+      if (identToken === undefined || identToken === null) {
         return this.createError(ctx, "missing identifier");
       }
       let name = identToken.getText();
@@ -474,7 +474,7 @@ export class ParserHelper {
       const leadingDot = ctx.DOT() !== null;
       // GlobalCallContext has IDENTIFIER() not escapeIdent()
       const identToken = ctx.IDENTIFIER();
-      if (!identToken) {
+      if (identToken === undefined || identToken === null) {
         return this.createError(ctx, "missing function name");
       }
       let functionName = identToken.getText();
@@ -487,8 +487,8 @@ export class ParserHelper {
       const args = exprList ? exprList.expr_list().map((e) => this.buildExpr(e)) : [];
 
       // Try macro expansion first (global macros like has())
-      const expanded = this.expandMacro(id, functionName, null, args);
-      if (expanded) {
+      const expanded = this.expandMacro(id, functionName, undefined, args);
+      if (expanded !== undefined) {
         return expanded;
       }
 
@@ -524,7 +524,7 @@ export class ParserHelper {
     const id = this.nextId();
     const listInit = ctx.listInit();
 
-    if (!listInit) {
+    if (listInit === undefined || listInit === null) {
       const result = new ListExpr(id, [], []);
       this.setPosition(id, ctx);
       return result;
@@ -554,7 +554,7 @@ export class ParserHelper {
     const id = this.nextId();
     const mapInit = ctx.mapInitializerList();
 
-    if (!mapInit) {
+    if (mapInit === undefined || mapInit === null) {
       const result = new MapExpr(id, []);
       this.setPosition(id, ctx);
       return result;
@@ -569,7 +569,7 @@ export class ParserHelper {
       const keyOptExpr = keys[i];
       const valueExpr = values[i];
 
-      if (!keyOptExpr || !valueExpr) continue;
+      if (keyOptExpr === undefined || valueExpr === undefined) continue;
 
       const key = this.buildExpr(keyOptExpr.expr());
       const value = this.buildExpr(valueExpr);
@@ -599,7 +599,7 @@ export class ParserHelper {
     }
 
     const fieldInit = ctx.fieldInitializerList();
-    if (!fieldInit) {
+    if (fieldInit === undefined || fieldInit === null) {
       const result = new StructExpr(id, typeName, []);
       this.setPosition(id, ctx);
       return result;
@@ -613,7 +613,7 @@ export class ParserHelper {
     for (let i = 0; i < optFields.length; i++) {
       const optField = optFields[i]!;
       const fieldIdent = optField.escapeIdent();
-      if (!fieldIdent) {
+      if (fieldIdent === undefined || fieldIdent === null) {
         this.createError(optField, "missing field name");
         continue;
       }
@@ -701,20 +701,20 @@ export class ParserHelper {
   private expandMacro(
     callId: ExprId,
     functionName: string,
-    target: Expr | null,
+    target: Expr | undefined,
     args: Expr[]
-  ): Expr | null {
-    const receiverStyle = target !== null;
+  ): Expr | undefined {
+    const receiverStyle = target !== undefined;
     const argCount = args.length;
 
     const macro = this.macroRegistry.findMacro(functionName, argCount, receiverStyle);
-    if (!macro) {
-      return null;
+    if (macro === undefined) {
+      return undefined;
     }
 
     try {
       const expanded = macro.expander(this, target, args);
-      if (expanded && this.populateMacroCalls) {
+      if (expanded !== undefined && this.populateMacroCalls) {
         // Record the original call expression for unparsing
         const originalCall = receiverStyle
           ? new CallExpr(callId, functionName, args, target!)
@@ -725,7 +725,7 @@ export class ParserHelper {
     } catch (e) {
       if (e instanceof MacroError) {
         // Return an error placeholder - in a real implementation we'd report this properly
-        return null;
+        return undefined;
       }
       throw e;
     }
@@ -884,7 +884,7 @@ export class ParserHelper {
     Array.from(str.matchAll(escapeRegex)).forEach(match => {
       const seq = match[1];
       const offset = match.index ?? 0;
-      if (!seq) {
+      if (seq === undefined) {
         return;
       }
       if (offset > lastIndex) {

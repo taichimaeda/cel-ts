@@ -35,7 +35,7 @@ export class OptionalTypesExtension implements Extension {
     const macros: Macro[] = [
       new ReceiverMacro("optMap", 2, (helper, target, args) => {
         const varName = extractIdentName(args[0]);
-        if (!varName) {
+        if (varName === undefined) {
           throw new MacroError("optMap() variable name must be a simple identifier");
         }
         const mapExpr = args[1]!;
@@ -59,7 +59,7 @@ export class OptionalTypesExtension implements Extension {
       }),
       new ReceiverMacro("optFlatMap", 2, (helper, target, args) => {
         const varName = extractIdentName(args[0]);
-        if (!varName) {
+        if (varName === undefined) {
           throw new MacroError("optFlatMap() variable name must be a simple identifier");
         }
         const mapExpr = args[1]!;

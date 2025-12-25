@@ -34,10 +34,10 @@ export class BaseVisitor implements Visitor {
  * Visitor implementation that only handles expressions.
  */
 export class ExprVisitor implements Visitor {
-  constructor(private readonly exprFn: (expr: Expr) => void) {}
+  constructor(private readonly exprFunc: (expr: Expr) => void) {}
 
   visitExpr(expr: Expr): void {
-    this.exprFn(expr);
+    this.exprFunc(expr);
   }
 
   visitEntryExpr(_entry: EntryExpr): void {
@@ -49,14 +49,14 @@ export class ExprVisitor implements Visitor {
  * Visitor implementation that only handles entry nodes.
  */
 export class EntryVisitor implements Visitor {
-  constructor(private readonly entryFn: (entry: EntryExpr) => void) {}
+  constructor(private readonly entryFunc: (entry: EntryExpr) => void) {}
 
   visitExpr(_expr: Expr): void {
     // Ignore expressions
   }
 
   visitEntryExpr(entry: EntryExpr): void {
-    this.entryFn(entry);
+    this.entryFunc(entry);
   }
 }
 
@@ -65,15 +65,15 @@ export class EntryVisitor implements Visitor {
  */
 export class CompositeVisitor implements Visitor {
   constructor(
-    private readonly exprFn: (expr: Expr) => void,
-    private readonly entryFn: (entry: EntryExpr) => void
+    private readonly exprFunc: (expr: Expr) => void,
+    private readonly entryFunc: (entry: EntryExpr) => void
   ) {}
 
   visitExpr(expr: Expr): void {
-    this.exprFn(expr);
+    this.exprFunc(expr);
   }
 
   visitEntryExpr(entry: EntryExpr): void {
-    this.entryFn(entry);
+    this.entryFunc(entry);
   }
 }

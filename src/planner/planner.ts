@@ -10,18 +10,27 @@ import {
   ComprehensionExpr,
   type Expr,
   type ExprId,
+  FunctionReference,
   IdentExpr,
   ListExpr,
   LiteralExpr,
   MapExpr,
   Operators,
-  FunctionReference,
   type ReferenceInfo,
   SelectExpr,
   StructExpr,
   VariableReference,
 } from "../common/ast";
-import { type Attribute, DefaultAttributeFactory, MaybeAttribute } from "../interpreter/attributes";
+import {
+  AbsoluteAttribute,
+  type Attribute,
+  ComputedQualifier,
+  IndexQualifier,
+  MaybeAttribute,
+  RelativeAttribute,
+  StringQualifier,
+  type Qualifier,
+} from "../interpreter/attributes";
 import { Dispatcher } from "../interpreter/dispatcher";
 import {
   AndValue,
@@ -81,7 +90,6 @@ export interface PlannerOptions {
 export class Planner {
   private readonly refMap: Map<ExprId, ReferenceInfo>;
   private readonly dispatcher: Dispatcher;
-  private readonly attributeFactory: DefaultAttributeFactory;
   private readonly typeProvider: TypeProvider | undefined;
   private readonly typeMap: Map<ExprId, CheckerType> | undefined;
   private readonly containerName: string;
@@ -92,7 +100,6 @@ export class Planner {
     this.dispatcher = options.dispatcher ?? new Dispatcher();
     this.refMap = options.refMap ?? new Map();
     this.hasRefMap = options.refMap !== undefined;
-    this.attributeFactory = new DefaultAttributeFactory();
     this.typeProvider = options.typeProvider;
     this.typeMap = options.typeMap;
     this.containerName = options.container ?? "";
@@ -109,136 +116,136 @@ export class Planner {
   /**
    * Plan an expression.
    */
-  private planExpr(e: Expr): Interpretable {
-    if (e instanceof LiteralExpr) {
-      return this.planLiteral(e);
+  private planExpr(expr: Expr): Interpretable {
+    if (expr instanceof LiteralExpr) {
+      return this.planLiteral(expr);
     }
-    if (e instanceof IdentExpr) {
-      return this.planIdent(e);
+    if (expr instanceof IdentExpr) {
+      return this.planIdent(expr);
     }
-    if (e instanceof SelectExpr) {
-      return this.planSelect(e);
+    if (expr instanceof SelectExpr) {
+      return this.planSelect(expr);
     }
-    if (e instanceof CallExpr) {
-      return this.planCall(e);
+    if (expr instanceof CallExpr) {
+      return this.planCall(expr);
     }
-    if (e instanceof ListExpr) {
-      return this.planCreateList(e);
+    if (expr instanceof ListExpr) {
+      return this.planCreateList(expr);
     }
-    if (e instanceof MapExpr) {
-      return this.planCreateMap(e);
+    if (expr instanceof MapExpr) {
+      return this.planCreateMap(expr);
     }
-    if (e instanceof StructExpr) {
-      return this.planCreateStruct(e);
+    if (expr instanceof StructExpr) {
+      return this.planCreateStruct(expr);
     }
-    if (e instanceof ComprehensionExpr) {
-      return this.planComprehension(e);
+    if (expr instanceof ComprehensionExpr) {
+      return this.planComprehension(expr);
     }
-    return this.errorNode(e.id, "unknown expression kind");
+    return this.errorNode(expr.id, "unknown expression kind");
   }
 
   /**
    * Plan a literal expression.
    */
-  private planLiteral(e: LiteralExpr): Interpretable {
-    const value = e.value;
+  private planLiteral(expr: LiteralExpr): Interpretable {
+    const value = expr.value;
     switch (value.kind) {
       case "bool":
-        return new ConstValue(e.id, value.value ? BoolValue.True : BoolValue.False);
+        return new ConstValue(expr.id, value.value ? BoolValue.True : BoolValue.False);
       case "bytes":
-        return new ConstValue(e.id, BytesValue.of(value.value));
+        return new ConstValue(expr.id, BytesValue.of(value.value));
       case "double":
-        return new ConstValue(e.id, DoubleValue.of(value.value));
+        return new ConstValue(expr.id, DoubleValue.of(value.value));
       case "int":
-        return new ConstValue(e.id, IntValue.of(value.value));
+        return new ConstValue(expr.id, IntValue.of(value.value));
       case "null":
-        return new ConstValue(e.id, NullValue.Instance);
+        return new ConstValue(expr.id, NullValue.Instance);
       case "string":
-        return new ConstValue(e.id, StringValue.of(value.value));
+        return new ConstValue(expr.id, StringValue.of(value.value));
       case "uint":
-        return new ConstValue(e.id, UintValue.of(value.value));
+        return new ConstValue(expr.id, UintValue.of(value.value));
       default:
-        return this.errorNode(e.id, "unknown literal kind");
+        return this.errorNode(expr.id, "unknown literal kind");
     }
   }
 
   /**
    * Plan an identifier expression.
    */
-  private planIdent(e: IdentExpr): Interpretable {
-    const ref = this.refMap.get(e.id);
+  private planIdent(expr: IdentExpr): Interpretable {
+    const ref = this.refMap.get(expr.id);
     if (ref instanceof VariableReference && ref.value !== undefined) {
-      return new ConstValue(e.id, this.enumValueToValue(ref, e.id));
+      return new ConstValue(expr.id, this.enumValueToValue(ref, expr.id));
     }
-    if (ref instanceof VariableReference && ref.name !== e.name) {
-      const attr = this.attributeForName(e.id, ref.name);
+    if (ref instanceof VariableReference && ref.name !== expr.name) {
+      const attr = this.attributeForName(expr.id, ref.name);
       return new AttrValue(attr);
     }
-    const identType = this.typeMap?.get(e.id);
+    const identType = this.typeMap?.get(expr.id);
     if (identType?.kind === TypeKind.Type) {
-      const targetType = identType.parameters[0] ?? null;
-      if (targetType) {
-        return new ConstValue(e.id, ValueUtil.toTypeValue(targetType));
+      const targetType = identType.parameters[0];
+      if (targetType !== undefined) {
+        return new ConstValue(expr.id, ValueUtil.toTypeValue(targetType));
       }
     }
-    const attr = this.attributeForName(e.id, e.name);
+    const attr = this.attributeForName(expr.id, expr.name);
     return new AttrValue(attr);
   }
 
   /**
    * Plan a select expression.
    */
-  private planSelect(e: SelectExpr): Interpretable {
-    const ref = this.refMap.get(e.id);
+  private planSelect(expr: SelectExpr): Interpretable {
+    const ref = this.refMap.get(expr.id);
     if (ref instanceof VariableReference && ref.value !== undefined) {
-      return new ConstValue(e.id, this.enumValueToValue(ref, e.id));
+      return new ConstValue(expr.id, this.enumValueToValue(ref, expr.id));
     }
-    const selectType = this.typeMap?.get(e.id);
+    const selectType = this.typeMap?.get(expr.id);
     if (selectType?.kind === TypeKind.Type) {
-      const targetType = selectType.parameters[0] ?? null;
-      if (targetType) {
-        return new ConstValue(e.id, ValueUtil.toTypeValue(targetType));
+      const targetType = selectType.parameters[0];
+      if (targetType !== undefined) {
+        return new ConstValue(expr.id, ValueUtil.toTypeValue(targetType));
       }
     }
-    if (!e.testOnly && !e.optional) {
+    if (!expr.testOnly && !expr.optional) {
       if (ref instanceof VariableReference) {
-        const attr = this.attributeForName(e.id, ref.name);
+        const attr = this.attributeForName(expr.id, ref.name);
         return new AttrValue(attr);
       }
       if (!this.hasRefMap) {
-        const qualified = this.resolveQualifiedName(e);
-        if (qualified) {
-          const attr = this.attributeForName(e.id, qualified.join("."));
+        const qualified = this.resolveQualifiedName(expr);
+        if (qualified !== undefined) {
+          const attr = this.attributeForName(expr.id, qualified.join("."));
           return new AttrValue(attr);
         }
       }
     }
-    const operand = this.planExpr(e.operand);
+    const operand = this.planExpr(expr.operand);
 
     // Presence test (has() macro expansion)
-    if (e.testOnly) {
+    if (expr.testOnly) {
       // Return a presence test interpretable
-      return new HasFieldValue(e.id, operand, e.field);
+      return new HasFieldValue(expr.id, operand, expr.field);
     }
 
     const attr = this.ensureAttribute(operand);
-    const qualifier = this.attributeFactory.newQualifier(e.id, StringValue.of(e.field), e.optional);
+    const qualifier = this.newQualifier(expr.id, StringValue.of(expr.field), expr.optional);
     return attr.addQualifier(qualifier);
   }
 
   private attributeForName(exprId: ExprId, name: string): Attribute {
     const candidates = this.candidateNamePaths(name);
     if (candidates.length === 1) {
-      return this.attributeFactory.absoluteAttribute(exprId, candidates[0]!);
+      return new AbsoluteAttribute(exprId, candidates[0]!);
     }
-    const attrs = candidates.map((path) => this.attributeFactory.absoluteAttribute(exprId, path));
+    const attrs = candidates.map((path) => new AbsoluteAttribute(exprId, path));
     return new MaybeAttribute(exprId, attrs);
   }
 
   private candidateNamePaths(name: string): string[][] {
     if (name.includes(".")) {
       const parts = name.split(".");
-      if (!this.containerName) {
+      if (this.containerName === "") {
         return [parts];
       }
       const candidates: string[][] = [];
@@ -249,7 +256,7 @@ export class Planner {
       }
       return candidates;
     }
-    if (!this.containerName) {
+    if (this.containerName === "") {
       return [[name]];
     }
     const candidates: string[][] = [];
@@ -261,48 +268,48 @@ export class Planner {
     return candidates;
   }
 
-  private resolveQualifiedName(expr: Expr): string[] | null {
+  private resolveQualifiedName(expr: Expr): string[] | undefined {
     if (expr instanceof IdentExpr) {
       return [expr.name];
     }
     if (expr instanceof SelectExpr) {
       if (expr.testOnly || expr.optional) {
-        return null;
+        return undefined;
       }
       const prefix = this.resolveQualifiedName(expr.operand);
-      if (!prefix) {
-        return null;
+      if (prefix === undefined) {
+        return undefined;
       }
       return [...prefix, expr.field];
     }
-    return null;
+    return undefined;
   }
 
   /**
    * Plan a call expression.
    */
-  private planCall(e: CallExpr): Interpretable {
-    const fnName = e.funcName;
+  private planCall(expr: CallExpr): Interpretable {
+    const funcName = expr.funcName;
 
-    if (!e.target && fnName === "cel.@block") {
-      const planned = this.planBlockCall(e);
-      if (planned) {
+    if (expr.target === undefined && funcName === "cel.@block") {
+      const planned = this.planBlockCall(expr);
+      if (planned !== undefined) {
         return planned;
       }
     }
 
     // Handle built-in operators
-    switch (fnName) {
+    switch (funcName) {
       case Operators.LogicalAnd:
-        return this.planLogicalAnd(e);
+        return this.planLogicalAnd(expr);
       case Operators.LogicalOr:
-        return this.planLogicalOr(e);
+        return this.planLogicalOr(expr);
       case Operators.Conditional:
-        return this.planConditional(e);
+        return this.planConditional(expr);
       case Operators.LogicalNot:
-        return this.planLogicalNot(e);
+        return this.planLogicalNot(expr);
       case Operators.Negate:
-        return this.planNegate(e);
+        return this.planNegate(expr);
       case Operators.Equals:
       case Operators.NotEquals:
       case Operators.Less:
@@ -315,99 +322,99 @@ export class Planner {
       case Operators.Divide:
       case Operators.Modulo:
       case Operators.In:
-        return this.planBinaryOp(e, fnName);
+        return this.planBinaryOp(expr, funcName);
       case Operators.Index:
-        return this.planIndex(e, false);
+        return this.planIndex(expr, false);
       case Operators.OptIndex:
-        return this.planIndex(e, true);
+        return this.planIndex(expr, true);
       case Operators.NotStrictlyFalse:
-        return this.planNotStrictlyFalse(e);
+        return this.planNotStrictlyFalse(expr);
     }
 
     // Member function call
-    if (e.target) {
-      return this.planMemberCall(e);
+    if (expr.target !== undefined) {
+      return this.planMemberCall(expr);
     }
 
     // Global function call
-    return this.planGlobalCall(e);
+    return this.planGlobalCall(expr);
   }
 
-  private planBlockCall(e: CallExpr): Interpretable | null {
-    if (e.args.length !== 2) {
-      return null;
+  private planBlockCall(expr: CallExpr): Interpretable | undefined {
+    if (expr.args.length !== 2) {
+      return undefined;
     }
-    const bindings = e.args[0];
-    const result = e.args[1];
-    if (!(bindings instanceof ListExpr) || !result) {
-      return null;
+    const bindings = expr.args[0];
+    const result = expr.args[1];
+    if (!(bindings instanceof ListExpr) || result === undefined) {
+      return undefined;
     }
     if (bindings.elements.length === 0) {
       return this.planExpr(result);
     }
     const slots = bindings.elements.map((element) => this.planExpr(element));
     const plannedResult = this.planExpr(result);
-    return new BlockValue(e.id, slots, plannedResult);
+    return new BlockValue(expr.id, slots, plannedResult);
   }
 
   /**
    * Plan logical AND.
    */
-  private planLogicalAnd(e: CallExpr): Interpretable {
-    const left = this.planExpr(e.args[0]!);
-    const right = this.planExpr(e.args[1]!);
-    return new AndValue(e.id, left, right);
+  private planLogicalAnd(expr: CallExpr): Interpretable {
+    const left = this.planExpr(expr.args[0]!);
+    const right = this.planExpr(expr.args[1]!);
+    return new AndValue(expr.id, left, right);
   }
 
   /**
    * Plan logical OR.
    */
-  private planLogicalOr(e: CallExpr): Interpretable {
-    const left = this.planExpr(e.args[0]!);
-    const right = this.planExpr(e.args[1]!);
-    return new OrValue(e.id, left, right);
+  private planLogicalOr(expr: CallExpr): Interpretable {
+    const left = this.planExpr(expr.args[0]!);
+    const right = this.planExpr(expr.args[1]!);
+    return new OrValue(expr.id, left, right);
   }
 
   /**
    * Plan conditional (ternary).
    */
-  private planConditional(e: CallExpr): Interpretable {
-    const cond = this.planExpr(e.args[0]!);
-    const truthy = this.planExpr(e.args[1]!);
-    const falsy = this.planExpr(e.args[2]!);
-    return new ConditionalValue(e.id, cond, truthy, falsy);
+  private planConditional(expr: CallExpr): Interpretable {
+    const cond = this.planExpr(expr.args[0]!);
+    const truthy = this.planExpr(expr.args[1]!);
+    const falsy = this.planExpr(expr.args[2]!);
+    return new ConditionalValue(expr.id, cond, truthy, falsy);
   }
 
   /**
    * Plan logical NOT.
    */
-  private planLogicalNot(e: CallExpr): Interpretable {
-    const operand = this.planExpr(e.args[0]!);
-    return new NotValue(e.id, operand);
+  private planLogicalNot(expr: CallExpr): Interpretable {
+    const operand = this.planExpr(expr.args[0]!);
+    return new NotValue(expr.id, operand);
   }
 
   /**
    * Plan @not_strictly_false, which treats errors as true and only returns false for literal false.
    */
-  private planNotStrictlyFalse(e: CallExpr): Interpretable {
-    const operand = this.planExpr(e.args[0]!);
-    return new NotStrictlyFalseValue(e.id, operand);
+  private planNotStrictlyFalse(expr: CallExpr): Interpretable {
+    const operand = this.planExpr(expr.args[0]!);
+    return new NotStrictlyFalseValue(expr.id, operand);
   }
 
   /**
    * Plan numeric negation.
    */
-  private planNegate(e: CallExpr): Interpretable {
-    const operand = this.planExpr(e.args[0]!);
-    return new NegValue(e.id, operand);
+  private planNegate(expr: CallExpr): Interpretable {
+    const operand = this.planExpr(expr.args[0]!);
+    return new NegValue(expr.id, operand);
   }
 
   /**
    * Plan binary operator.
    */
-  private planBinaryOp(e: CallExpr, op: string): Interpretable {
-    const left = this.planExpr(e.args[0]!);
-    const right = this.planExpr(e.args[1]!);
+  private planBinaryOp(expr: CallExpr, op: string): Interpretable {
+    const left = this.planExpr(expr.args[0]!);
+    const right = this.planExpr(expr.args[1]!);
 
     // Convert internal operator names to external
     const opMap: Record<string, string> = {
@@ -425,106 +432,107 @@ export class Planner {
       [Operators.In]: "in",
     };
 
-    return new BinaryValue(e.id, opMap[op] ?? op, left, right);
+    return new BinaryValue(expr.id, opMap[op] ?? op, left, right);
   }
 
   /**
    * Plan index access.
    */
-  private planIndex(e: CallExpr, optional: boolean): Interpretable {
-    const operand = this.planExpr(e.args[0]!);
-    const indexExpr = e.args[1]!;
+  private planIndex(expr: CallExpr, optional: boolean): Interpretable {
+    const operand = this.planExpr(expr.args[0]!);
+    const indexExpr = expr.args[1]!;
     const attr = this.ensureAttribute(operand);
 
     if (indexExpr instanceof LiteralExpr) {
       const value = this.literalValue(indexExpr);
-      const qualifier = this.attributeFactory.newQualifier(e.id, value, optional);
+      const qualifier = this.newQualifier(expr.id, value, optional);
       return attr.addQualifier(qualifier);
     }
 
     const index = this.planExpr(indexExpr);
-    const qualifier = this.attributeFactory.newQualifier(e.id, index, optional);
+    const qualifier = this.newQualifier(expr.id, index, optional);
     return attr.addQualifier(qualifier);
   }
 
   /**
    * Plan a member function call.
    */
-  private planMemberCall(e: CallExpr): Interpretable {
-    const ref = this.refMap.get(e.id);
-    if (ref instanceof VariableReference && e.args.length === 1) {
-      const arg = this.planExpr(e.args[0]!);
-      return new TypeConversionValue(e.id, arg, ref.name, this.typeProvider);
+  private planMemberCall(expr: CallExpr): Interpretable {
+    const ref = this.refMap.get(expr.id);
+    if (ref instanceof VariableReference && expr.args.length === 1) {
+      const arg = this.planExpr(expr.args[0]!);
+      return new TypeConversionValue(expr.id, arg, ref.name, this.typeProvider);
     }
-    if (ref instanceof FunctionReference && ref.name) {
+    if (ref instanceof FunctionReference && ref.name !== undefined) {
       const args: Interpretable[] = [];
-      for (const arg of e.args) {
+      for (const arg of expr.args) {
         args.push(this.planExpr(arg));
       }
-      const overloadId = this.resolveOverloadId(ref, e.args, `${ref.name}_${args.length}`);
-      return new CallValue(e.id, ref.name, overloadId, args, this.dispatcher);
+      const overloadId = this.resolveOverloadId(ref, expr.args, `${ref.name}_${args.length}`);
+      return new CallValue(expr.id, ref.name, overloadId, args, this.dispatcher);
     }
 
-    const targetName = this.resolveQualifiedName(e.target!);
-    if (targetName) {
-      const qualified = `${targetName.join(".")}.${e.funcName}`;
+    const targetName = this.resolveQualifiedName(expr.target!);
+    if (targetName !== undefined) {
+      const qualified = `${targetName.join(".")}.${expr.funcName}`;
       if (this.dispatcher.findOverloadsByName(qualified).length > 0) {
         const args: Interpretable[] = [];
-        for (const arg of e.args) {
+        for (const arg of expr.args) {
           args.push(this.planExpr(arg));
         }
-        const candidate = this.refMap.get(e.id);
+        const candidate = this.refMap.get(expr.id);
         const overloadId =
           candidate instanceof FunctionReference
-            ? this.resolveOverloadId(candidate, e.args, `${qualified}_${args.length}`)
+            ? this.resolveOverloadId(candidate, expr.args, `${qualified}_${args.length}`)
             : `${qualified}_${args.length}`;
-        return new CallValue(e.id, qualified, overloadId, args, this.dispatcher);
+        return new CallValue(expr.id, qualified, overloadId, args, this.dispatcher);
       }
     }
 
-    const target = this.planExpr(e.target!);
+    const target = this.planExpr(expr.target!);
     const args: Interpretable[] = [target];
 
-    for (const arg of e.args) {
+    for (const arg of expr.args) {
       args.push(this.planExpr(arg));
     }
 
-    const memberRef = this.refMap.get(e.id);
+    const memberRef = this.refMap.get(expr.id);
     const overloadId =
       memberRef instanceof FunctionReference
-        ? this.resolveOverloadId(memberRef, e.args, `${e.funcName}_${args.length}`)
-        : `${e.funcName}_${args.length}`;
+        ? this.resolveOverloadId(memberRef, expr.args, `${expr.funcName}_${args.length}`)
+        : `${expr.funcName}_${args.length}`;
 
-    return new CallValue(e.id, e.funcName, overloadId, args, this.dispatcher);
+    return new CallValue(expr.id, expr.funcName, overloadId, args, this.dispatcher);
   }
 
   /**
    * Plan a global function call.
    */
-  private planGlobalCall(e: CallExpr): Interpretable {
+  private planGlobalCall(expr: CallExpr): Interpretable {
     const args: Interpretable[] = [];
 
-    for (const arg of e.args) {
+    for (const arg of expr.args) {
       args.push(this.planExpr(arg));
     }
 
     // Check for type conversion function
-    if (this.isTypeConversion(e.funcName) && args.length === 1) {
-      return new TypeConversionValue(e.id, args[0]!, e.funcName, this.typeProvider);
+    if (this.isTypeConversion(expr.funcName) && args.length === 1) {
+      return new TypeConversionValue(expr.id, args[0]!, expr.funcName, this.typeProvider);
     }
 
-    const ref = this.refMap.get(e.id);
+    const ref = this.refMap.get(expr.id);
     if (ref instanceof VariableReference && args.length === 1) {
-      return new TypeConversionValue(e.id, args[0]!, ref.name, this.typeProvider);
+      return new TypeConversionValue(expr.id, args[0]!, ref.name, this.typeProvider);
     }
 
-    const functionName = ref instanceof FunctionReference && ref.name ? ref.name : e.funcName;
+    const functionName =
+      ref instanceof FunctionReference && ref.name !== undefined ? ref.name : expr.funcName;
     const overloadId =
       ref instanceof FunctionReference
-        ? this.resolveOverloadId(ref, e.args, `${functionName}_${args.length}`)
+        ? this.resolveOverloadId(ref, expr.args, `${functionName}_${args.length}`)
         : `${functionName}_${args.length}`;
 
-    return new CallValue(e.id, functionName, overloadId, args, this.dispatcher);
+    return new CallValue(expr.id, functionName, overloadId, args, this.dispatcher);
   }
 
   private resolveOverloadId(
@@ -545,7 +553,7 @@ export class Planner {
   }
 
   private hasDynArgs(args: readonly Expr[]): boolean {
-    if (!this.typeMap) {
+    if (this.typeMap === undefined) {
       return false;
     }
     for (const arg of args) {
@@ -560,30 +568,30 @@ export class Planner {
   /**
    * Plan list creation.
    */
-  private planCreateList(e: ListExpr): Interpretable {
+  private planCreateList(expr: ListExpr): Interpretable {
     const elements: Interpretable[] = [];
     const optionalIndices: number[] = [];
 
-    for (let i = 0; i < e.elements.length; i++) {
-      elements.push(this.planExpr(e.elements[i]!));
-      if (e.optionalIndices?.includes(i)) {
+    for (let i = 0; i < expr.elements.length; i++) {
+      elements.push(this.planExpr(expr.elements[i]!));
+      if (expr.optionalIndices?.includes(i)) {
         optionalIndices.push(i);
       }
     }
 
-    return new CreateListValue(e.id, elements, optionalIndices);
+    return new CreateListValue(expr.id, elements, optionalIndices);
   }
 
   /**
    * Plan map creation.
    */
-  private planCreateMap(e: MapExpr): Interpretable {
+  private planCreateMap(expr: MapExpr): Interpretable {
     const keys: Interpretable[] = [];
     const values: Interpretable[] = [];
     const optionalIndices: number[] = [];
 
-    for (let i = 0; i < e.entries.length; i++) {
-      const entry = e.entries[i]!;
+    for (let i = 0; i < expr.entries.length; i++) {
+      const entry = expr.entries[i]!;
       keys.push(this.planExpr(entry.key));
       values.push(this.planExpr(entry.value));
       if (entry.optional) {
@@ -591,18 +599,18 @@ export class Planner {
       }
     }
 
-    return new CreateMapValue(e.id, keys, values, optionalIndices);
+    return new CreateMapValue(expr.id, keys, values, optionalIndices);
   }
 
   /**
    * Plan struct creation.
    */
-  private planCreateStruct(e: StructExpr): Interpretable {
-    const resolvedType = this.typeMap?.get(e.id);
+  private planCreateStruct(expr: StructExpr): Interpretable {
+    const resolvedType = this.typeMap?.get(expr.id);
     const resolvedName =
       resolvedType?.kind === TypeKind.Struct
         ? resolvedType.runtimeTypeName
-        : this.resolveStructTypeName(e.typeName);
+        : this.resolveStructTypeName(expr.typeName);
     const fieldNames: string[] = [];
     const fieldValues: Interpretable[] = [];
     const optionalFieldIndices: number[] = [];
@@ -612,14 +620,14 @@ export class Planner {
       const fieldNamesForType = this.typeProvider.structFieldNames(resolvedName);
       for (const name of fieldNamesForType) {
         const fieldType = this.typeProvider.findStructFieldType(resolvedName, name);
-        if (fieldType) {
+        if (fieldType !== undefined) {
           fieldTypes.set(name, this.coerceEnumToInt(fieldType));
         }
       }
     }
 
-    for (let i = 0; i < e.fields.length; i++) {
-      const field = e.fields[i]!;
+    for (let i = 0; i < expr.fields.length; i++) {
+      const field = expr.fields[i]!;
       fieldNames.push(field.name);
       fieldValues.push(this.planExpr(field.value));
       if (field.optional) {
@@ -628,7 +636,7 @@ export class Planner {
     }
 
     return new CreateStructValue(
-      e.id,
+      expr.id,
       resolvedName,
       fieldNames,
       fieldValues,
@@ -639,17 +647,17 @@ export class Planner {
   }
 
   private resolveStructTypeName(typeName: string): string {
-    if (!this.typeProvider || typeName.includes(".")) {
+    if (this.typeProvider === undefined || typeName.includes(".")) {
       return typeName;
     }
-    if (!this.containerName) {
+    if (this.containerName === "") {
       return typeName;
     }
     const parts = this.containerName.split(".");
     for (let i = parts.length; i >= 0; i--) {
       const prefix = parts.slice(0, i).join(".");
       const qualified = prefix ? `${prefix}.${typeName}` : typeName;
-      if (this.typeProvider.findStructType(qualified)) {
+      if (this.typeProvider.findStructType(qualified) !== undefined) {
         return qualified;
       }
     }
@@ -665,7 +673,7 @@ export class Planner {
     }
     if (type.kind === TypeKind.List) {
       const elem = type.parameters[0];
-      if (!elem) {
+      if (elem === undefined) {
         return type;
       }
       const coerced = this.coerceEnumToInt(elem);
@@ -674,7 +682,7 @@ export class Planner {
     if (type.kind === TypeKind.Map) {
       const key = type.parameters[0];
       const val = type.parameters[1];
-      if (!(key && val)) {
+      if (key === undefined || val === undefined) {
         return type;
       }
       const newKey = this.coerceEnumToInt(key);
@@ -687,23 +695,23 @@ export class Planner {
   /**
    * Plan comprehension expression (from macro expansion).
    */
-  private planComprehension(e: ComprehensionExpr): Interpretable {
-    const iterRange = this.planExpr(e.iterRange);
-    const accuInit = this.planExpr(e.accuInit);
-    const loopCondition = this.planExpr(e.loopCondition);
-    const loopStep = this.planExpr(e.loopStep);
-    const result = this.planExpr(e.result);
+  private planComprehension(expr: ComprehensionExpr): Interpretable {
+    const iterRange = this.planExpr(expr.iterRange);
+    const accuInit = this.planExpr(expr.accuInit);
+    const loopCondition = this.planExpr(expr.loopCondition);
+    const loopStep = this.planExpr(expr.loopStep);
+    const result = this.planExpr(expr.result);
 
     return new ComprehensionValue(
-      e.id,
-      e.iterVar,
+      expr.id,
+      expr.iterVar,
       iterRange,
-      e.accuVar,
+      expr.accuVar,
       accuInit,
       loopCondition,
       loopStep,
       result,
-      e.iterVar2
+      expr.iterVar2
     );
   }
 
@@ -718,12 +726,12 @@ export class Planner {
     if (interpretable instanceof AttrValue) {
       return interpretable;
     }
-    const attr = this.attributeFactory.relativeAttribute(interpretable.id(), interpretable);
+    const attr = new RelativeAttribute(interpretable.id(), interpretable);
     return new AttrValue(attr);
   }
 
-  private literalValue(e: LiteralExpr) {
-    const value = e.value;
+  private literalValue(expr: LiteralExpr) {
+    const value = expr.value;
     switch (value.kind) {
       case "bool":
         return value.value ? BoolValue.True : BoolValue.False;
@@ -740,46 +748,61 @@ export class Planner {
       case "uint":
         return UintValue.of(value.value);
       default:
-        return ErrorValue.create("unknown literal kind", e.id);
+        return ErrorValue.create("unknown literal kind", expr.id);
     }
   }
 
   private enumValueToValue(ref: VariableReference, exprId: ExprId): Value {
     const value = ref.value;
     const numeric = this.enumNumericValue(value);
-    if (numeric === null) {
+    if (numeric === undefined) {
       return ErrorValue.create("invalid enum value", exprId);
     }
     const exprType = this.typeMap?.get(exprId);
     if (exprType?.kind === TypeKind.Int || exprType?.kind === TypeKind.Uint) {
       return IntValue.of(numeric);
     }
-    const enumType = exprType?.kind === TypeKind.Opaque ? exprType.runtimeTypeName : null;
+    const enumType = exprType?.kind === TypeKind.Opaque ? exprType.runtimeTypeName : undefined;
     const inferredType = enumType ?? this.enumTypeFromRef(ref);
-    if (inferredType) {
-      return new EnumValue(inferredType, numeric);
+    if (inferredType !== undefined) {
+      return EnumValue.of(inferredType, numeric);
     }
     return IntValue.of(numeric);
   }
 
-  private enumNumericValue(value: unknown): bigint | null {
+  private newQualifier(
+    exprId: ExprId,
+    value: Value | Interpretable,
+    isOptional = false
+  ): Qualifier {
+    if ("type" in value && typeof value.type === "function") {
+      const literal = value as Value;
+      if (literal instanceof StringValue) {
+        return new StringQualifier(exprId, literal.value(), isOptional);
+      }
+      return new IndexQualifier(exprId, literal, isOptional);
+    }
+    return new ComputedQualifier(exprId, value as Interpretable, isOptional);
+  }
+
+  private enumNumericValue(value: unknown): bigint | undefined {
     if (typeof value === "number") {
       return BigInt(value);
     }
     if (typeof value === "bigint") {
       return value;
     }
-    return null;
+    return undefined;
   }
 
-  private enumTypeFromRef(ref: VariableReference): string | null {
+  private enumTypeFromRef(ref: VariableReference): string | undefined {
     const refName = ref.name;
-    if (!refName) {
-      return null;
+    if (refName === "") {
+      return undefined;
     }
     const lastDot = refName.lastIndexOf(".");
     if (lastDot === -1) {
-      return null;
+      return undefined;
     }
     return refName.slice(0, lastDot);
   }

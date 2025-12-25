@@ -73,9 +73,9 @@ export class Formatter {
       if (op?.kind === "unary" || op?.kind === "index") {
         return inline;
       }
-      if (call.target) {
+      if (call.target !== undefined) {
         const chain = this.collectChain(resolvedExpr);
-        if (chain) {
+        if (chain !== undefined) {
           return this.formatChain(chain, sourceInfo, indent);
         }
       }
@@ -84,7 +84,7 @@ export class Formatter {
 
     if (resolvedExpr instanceof SelectExpr) {
       const chain = this.collectChain(resolvedExpr);
-      if (chain) {
+      if (chain !== undefined) {
         return this.formatChain(chain, sourceInfo, indent);
       }
     }
@@ -305,7 +305,7 @@ export class Formatter {
           lines.push(`${this.indentText(formatted, argIndent)},`);
         }
         const last = lines.pop();
-        if (last) {
+        if (last !== undefined) {
           lines.push(last.replace(/,$/, ""));
         }
         lines.push(`${this.indentText(")", segmentIndent)}`);
@@ -333,7 +333,7 @@ export class Formatter {
     return lines.join("\n");
   }
 
-  private collectChain(expr: Expr): Chain | null {
+  private collectChain(expr: Expr): Chain | undefined {
     const segments: ChainSegment[] = [];
     let current: Expr = expr;
 
@@ -360,7 +360,7 @@ export class Formatter {
           current = call.args[0]!;
           continue;
         }
-        if (call.target) {
+        if (call.target !== undefined) {
           segments.unshift({ kind: "call", expr: call });
           current = call.target;
           continue;
@@ -371,13 +371,13 @@ export class Formatter {
     }
 
     if (segments.length === 0) {
-      return null;
+      return undefined;
     }
 
     return { base: current, segments, original: expr };
   }
 
-  private operatorFromName(name: string, argCount: number): OperatorSpec | null {
+  private operatorFromName(name: string, argCount: number): OperatorSpec | undefined {
     if (name === Operators.Negate && argCount === 1) {
       return { kind: "unary", symbol: "-", precedence: 7, associative: true, logical: false };
     }
@@ -414,8 +414,8 @@ export class Formatter {
     };
 
     const entry = binaryMap[name];
-    if (!entry || argCount !== 2) {
-      return null;
+    if (entry === undefined || argCount !== 2) {
+      return undefined;
     }
     return { kind: "binary", ...entry };
   }
@@ -461,7 +461,7 @@ export class Formatter {
   private formatInlineExprInner(expr: Expr, sourceInfo?: AST["sourceInfo"]): string {
     if (sourceInfo?.isMacroCall(expr.id)) {
       const macroCall = sourceInfo.getMacroCall(expr.id);
-      if (macroCall) {
+      if (macroCall !== undefined) {
         return this.formatInlineExprInner(macroCall, sourceInfo);
       }
     }
@@ -625,7 +625,7 @@ export class Formatter {
   }
 
 
-  private getPrecedence(expr: Expr): number | null {
+  private getPrecedence(expr: Expr): number | undefined {
     switch (expr.kind) {
       case "call": {
         const call = expr as CallExpr;
@@ -643,7 +643,7 @@ export class Formatter {
       case "unspecified":
         return 9;
       default:
-        return null;
+        return undefined;
     }
   }
 
@@ -654,7 +654,7 @@ export class Formatter {
     side: "left" | "right" = "left"
   ): string {
     const childPrecedence = this.getPrecedence(expr);
-    if (childPrecedence === null) {
+    if (childPrecedence === undefined) {
       return text;
     }
     if (childPrecedence < parent.precedence) {

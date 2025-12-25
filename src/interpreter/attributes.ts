@@ -5,10 +5,10 @@
 import type { ExprId } from "../common/ast";
 import type { Activation } from "./activation";
 import type { Interpretable } from "./interpretable";
+import { nativeToValue } from "./utils";
 import {
   BoolValue,
   BytesValue,
-  DefaultTypeAdapter,
   DoubleValue,
   ErrorValue,
   IntValue,
@@ -17,7 +17,6 @@ import {
   OptionalValue,
   StringValue,
   StructValue,
-  type TypeAdapter,
   UintValue,
   type UnknownValue,
   type Value,
@@ -33,41 +32,6 @@ export type AttributeKind = "absolute" | "relative" | "conditional" | "maybe";
 export type QualifierKind = "string" | "index" | "computed";
 
 /**
- * AttributeFactory creates attributes and qualifiers.
- */
-export interface AttributeFactory {
-  /**
-   * Create an absolute attribute (rooted at a variable).
-   */
-  absoluteAttribute(exprId: ExprId, names: string[]): Attribute;
-
-  /**
-   * Create a relative attribute (from a computed value).
-   */
-  relativeAttribute(exprId: ExprId, operand: Interpretable): Attribute;
-
-  /**
-   * Create a conditional attribute for ternary expressions.
-   */
-  conditionalAttribute(
-    exprId: ExprId,
-    condition: Interpretable,
-    truthy: Attribute,
-    falsy: Attribute
-  ): Attribute;
-
-  /**
-   * Create a maybe attribute for optional access.
-   */
-  maybeAttribute(exprId: ExprId, name: string): Attribute;
-
-  /**
-   * Create a field qualifier.
-   */
-  newQualifier(exprId: ExprId, value: Value | Interpretable, isOptional?: boolean): Qualifier;
-}
-
-/**
  * String qualifier for field access like obj.field.
  */
 export class StringQualifier {
@@ -76,8 +40,7 @@ export class StringQualifier {
   constructor(
     private readonly exprId: ExprId,
     private readonly field: string,
-    private readonly optional = false,
-    private readonly adapter: TypeAdapter = new DefaultTypeAdapter()
+    private readonly optional = false
   ) { }
 
   id(): ExprId {
@@ -132,7 +95,7 @@ export class StringQualifier {
     if (typeof nativeVal === "object" && nativeVal !== null) {
       const record = nativeVal as unknown as Record<string, unknown>;
       if (this.field in record) {
-        const value = this.adapter.nativeToValue(record[this.field]);
+        const value = nativeToValue(record[this.field]);
         if (optionalSelection) {
           return OptionalValue.of(value);
         }
@@ -322,10 +285,9 @@ export class AbsoluteAttribute {
   constructor(
     private readonly exprId: ExprId,
     namePath: string[],
-    qualifiers: Qualifier[] = [],
-    private readonly adapter: TypeAdapter = new DefaultTypeAdapter()
+    qualifiers: Qualifier[] = []
   ) {
-    this.namePath = Object.freeze([...namePath]);
+    this.namePath = [...namePath];
     this.quals = [...qualifiers];
   }
 
@@ -357,7 +319,7 @@ export class AbsoluteAttribute {
     } else {
       // Apply remaining path elements as qualifiers
       for (let i = 1; i < this.namePath.length; i++) {
-        const qual = new StringQualifier(this.exprId, this.namePath[i]!, false, this.adapter);
+        const qual = new StringQualifier(this.exprId, this.namePath[i]!, false);
         value = qual.qualify(activation, value);
         if (ValueUtil.isError(value) || ValueUtil.isUnknown(value)) {
           return value;
@@ -533,48 +495,5 @@ export class MaybeAttribute {
     }
 
     return ErrorValue.create("no candidates for maybe attribute", this.exprId);
-  }
-}
-
-/**
- * Default AttributeFactory implementation.
- */
-export class DefaultAttributeFactory implements AttributeFactory {
-  constructor(private readonly adapter: TypeAdapter = new DefaultTypeAdapter()) { }
-
-  absoluteAttribute(exprId: ExprId, names: string[]): Attribute {
-    return new AbsoluteAttribute(exprId, names, [], this.adapter);
-  }
-
-  relativeAttribute(exprId: ExprId, operand: Interpretable): Attribute {
-    return new RelativeAttribute(exprId, operand);
-  }
-
-  conditionalAttribute(
-    exprId: ExprId,
-    condition: Interpretable,
-    truthy: Attribute,
-    falsy: Attribute
-  ): Attribute {
-    return new ConditionalAttribute(exprId, condition, truthy, falsy);
-  }
-
-  maybeAttribute(exprId: ExprId, name: string): Attribute {
-    const candidate = new AbsoluteAttribute(exprId, [name], [], this.adapter);
-    return new MaybeAttribute(exprId, [candidate]);
-  }
-
-  newQualifier(exprId: ExprId, value: Value | Interpretable, isOptional = false): Qualifier {
-    // For constant values
-    if ("type" in value && typeof value.type === "function") {
-      const v = value as Value;
-      if (v instanceof StringValue) {
-        return new StringQualifier(exprId, v.value(), isOptional, this.adapter);
-      }
-      return new IndexQualifier(exprId, v, isOptional);
-    }
-
-    // For Interpretable
-    return new ComputedQualifier(exprId, value as Interpretable, isOptional);
   }
 }

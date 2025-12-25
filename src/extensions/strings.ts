@@ -152,7 +152,7 @@ export class StringsExtension implements Extension {
       macros.push(
         new ReceiverMacro("quote", 1, (helper, target, args) => {
           if (!macroTargetMatchesNamespace("strings", target)) {
-            return null;
+            return undefined;
           }
           return helper.createCall("strings.quote", args[0]!);
         })
@@ -452,13 +452,13 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
       i += 1;
       continue;
     }
-    if (!next) {
+    if (next === undefined) {
       return ErrorValue.create(
         'could not parse formatting clause: unrecognized formatting clause "%"'
       );
     }
 
-    let precision: number | null = null;
+    let precision: number | undefined = undefined;
     let cursor = i + 1;
     if (format[cursor] === ".") {
       cursor += 1;
@@ -467,7 +467,7 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
         digits += format[cursor]!;
         cursor += 1;
       }
-      if (digits.length === 0) {
+      if (digits === "") {
         return ErrorValue.create(
           "could not parse formatting clause: precision must be a non-negative integer"
         );
@@ -476,7 +476,7 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
     }
 
     const code = format[cursor];
-    if (!code) {
+    if (code === undefined) {
       return ErrorValue.create(
         'could not parse formatting clause: unrecognized formatting clause "%"'
       );
@@ -495,7 +495,7 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
   return result;
 }
 
-function formatArg(code: string, value: Value, precision: number | null): string | ErrorValue {
+function formatArg(code: string, value: Value, precision: number | undefined): string | ErrorValue {
   switch (code) {
     case "s":
       return wrapFormatError(formatStringValue(value));

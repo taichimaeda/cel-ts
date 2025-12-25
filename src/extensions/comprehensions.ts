@@ -43,7 +43,7 @@ export class TwoVarComprehensionsExtension implements Extension {
 const quantifierAll: MacroExpander = (helper, target, args) => {
   const iterVar1 = extractIdent(args[0]);
   const iterVar2 = extractIdent(args[1]);
-  if (!iterVar1 || !iterVar2) {
+  if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
   if (iterVar1 === AccumulatorName || iterVar2 === AccumulatorName) {
@@ -70,7 +70,7 @@ const quantifierAll: MacroExpander = (helper, target, args) => {
 const quantifierExists: MacroExpander = (helper, target, args) => {
   const iterVar1 = extractIdent(args[0]);
   const iterVar2 = extractIdent(args[1]);
-  if (!iterVar1 || !iterVar2) {
+  if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
   if (iterVar1 === AccumulatorName || iterVar2 === AccumulatorName) {
@@ -100,7 +100,7 @@ const quantifierExists: MacroExpander = (helper, target, args) => {
 const quantifierExistsOne: MacroExpander = (helper, target, args) => {
   const iterVar1 = extractIdent(args[0]);
   const iterVar2 = extractIdent(args[1]);
-  if (!iterVar1 || !iterVar2) {
+  if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
   if (iterVar1 === AccumulatorName || iterVar2 === AccumulatorName) {
@@ -136,14 +136,14 @@ const quantifierExistsOne: MacroExpander = (helper, target, args) => {
 const transformList: MacroExpander = (helper, target, args) => {
   const iterVar1 = extractIdent(args[0]);
   const iterVar2 = extractIdent(args[1]);
-  if (!iterVar1 || !iterVar2) {
+  if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
   if (iterVar1 === AccumulatorName || iterVar2 === AccumulatorName) {
     throw new MacroError("iteration variable overwrites accumulator variable");
   }
 
-  const filter = args.length === 4 ? args[2]! : null;
+  const filter = args.length === 4 ? args[2]! : undefined;
   const transform = args.length === 4 ? args[3]! : args[2]!;
 
   const init = helper.createList();
@@ -153,7 +153,7 @@ const transformList: MacroExpander = (helper, target, args) => {
     helper.createAccuIdent(),
     helper.createList(transform)
   );
-  if (filter) {
+  if (filter !== undefined) {
     step = helper.createCall(Operators.Conditional, filter, step, helper.createAccuIdent());
   }
   const result = helper.createAccuIdent();
@@ -173,14 +173,14 @@ const transformList: MacroExpander = (helper, target, args) => {
 const transformMap: MacroExpander = (helper, target, args) => {
   const iterVar1 = extractIdent(args[0]);
   const iterVar2 = extractIdent(args[1]);
-  if (!iterVar1 || !iterVar2) {
+  if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
   if (iterVar1 === AccumulatorName || iterVar2 === AccumulatorName) {
     throw new MacroError("iteration variable overwrites accumulator variable");
   }
 
-  const filter = args.length === 4 ? args[2]! : null;
+  const filter = args.length === 4 ? args[2]! : undefined;
   const transform = args.length === 4 ? args[3]! : args[2]!;
 
   const init = helper.createMap();
@@ -191,7 +191,7 @@ const transformMap: MacroExpander = (helper, target, args) => {
     helper.createIdent(iterVar1),
     transform
   );
-  if (filter) {
+  if (filter !== undefined) {
     step = helper.createCall(Operators.Conditional, filter, step, helper.createAccuIdent());
   }
   const result = helper.createAccuIdent();
@@ -211,20 +211,20 @@ const transformMap: MacroExpander = (helper, target, args) => {
 const transformMapEntry: MacroExpander = (helper, target, args) => {
   const iterVar1 = extractIdent(args[0]);
   const iterVar2 = extractIdent(args[1]);
-  if (!iterVar1 || !iterVar2) {
+  if (iterVar1 === undefined || iterVar2 === undefined) {
     throw new MacroError("argument must be a simple name");
   }
   if (iterVar1 === AccumulatorName || iterVar2 === AccumulatorName) {
     throw new MacroError("iteration variable overwrites accumulator variable");
   }
 
-  const filter = args.length === 4 ? args[2]! : null;
+  const filter = args.length === 4 ? args[2]! : undefined;
   const transform = args.length === 4 ? args[3]! : args[2]!;
 
   const init = helper.createMap();
   const condition = helper.createLiteral(true);
   let step = helper.createCall("cel.@mapInsert", helper.createAccuIdent(), transform);
-  if (filter) {
+  if (filter !== undefined) {
     step = helper.createCall(Operators.Conditional, filter, step, helper.createAccuIdent());
   }
   const result = helper.createAccuIdent();
@@ -255,7 +255,7 @@ function mapInsertKeyValue(args: Value[]): Value {
   if (!(map instanceof MapValue)) {
     return ErrorValue.typeMismatch("map", map!);
   }
-  if (!key || !value) {
+  if (key === undefined || value === undefined) {
     return ErrorValue.create("cel.@mapInsert expects map, key, value");
   }
   if (map.contains(key).value()) {

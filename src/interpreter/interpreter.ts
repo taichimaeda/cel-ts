@@ -22,7 +22,7 @@ import { type Activation, EmptyActivation, LazyActivation, MapActivation } from 
 import { Dispatcher } from "./dispatcher";
 import { standardFunctions } from "./functions";
 import type { Interpretable } from "./interpretable";
-import { DefaultTypeAdapter, ErrorValue, type TypeAdapter, type Value, ValueUtil } from "./values";
+import { ErrorValue, type Value, ValueUtil } from "./values";
 
 /**
  * Program input types for evaluation.
@@ -54,8 +54,6 @@ export interface EnvOptions {
   declarations?: Declaration[];
   /** Custom functions */
   functions?: Dispatcher;
-  /** Type adapter for native value conversion */
-  adapter?: TypeAdapter;
   /** Disable type checking */
   disableTypeChecking?: boolean;
   /** Container name for type resolution */
@@ -70,7 +68,6 @@ export interface EnvOptions {
 export class Env {
   private readonly checkerEnv: CheckerEnv;
   private readonly dispatcher: Dispatcher;
-  private readonly adapter: TypeAdapter;
   private readonly disableTypeChecking: boolean;
   private readonly containerName: string;
   private readonly declarationsList: Declaration[];
@@ -81,12 +78,12 @@ export class Env {
     this.checkerEnv = new CheckerEnv(
       new Container(this.containerName),
       undefined,
-      options.enumValuesAsInt ?? false
+      { coerceEnumToInt: options.enumValuesAsInt ?? false }
     );
 
     // Add standard library functions
-    for (const fn of StandardLibrary.functions()) {
-      this.checkerEnv.addFunctions(fn);
+    for (const funcDecl of StandardLibrary.functions()) {
+      this.checkerEnv.addFunctions(funcDecl);
     }
 
     // Add user declarations
@@ -98,7 +95,6 @@ export class Env {
       }
     }
 
-    this.adapter = options.adapter ?? new DefaultTypeAdapter();
     this.disableTypeChecking = options.disableTypeChecking ?? false;
 
     // Initialize dispatcher
@@ -149,7 +145,7 @@ export class Env {
     const interpretable = planner.plan(ast);
 
     // Create Program
-    const program = new Program(interpretable, checkResult, this.adapter, ast.sourceInfo);
+    const program = new Program(interpretable, checkResult, ast.sourceInfo);
 
     return {
       program,
@@ -222,7 +218,6 @@ export class Env {
     return new Env({
       declarations: [...this.declarationsList, ...declarations],
       functions: this.dispatcher,
-      adapter: this.adapter,
       disableTypeChecking: this.disableTypeChecking,
       container: this.containerName,
     });
@@ -252,21 +247,20 @@ export class Program {
   constructor(
     private readonly interpretable: Interpretable,
     private readonly checkResultValue: CheckResult | undefined,
-    private readonly adapter: TypeAdapter,
     private readonly sourceInfo: SourceInfo
   ) { }
 
   eval(vars?: ProgramInput): EvalResult {
     // Prepare activation
     let activation: Activation;
-    if (!vars) {
+    if (vars === undefined) {
       activation = new EmptyActivation();
     } else if (isActivation(vars)) {
       activation = vars;
     } else if (vars instanceof Map) {
       activation = new MapActivation(vars);
     } else {
-      activation = new LazyActivation(vars, this.adapter);
+      activation = new LazyActivation(vars);
     }
 
     // Evaluate
@@ -311,12 +305,12 @@ function isActivation(value: unknown): value is Activation {
 }
 
 function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): string {
-  const exprId = error.getExprId();
+  const exprId = error.exprId;
   if (exprId === undefined) {
     return error.getMessage();
   }
   const position = sourceInfo.getPosition(exprId);
-  if (!position) {
+  if (position === undefined) {
     return error.getMessage();
   }
   const { line, column } = sourceInfo.getLocation(position.start);

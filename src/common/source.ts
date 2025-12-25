@@ -127,7 +127,7 @@ export class SourceInfo {
    */
   getStartLocation(id: ExprId): { line: number; column: number } | undefined {
     const range = this.positions.get(id);
-    if (!range) {
+    if (range === undefined) {
       return undefined;
     }
     return this.getLocation(range.start);

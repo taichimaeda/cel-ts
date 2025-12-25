@@ -16,7 +16,7 @@ import {
   TimestampType,
   type Type,
   TypeParamType,
-  TypeTypeWithParam,
+  PolymorphicTypeType,
   UintType,
 } from "../../src/checker/types";
 import {
@@ -92,7 +92,7 @@ export function protoToValue(value: ProtoObject): Value | null {
         return null;
       }
       const numberValue = unknownToBigInt(numeric);
-      return new EnumValue(normalizeTypeName(typeName), numberValue);
+      return EnumValue.of(normalizeTypeName(typeName), numberValue);
     }
     case "type_value":
       return typeNameToTypeValue(String(value["type_value"] ?? ""));
@@ -306,7 +306,7 @@ export function messageToValue(
       presentFields.add(fieldName);
     }
   }
-  return new StructValue(typeName, values, presentFields, fieldTypes, runtime.protobufTypeProvider);
+  return StructValue.of(typeName, values, presentFields, fieldTypes, runtime.protobufTypeProvider);
 }
 
 export function messageToWrapperValue(
@@ -552,15 +552,15 @@ export function enumToValue(enumType: protobuf.Enum, raw: unknown): Value | null
   if (typeof raw === "string") {
     const numeric = enumType.values[raw];
     if (numeric !== undefined) {
-      return new EnumValue(typeName, BigInt(numeric));
+      return EnumValue.of(typeName, BigInt(numeric));
     }
     return null;
   }
   if (typeof raw === "number") {
-    return new EnumValue(typeName, BigInt(raw));
+    return EnumValue.of(typeName, BigInt(raw));
   }
   if (typeof raw === "bigint") {
-    return new EnumValue(typeName, raw);
+    return EnumValue.of(typeName, raw);
   }
   return null;
 }
@@ -632,7 +632,7 @@ export function protoToType(type: ProtoObject): Type | null {
       return new TypeParamType(String(type["type_param"] ?? ""));
     case "type": {
       const nested = protoToType(type["type"] as ProtoObject);
-      return new TypeTypeWithParam(nested ?? DynType);
+      return new PolymorphicTypeType(nested ?? DynType);
     }
     case "opaque":
     case "abstract_type": {
@@ -757,7 +757,7 @@ export function typeNameToTypeValue(name: string): Value | null {
   }
   const enumType = runtime.protobufTypeProvider.findEnumType(name);
   if (enumType) {
-    return new TypeValue(enumType);
+    return TypeValue.of(enumType);
   }
   return null;
 }

@@ -24,14 +24,14 @@ export class MacroError extends Error {
  * Macro expander function type.
  * Takes a parser helper (for constructing AST expressions),
  * optional target (for receiver-style macros), and arguments.
- * Returns the expanded expression or null if expansion should not occur.
+ * Returns the expanded expression or undefined if expansion should not occur.
  * Throws MacroError if the macro matches but arguments are invalid.
  */
 export type MacroExpander = (
   helper: ParserHelper,
-  target: Expr | null,
+  target: Expr | undefined,
   args: Expr[]
-) => Expr | null;
+) => Expr | undefined;
 
 export type Macro =
   | GlobalMacro
@@ -51,7 +51,7 @@ class BaseMacro {
     readonly expander: MacroExpander,
     readonly receiverStyle = false,
     readonly varArgStyle = false
-  ) {}
+  ) { }
 
   macroKey(): string {
     if (this.varArgStyle) {
@@ -80,43 +80,43 @@ class MacroKey {
 export class GlobalMacro extends BaseMacro {
   readonly kind: MacroKind = "global";
 
-  constructor(fn: string, argCount: number, expander: MacroExpander) {
-    super(fn, argCount, expander, false, false);
+  constructor(funcName: string, argCount: number, expander: MacroExpander) {
+    super(funcName, argCount, expander, false, false);
   }
 }
 
 export class ReceiverMacro extends BaseMacro {
   readonly kind: MacroKind = "receiver";
 
-  constructor(fn: string, argCount: number, expander: MacroExpander) {
-    super(fn, argCount, expander, true, false);
+  constructor(funcName: string, argCount: number, expander: MacroExpander) {
+    super(funcName, argCount, expander, true, false);
   }
 }
 
 export class GlobalVarArgMacro extends BaseMacro {
   readonly kind: MacroKind = "global_vararg";
 
-  constructor(fn: string, expander: MacroExpander) {
-    super(fn, 0, expander, false, true);
+  constructor(funcName: string, expander: MacroExpander) {
+    super(funcName, 0, expander, false, true);
   }
 }
 
 export class ReceiverVarArgMacro extends BaseMacro {
   readonly kind: MacroKind = "receiver_vararg";
 
-  constructor(fn: string, expander: MacroExpander) {
-    super(fn, 0, expander, true, true);
+  constructor(funcName: string, expander: MacroExpander) {
+    super(funcName, 0, expander, true, true);
   }
 }
 
 /**
  * Extract identifier name from an expression.
  */
-function extractIdent(e: Expr): string | null {
-  if (e instanceof IdentExpr) {
-    return e.name;
+function extractIdent(expr: Expr): string | undefined {
+  if (expr instanceof IdentExpr) {
+    return expr.name;
   }
-  return null;
+  return undefined;
 }
 
 /**
@@ -124,7 +124,7 @@ function extractIdent(e: Expr): string | null {
  */
 export const makeAll: MacroExpander = (helper, target, args) => {
   const variable = extractIdent(args[0]!);
-  if (!variable) {
+  if (variable === undefined) {
     throw new MacroError("argument must be a simple name");
   }
 
@@ -150,7 +150,7 @@ export const makeAll: MacroExpander = (helper, target, args) => {
  */
 export const makeExists: MacroExpander = (helper, target, args) => {
   const variable = extractIdent(args[0]!);
-  if (!variable) {
+  if (variable === undefined) {
     throw new MacroError("argument must be a simple name");
   }
 
@@ -179,7 +179,7 @@ export const makeExists: MacroExpander = (helper, target, args) => {
  */
 export const makeExistsOne: MacroExpander = (helper, target, args) => {
   const variable = extractIdent(args[0]!);
-  if (!variable) {
+  if (variable === undefined) {
     throw new MacroError("argument must be a simple name");
   }
 
@@ -214,7 +214,7 @@ export const makeExistsOne: MacroExpander = (helper, target, args) => {
  */
 export const makeMap: MacroExpander = (helper, target, args) => {
   const variable = extractIdent(args[0]!);
-  if (!variable) {
+  if (variable === undefined) {
     throw new MacroError("argument is not an identifier");
   }
 
@@ -223,26 +223,26 @@ export const makeMap: MacroExpander = (helper, target, args) => {
     throw new MacroError("iteration variable overwrites accumulator variable");
   }
 
-  let fn: Expr;
-  let filter: Expr | null;
+  let func: Expr;
+  let filter: Expr | undefined;
 
   if (args.length === 3) {
     // map(var, predicate, transform)
+    func = args[2]!;
     filter = args[1]!;
-    fn = args[2]!;
   } else {
     // map(var, transform)
-    filter = null;
-    fn = args[1]!;
+    func = args[1]!;
+    filter = undefined;
   }
 
   // accu = []
   const init = helper.createList();
   // iterate entire input
   const condition = helper.createLiteral(true);
-  let step = helper.createCall(Operators.Add, helper.createAccuIdent(), helper.createList(fn));
+  let step = helper.createCall(Operators.Add, helper.createAccuIdent(), helper.createList(func));
 
-  if (filter) {
+  if (filter !== undefined) {
     step = helper.createCall(Operators.Conditional, filter, step, helper.createAccuIdent());
   }
 
@@ -262,7 +262,7 @@ export const makeMap: MacroExpander = (helper, target, args) => {
  */
 export const makeFilter: MacroExpander = (helper, target, args) => {
   const variable = extractIdent(args[0]!);
-  if (!variable) {
+  if (variable === undefined) {
     throw new MacroError("argument is not an identifier");
   }
 
@@ -356,7 +356,7 @@ export class MacroRegistry {
     // Try exact match first
     const key = MacroKey.forArity(name, argCount, receiverStyle);
     let macro = this.macros.get(key);
-    if (macro) {
+    if (macro !== undefined) {
       return macro;
     }
 

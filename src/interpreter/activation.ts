@@ -2,13 +2,8 @@
 // Activation interface for variable resolution
 // Implementation based on cel-go's interpret/activation.go
 
-import {
-  DefaultTypeAdapter,
-  ErrorValue,
-  type TypeAdapter,
-  UnknownValue,
-  type Value,
-} from "./values";
+import { nativeToValue } from "./utils";
+import { ErrorValue, UnknownValue, type Value } from "./values";
 
 export type Activation =
   | EmptyActivation
@@ -65,7 +60,6 @@ export class LazyActivation {
 
   constructor(
     bindings: Map<string, unknown> | Record<string, unknown>,
-    private readonly adapter: TypeAdapter = new DefaultTypeAdapter(),
     private readonly parentActivation?: Activation
   ) {
     if (bindings instanceof Map) {
@@ -86,7 +80,7 @@ export class LazyActivation {
     // Check bindings
     if (this.bindings.has(name)) {
       const nativeValue = this.bindings.get(name);
-      const value = this.adapter.nativeToValue(nativeValue);
+      const value = nativeToValue(nativeValue);
       this.cache.set(name, value);
       return value;
     }

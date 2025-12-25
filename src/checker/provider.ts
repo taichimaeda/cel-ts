@@ -45,14 +45,14 @@ export interface TypeProvider {
   structFieldNames(typeName: string): string[];
 
   /**
-   * Find an enum value by enum and value name.
+   * Find an enum value by enum type and value name.
    */
-  findEnumValue(enumName: string, valueName: string): number | undefined;
+  findEnumValue(typeName: string, valueName: string): number | undefined;
 
   /**
    * Lookup the proto field scalar type if available.
    */
-  fieldProtoType(typeName: string, fieldName: string): string | null;
+  fieldProtoType(typeName: string, fieldName: string): string | undefined;
 
   /**
    * Whether a field is part of a oneof.
@@ -81,7 +81,7 @@ export class CompositeTypeProvider implements TypeProvider {
   findStructType(typeName: string): Type | undefined {
     for (const provider of this.providers) {
       const result = provider.findStructType(typeName);
-      if (result) {
+      if (result !== undefined) {
         return result;
       }
     }
@@ -91,7 +91,7 @@ export class CompositeTypeProvider implements TypeProvider {
   findEnumType(typeName: string): Type | undefined {
     for (const provider of this.providers) {
       const result = provider.findEnumType(typeName);
-      if (result) {
+      if (result !== undefined) {
         return result;
       }
     }
@@ -101,7 +101,7 @@ export class CompositeTypeProvider implements TypeProvider {
   findStructFieldType(typeName: string, fieldName: string): Type | undefined {
     for (const provider of this.providers) {
       const result = provider.findStructFieldType(typeName, fieldName);
-      if (result) {
+      if (result !== undefined) {
         return result;
       }
     }
@@ -128,14 +128,14 @@ export class CompositeTypeProvider implements TypeProvider {
     return undefined;
   }
 
-  fieldProtoType(typeName: string, fieldName: string): string | null {
+  fieldProtoType(typeName: string, fieldName: string): string | undefined {
     for (const provider of this.providers) {
       const result = provider.fieldProtoType(typeName, fieldName);
-      if (result) {
+      if (result !== undefined) {
         return result;
       }
     }
-    return null;
+    return undefined;
   }
 
   fieldIsOneof(typeName: string, fieldName: string): boolean {
@@ -207,8 +207,8 @@ export class StructTypeProvider implements TypeProvider {
     return undefined;
   }
 
-  fieldProtoType(_typeName: string, _fieldName: string): string | null {
-    return null;
+  fieldProtoType(_typeName: string, _fieldName: string): string | undefined {
+    return undefined;
   }
 
   fieldIsOneof(_typeName: string, _fieldName: string): boolean {
@@ -235,7 +235,7 @@ export class ProtobufTypeProvider implements TypeProvider {
 
   findStructType(typeName: string): Type | undefined {
     const message = this.lookupMessage(typeName);
-    if (!message) {
+    if (message === undefined) {
       return undefined;
     }
     return new StructType(this.normalizeTypeName(message.fullName ?? typeName));
@@ -255,14 +255,14 @@ export class ProtobufTypeProvider implements TypeProvider {
     const message = this.lookupMessage(typeName);
     const field = message ? resolveMessageField(message, fieldName) : undefined;
     if (this.isLegacyProto2Enabled(message)) {
-      if (!field && message) {
+      if (field === undefined && message !== undefined) {
         const extensionField = resolveExtensionField(this.root, message, fieldName);
-        if (extensionField) {
+        if (extensionField !== undefined) {
           return this.fieldType(extensionField);
         }
       }
     }
-    if (!field) {
+    if (field === undefined) {
       return undefined;
     }
     return this.fieldType(field);
@@ -270,7 +270,7 @@ export class ProtobufTypeProvider implements TypeProvider {
 
   structFieldNames(typeName: string): string[] {
     const message = this.lookupMessage(typeName);
-    if (!message) {
+    if (message === undefined) {
       return [];
     }
     return message.fieldsArray.map((field) =>
@@ -278,18 +278,18 @@ export class ProtobufTypeProvider implements TypeProvider {
     );
   }
 
-  fieldProtoType(typeName: string, fieldName: string): string | null {
+  fieldProtoType(typeName: string, fieldName: string): string | undefined {
     const message = this.lookupMessage(typeName);
     const field = message ? resolveMessageField(message, fieldName) : undefined;
     if (this.isLegacyProto2Enabled(message)) {
-      if (!field && message) {
+      if (field === undefined && message !== undefined) {
         const extensionField = resolveExtensionField(this.root, message, fieldName);
-        if (extensionField) {
-          return extensionField.type ?? null;
+        if (extensionField !== undefined) {
+          return extensionField.type ?? undefined;
         }
       }
     }
-    return field?.type ?? null;
+    return field?.type ?? undefined;
   }
 
   fieldIsOneof(typeName: string, fieldName: string): boolean {
@@ -302,7 +302,7 @@ export class ProtobufTypeProvider implements TypeProvider {
     const message = this.lookupMessage(typeName);
     const field = message ? resolveMessageField(message, fieldName) : undefined;
     if (this.isLegacyProto2Enabled(message)) {
-      if (!field && message) {
+      if (field === undefined && message !== undefined) {
         const extensionField = resolveExtensionField(this.root, message, fieldName);
         return this.fieldHasPresenceFor(message, extensionField);
       }
@@ -326,9 +326,9 @@ export class ProtobufTypeProvider implements TypeProvider {
       return undefined;
     }
     const field = message ? resolveMessageField(message, fieldName) : undefined;
-    if (!field && message) {
+    if (field === undefined && message !== undefined) {
       const extensionField = resolveExtensionField(this.root, message, fieldName);
-      if (extensionField) {
+      if (extensionField !== undefined) {
         return extensionField.defaultValue;
       }
     }
@@ -345,7 +345,7 @@ export class ProtobufTypeProvider implements TypeProvider {
   }
 
   private fieldHasPresenceFor(message?: ProtoType, field?: Field): boolean {
-    if (!message || !field) {
+    if (message === undefined || field === undefined) {
       return false;
     }
     if (this.isLegacyProto2Enabled(message)) {
@@ -428,7 +428,7 @@ export class ProtobufTypeProvider implements TypeProvider {
 
   private typeFromField(field: Field): Type {
     const resolved = (field as Field & { resolvedType?: ProtoType }).resolvedType;
-    if (resolved) {
+    if (resolved !== null && resolved !== undefined) {
       const fullName = this.normalizeTypeName(resolved.fullName ?? field.type);
       if (fullName === "google.protobuf.Timestamp") {
         return TimestampType;
@@ -503,11 +503,11 @@ function resolveMessageField(message: ProtoType, fieldName: string): Field | und
   const candidates = [fieldName, normalized, `.${normalized}`];
   for (const name of candidates) {
     const direct = message.fields[name];
-    if (direct) {
+    if (direct !== undefined) {
       return direct;
     }
     const arrayField = message.fieldsArray.find((field) => field.name === name);
-    if (arrayField) {
+    if (arrayField !== undefined) {
       return arrayField;
     }
   }
@@ -515,11 +515,11 @@ function resolveMessageField(message: ProtoType, fieldName: string): Field | und
   const camelCandidates = [camel, `.${camel}`];
   for (const name of camelCandidates) {
     const camelField = message.fields[name];
-    if (camelField) {
+    if (camelField !== undefined) {
       return camelField;
     }
     const arrayField = message.fieldsArray.find((field) => field.name === name);
-    if (arrayField) {
+    if (arrayField !== undefined) {
       return arrayField;
     }
   }
@@ -527,11 +527,11 @@ function resolveMessageField(message: ProtoType, fieldName: string): Field | und
   const snakeCandidates = [snake, `.${snake}`];
   for (const name of snakeCandidates) {
     const snakeField = message.fields[name];
-    if (snakeField) {
+    if (snakeField !== undefined) {
       return snakeField;
     }
     const arrayField = message.fieldsArray.find((field) => field.name === name);
-    if (arrayField) {
+    if (arrayField !== undefined) {
       return arrayField;
     }
   }
@@ -554,17 +554,17 @@ function resolveExtensionField(
     return undefined;
   }
   const targetName = extensionTargetName(candidate);
-  if (!targetName) {
+  if (targetName === undefined) {
     return undefined;
   }
   const messageName = stripLeadingDot(message.fullName ?? "");
   return messageName === targetName ? candidate : undefined;
 }
 
-function extensionTargetName(field: ProtobufField): string | null {
+function extensionTargetName(field: ProtobufField): string | undefined {
   const extend = field.extend;
-  if (!extend) {
-    return null;
+  if (extend === undefined) {
+    return undefined;
   }
   if (extend.startsWith(".")) {
     return stripLeadingDot(extend);
@@ -574,7 +574,7 @@ function extensionTargetName(field: ProtobufField): string | null {
     const parentPackage = stripLeadingDot(parent.parent?.fullName ?? "");
     return parentPackage ? `${parentPackage}.${extend}` : extend;
   }
-  if (!parent) {
+  if (parent === null || parent === undefined) {
     return extend;
   }
   const parentFull = stripLeadingDot(parent.fullName ?? "");

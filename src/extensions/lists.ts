@@ -91,8 +91,8 @@ export class ListsExtension implements Extension {
     if (this.version >= 2) {
       macros.push(
         new ReceiverMacro("sortBy", 2, (helper, target, args) => {
-          if (!target) {
-            return null;
+          if (target === undefined) {
+            return undefined;
           }
           if (
             !(
@@ -111,7 +111,7 @@ export class ListsExtension implements Extension {
           const varName = "@__sortBy_input__";
           const varIdent = helper.createIdent(varName);
           const mapExpr = makeMap(helper, helper.createIdent(varName), args);
-          if (!mapExpr) {
+          if (mapExpr === undefined) {
             throw new MacroError("sortBy failed to build key list expression");
           }
           const callExpr = helper.createMemberCall(

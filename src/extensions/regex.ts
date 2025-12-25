@@ -64,7 +64,7 @@ function extractOne(target: Value, pattern: Value): Value {
     return ErrorValue.create(`invalid regex string: ${message}`);
   }
   const match = regex.exec(target.value());
-  if (!match) {
+  if (match === null) {
     return OptionalValue.none();
   }
   if (match.length > 2) {

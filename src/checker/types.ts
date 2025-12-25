@@ -44,7 +44,7 @@ export class Type {
     readonly runtimeTypeName: string,
     parameters: Type[] = []
   ) {
-    this.parameters = Object.freeze(parameters);
+    this.parameters = [...parameters];
   }
 
   /**
@@ -251,7 +251,7 @@ export class OptionalType extends Type {
   }
 }
 
-export class TypeTypeWithParam extends Type {
+export class PolymorphicTypeType extends Type {
   constructor(param: Type) {
     super(TypeKind.Type, "type", [param]);
   }
@@ -261,6 +261,9 @@ export class TypeTypeWithParam extends Type {
     return param ? `type(${param.toString()})` : "type";
   }
 }
+
+export const DynListType = new ListType(DynType);
+export const DynMapType = new MapType(DynType, DynType);
 
 /**
  * Join two types to find their common type
@@ -391,22 +394,55 @@ const wellKnownTypeMap = new Map<string, Type>([
   ["google.protobuf.ListValue", new ListType(DynType)],
 ]);
 
-export function wrapperTypeToPrimitive(type: Type): Type | null {
+export function wrapperTypeToPrimitive(type: Type): Type | undefined {
   if (type.kind !== TypeKind.Struct) {
-    return null;
+    return undefined;
   }
   const name = type.runtimeTypeName.startsWith(".")
     ? type.runtimeTypeName.slice(1)
     : type.runtimeTypeName;
-  return wrapperTypeMap.get(name) ?? null;
+  return wrapperTypeMap.get(name) ?? undefined;
 }
 
-export function wellKnownTypeToNative(type: Type): Type | null {
+export function wellKnownTypeToNative(type: Type): Type | undefined {
   if (type.kind !== TypeKind.Struct) {
-    return null;
+    return undefined;
   }
   const name = type.runtimeTypeName.startsWith(".")
     ? type.runtimeTypeName.slice(1)
     : type.runtimeTypeName;
-  return wellKnownTypeMap.get(name) ?? null;
+  return wellKnownTypeMap.get(name) ?? undefined;
+}
+
+export function builtinTypeForName(name: string): Type | undefined {
+  switch (name) {
+    case "bool":
+      return BoolType;
+    case "int":
+      return IntType;
+    case "uint":
+      return UintType;
+    case "double":
+      return DoubleType;
+    case "string":
+      return StringType;
+    case "bytes":
+      return BytesType;
+    case "null_type":
+      return NullType;
+    case "list":
+      return DynListType;
+    case "map":
+      return DynMapType;
+    case "type":
+      return TypeType;
+    case "optional_type":
+      return new OptionalType(DynType);
+    case "google.protobuf.Timestamp":
+      return TimestampType;
+    case "google.protobuf.Duration":
+      return DurationType;
+    default:
+      return undefined;
+  }
 }

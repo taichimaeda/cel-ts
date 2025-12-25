@@ -10,7 +10,7 @@ export type { ReferenceInfo } from "../common/ast";
 
 export {
   FunctionDecl,
-  OverloadDecl,
+  FunctionOverloadDecl as OverloadDecl,
   StructDecl,
   StructFieldDecl,
   VariableDecl
@@ -46,7 +46,7 @@ export {
   TypeKind,
   TypeParamType,
   TypeType,
-  TypeTypeWithParam,
+  PolymorphicTypeType,
   UintType
 } from "./types";
 

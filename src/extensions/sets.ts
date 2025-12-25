@@ -12,19 +12,19 @@ export class SetsExtension implements Extension {
       macros: [
         new ReceiverVarArgMacro("contains", (helper, target, args) => {
           if (!macroTargetMatchesNamespace("sets", target)) {
-            return null;
+            return undefined;
           }
           return helper.createCall("sets.contains", ...args);
         }),
         new ReceiverVarArgMacro("equivalent", (helper, target, args) => {
           if (!macroTargetMatchesNamespace("sets", target)) {
-            return null;
+            return undefined;
           }
           return helper.createCall("sets.equivalent", ...args);
         }),
         new ReceiverVarArgMacro("intersects", (helper, target, args) => {
           if (!macroTargetMatchesNamespace("sets", target)) {
-            return null;
+            return undefined;
           }
           return helper.createCall("sets.intersects", ...args);
         }),
