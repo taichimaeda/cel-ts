@@ -8,5 +8,4 @@ rmSync(resultsPath, { force: true });
 
 // Run benchmarks
 const runner = new BenchmarkRunner();
-await runner.run();
-runner.writeResults(resultsPath);
+await runner.run(resultsPath);

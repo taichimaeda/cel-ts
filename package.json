@@ -67,9 +67,12 @@
   "packageManager": "pnpm@9.14.2",
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
+    "@marcbachmann/cel-js": "6.4.0",
     "allure-commandline": "2.30.0",
     "allure-js-commons": "3.0.0",
     "bun-types": "1.1.34",
+    "cel-js": "0.8.1",
+    "chevrotain": "11.0.3",
     "cli-table3": "0.6.5",
     "concurrently": "9.1.2",
     "consola": "3.2.3",

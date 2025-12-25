@@ -8,23 +8,26 @@ Production-grade TypeScript implementation of the [Common Expression Language (C
 
 ## Features
 
-- **cel-go Compatible API**
+- **cel-go Compatible API** - Full documentation
 - **Type Checking** - Full compile-time type checking
 - **100% Conformance Test Coverage** - Full CEL conformance suite coverage
-- **Full Macro Support** - cel-go parity macros (including `cel.block` etc.)
-- **Full Extension Support** - cel-go parity extension packs
+- **Full Macro Support** - [cel-go](https://github.com/google/cel-go) parity macros (including `cel.block` etc.)
+- **Full Extension Support** - [cel-go](https://github.com/google/cel-go) parity extension packs
+- **Minimal Runtime Dependency** - [antlr4](https://github.com/tunnelvisionlabs/antlr4ts) package only
 
 ## Comparison
 
-[ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) is a TypeScript CEL interpreter useful for experimentation, but it reads more like a proof-of-concept than a production-grade engine. It does not target full CEL feature parity and lacks the pipeline features (type checking, environments, conformance testing, and tooling) that official implementations treat as baseline. Its maturity level, feature coverage, and maintenance cadence make it a riskier choice for long-lived or critical workloads.
+[ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) is a TypeScript CEL interpreter useful for experimentation, but it reads more like a proof-of-concept than a production-grade engine. It does not target full CEL feature parity and lacks the pipeline features (type checking, environments, conformance testing, and tooling) that official implementations treat as baseline.
 
-[marcbachmann/cel-js](https://github.com/marcbachmann/cel-js) is an alternative JavaScript CEL interpreter. It emphasizes zero dependencies and includes a type checker, but it is pure JS without TypeScript type definitions. It does not cover conformance tests or offer the full language feature set, making it challenging for production adoption.
+[marcbachmann/cel-js](https://github.com/marcbachmann/cel-js) is an alternative JavaScript CEL interpreter. It emphasizes fast evaluation and includes a type checker, but it does not cover conformance tests or [cel-go](https://github.com/google/cel-go) compatible interface, making it challenging for production adoption.
 
 Both [ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) and [marcbachmann/cel-js](https://github.com/marcbachmann/cel-js) are MIT licensed, yet they derive from official implementations and incorporate parts of [cel-spec](https://github.com/google/cel-spec) artifacts (e.g., `langdef.md`), which are Apache-2.0 licensed. This licensing mismatch can be a concern for business use.
 
-[cel-ts](https://github.com/taichimaeda/cel-ts) (this project) tracks official CEL implementations ([cel-go](https://github.com/google/cel-go), [cel-cpp](https://github.com/google/cel-cpp), [cel-java](https://github.com/google/cel-java)) and provides the complete workflow: parsing, type checking, optimisation, evaluation, conformance tests, and tooling. If you need a production-grade CEL engine in the JS/TS ecosystem, `cel-ts` is the practical choice.
+[taichimaeda/cel-ts](https://github.com/taichimaeda/cel-ts) tracks official CEL implementations ([cel-go](https://github.com/google/cel-go), [cel-cpp](https://github.com/google/cel-cpp), [cel-java](https://github.com/google/cel-java)) and provides the complete workflow: parsing, type checking, optimisation, evaluation, conformance tests, and tooling. If you need a production-grade CEL engine in the JS/TS ecosystem, `cel-ts` is the practical choice.
 
-| Capability | cel-ts (this project) | ChromeGG/cel-js | marcbachmann/cel-js |
+Please note that [taichimaeda/cel-ts](https://github.com/taichimaeda/cel-ts) prioritized completeness and a full CEL toolchain as the initial goal, with performance tuning planned next. The benchmarks are provided for transparency, not as a performance-first target today.
+
+| Capability | taichimaeda/cel-ts | ChromeGG/cel-js | marcbachmann/cel-js |
 | --- | --- | --- | --- |
 | Type checking and environments | Yes | No | Yes (limited) |
 | Conformance test suite | Yes (100%) | No | No |
@@ -35,11 +38,9 @@ Both [ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) and [marcbachmann/cel
 | Macro support | Full (cel-go parity) | Limited | Partial |
 | Extension packs | Full (cel-go parity) | Limited | Limited |
 | Formatter | Yes | No | No |
-| Linter | Yes (basic) | No | No |
-| Optimizations | Yes (basic) | No | Limited |
+| Linter | Yes | No | No |
+| Speed | Medium | Medium | Fast |
 | License (cel-spec is Apache-2.0) | Apache-2.0 | MIT | MIT |
-| CEL spec artifacts | Yes | Yes | Yes |
-| CI | Yes | GitHub Actions | Drone CI |
 
 ## Installation
 
