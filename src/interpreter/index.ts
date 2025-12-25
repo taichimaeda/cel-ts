@@ -2,7 +2,7 @@
 // Interpreter module exports
 
 // Interpreter runtime type helpers
-export { OptionalType, RuntimeType, UnknownType } from "./types";
+export { OptionalType, DynamicType as RuntimeType, UnknownType } from "./types";
 
 // Values - Runtime values
 export {
@@ -24,9 +24,28 @@ export {
   TypeValue,
   UintValue,
   UnknownValue,
-  ValueUtil
+  compareValues,
+  isBoolValue,
+  isBytesValue,
+  isComparableValue,
+  isDoubleValue,
+  isDurationValue,
+  isEnumValue,
+  isErrorValue,
+  isIntValue,
+  isListValue,
+  isMapValue,
+  isNullValue,
+  isOptionalValue,
+  isStringValue,
+  isStructValue,
+  isTimestampValue,
+  isTypeValue,
+  isUintValue,
+  isUnknownValue,
+  toTypeValue,
 } from "./values";
-export type { MapEntry, Value, ValueType } from "./values";
+export type { MapEntry, Value } from "./values";
 
 // Activation - Variable resolution
 export {
@@ -56,11 +75,8 @@ export {
 // Dispatcher - Function dispatcher
 export {
   BinaryDispatcherOverload,
-  Dispatcher,
-  TryResolvedCall as ResolvedCall,
-  UnaryDispatcherOverload,
-  NaryDispatcherOverload,
-  type BinaryOp,
+  Dispatcher, NaryDispatcherOverload, TryResolvedCall as ResolvedCall,
+  UnaryDispatcherOverload, type BinaryOp,
   type ResolvedCall as FunctionCall,
   type FunctionOp,
   type Overload,

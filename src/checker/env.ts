@@ -1,13 +1,13 @@
 // CEL Checker Environment
 // Manages scopes, declarations, and lookups for type checking
 
-import type { FunctionDecl, VariableDecl } from "./decls";
+import type { ConstantDecl, FunctionDecl, VariableDecl } from "./decls";
 import type { TypeProvider } from "./provider";
 import {
   builtinTypeNameToType,
+  IntType,
   ListType,
   MapType,
-  PrimitiveTypes,
   type Type,
   PolymorphicTypeType,
 } from "./types";
@@ -206,6 +206,7 @@ export interface CheckerEnvOptions {
 export class CheckerEnv {
   private scopes: Scopes = new Scopes();
   private disabledOverloads: Set<string> = new Set();
+  private constants: Map<string, ConstantDecl> = new Map();
 
   constructor(
     readonly container: Container = new Container(),
@@ -219,6 +220,16 @@ export class CheckerEnv {
   addVariables(...decls: VariableDecl[]): void {
     for (const decl of decls) {
       this.scopes.addVariable(decl);
+    }
+  }
+
+  /**
+   * Add constant declarations to the environment.
+   * Constants are folded at compile time.
+   */
+  addConstants(...decls: ConstantDecl[]): void {
+    for (const decl of decls) {
+      this.constants.set(decl.name, decl);
     }
   }
 
@@ -264,6 +275,17 @@ export class CheckerEnv {
     const candidates = this.container.resolveCandidateNames(name);
 
     for (const candidate of candidates) {
+      // Check constant declarations first (constants are folded at compile time)
+      const constDecl = this.constants.get(candidate);
+      if (constDecl !== undefined) {
+        return {
+          name: candidate,
+          type: this.coerceEnumToInt(constDecl.type),
+          kind: "constant",
+          value: constDecl.value,
+        };
+      }
+
       // Check variable declarations
       const varDecl = this.scopes.findVariable(candidate);
       if (varDecl !== undefined) {
@@ -315,7 +337,7 @@ export class CheckerEnv {
       if (enumValueByName !== undefined && enumTypeByName !== undefined) {
         return {
           name: candidate,
-          type: this.coerceEnumToInt(enumTypeByName ?? PrimitiveTypes.Int),
+          type: this.coerceEnumToInt(enumTypeByName ?? IntType),
           kind: "enum",
           value: enumValueByName,
         };
@@ -400,7 +422,7 @@ export class CheckerEnv {
     }
 
     if (type.kind === "opaque" && this.provider?.findEnumType(type.runtimeTypeName)) {
-      return PrimitiveTypes.Int;
+      return IntType;
     }
     if (type.kind === "list") {
       const elem = type.parameters[0];
@@ -429,5 +451,6 @@ export class CheckerEnv {
  */
 export type LookupResult =
   | { kind: "variable"; name: string; type: Type }
+  | { kind: "constant"; name: string; type: Type; value: unknown }
   | { kind: "type"; name: string; type: Type }
   | { kind: "enum"; name: string; type: Type; value: number };

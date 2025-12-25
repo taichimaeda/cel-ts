@@ -560,9 +560,9 @@ export class Formatter {
     }
     if (op?.kind === "ternary") {
       const cond = this.formatInlineExprInner(expr.args[0]!, sourceInfo);
-      const t = this.formatInlineExprInner(expr.args[1]!, sourceInfo);
-      const f = this.formatInlineExprInner(expr.args[2]!, sourceInfo);
-      return `${cond} ? ${t} : ${f}`;
+      const truthyText = this.formatInlineExprInner(expr.args[1]!, sourceInfo);
+      const falsyText = this.formatInlineExprInner(expr.args[2]!, sourceInfo);
+      return `${cond} ? ${truthyText} : ${falsyText}`;
     }
 
     const args = expr.args.map((arg) => this.formatInlineExprInner(arg, sourceInfo)).join(", ");

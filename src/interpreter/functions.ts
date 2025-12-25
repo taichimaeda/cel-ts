@@ -8,27 +8,38 @@ import {
   type Overload,
   UnaryDispatcherOverload,
 } from "./dispatcher";
+import { parseTimeZoneOffset } from "./utils";
 import {
   BoolValue,
   BytesValue,
   DoubleValue,
   DurationValue,
   ErrorValue,
+  isBoolValue,
+  isBytesValue,
+  isDoubleValue,
+  isDurationValue,
+  isIntValue,
+  isListValue,
+  isMapValue,
+  isStringValue,
+  isTimestampValue,
+  isUintValue,
   IntLimits,
   IntValue,
   ListValue,
-  MapValue,
   StringValue,
   TimestampValue,
   UintValue,
   type Value,
-  ValueUtil,
+  isErrorValue,
+  toTypeValue,
 } from "./values";
 
 export const sizeFunctions: Overload[] = [
   // size(string) -> int
   new UnaryDispatcherOverload("size_string", (val: Value): Value => {
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       return val.size();
     }
     return ErrorValue.typeMismatch("string", val);
@@ -36,7 +47,7 @@ export const sizeFunctions: Overload[] = [
 
   // size(bytes) -> int
   new UnaryDispatcherOverload("size_bytes", (val: Value): Value => {
-    if (val instanceof BytesValue) {
+    if (isBytesValue(val)) {
       return val.size();
     }
     return ErrorValue.typeMismatch("bytes", val);
@@ -44,7 +55,7 @@ export const sizeFunctions: Overload[] = [
 
   // size(list) -> int
   new UnaryDispatcherOverload("size_list", (val: Value): Value => {
-    if (val instanceof ListValue) {
+    if (isListValue(val)) {
       return val.size();
     }
     return ErrorValue.typeMismatch("list", val);
@@ -52,7 +63,7 @@ export const sizeFunctions: Overload[] = [
 
   // size(map) -> int
   new UnaryDispatcherOverload("size_map", (val: Value): Value => {
-    if (val instanceof MapValue) {
+    if (isMapValue(val)) {
       return val.size();
     }
     return ErrorValue.typeMismatch("map", val);
@@ -62,7 +73,7 @@ export const sizeFunctions: Overload[] = [
 export const stringFunctions: Overload[] = [
   // string.contains(string) -> bool
   new BinaryDispatcherOverload("contains_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+    if (isStringValue(lhs) && isStringValue(rhs)) {
       return lhs.contains(rhs);
     }
     return ErrorValue.typeMismatch("string", lhs);
@@ -70,7 +81,7 @@ export const stringFunctions: Overload[] = [
 
   // string.startsWith(string) -> bool
   new BinaryDispatcherOverload("startsWith_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+    if (isStringValue(lhs) && isStringValue(rhs)) {
       return lhs.startsWith(rhs);
     }
     return ErrorValue.typeMismatch("string", lhs);
@@ -78,7 +89,7 @@ export const stringFunctions: Overload[] = [
 
   // string.endsWith(string) -> bool
   new BinaryDispatcherOverload("endsWith_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+    if (isStringValue(lhs) && isStringValue(rhs)) {
       return lhs.endsWith(rhs);
     }
     return ErrorValue.typeMismatch("string", lhs);
@@ -86,7 +97,7 @@ export const stringFunctions: Overload[] = [
 
   // string.matches(string) -> bool
   new BinaryDispatcherOverload("matches_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+    if (isStringValue(lhs) && isStringValue(rhs)) {
       return lhs.matches(rhs);
     }
     return ErrorValue.typeMismatch("string", lhs);
@@ -94,7 +105,7 @@ export const stringFunctions: Overload[] = [
 
   // matches(string, string) -> bool (global function)
   new BinaryDispatcherOverload("matches", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+    if (isStringValue(lhs) && isStringValue(rhs)) {
       return lhs.matches(rhs);
     }
     return ErrorValue.typeMismatch("string", lhs);
@@ -102,7 +113,7 @@ export const stringFunctions: Overload[] = [
 
   // string.toLowerCase() -> string
   new UnaryDispatcherOverload("lowerAscii_string", (val: Value): Value => {
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       return StringValue.of(val.value().toLowerCase());
     }
     return ErrorValue.typeMismatch("string", val);
@@ -110,7 +121,7 @@ export const stringFunctions: Overload[] = [
 
   // string.toUpperCase() -> string
   new UnaryDispatcherOverload("upperAscii_string", (val: Value): Value => {
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       return StringValue.of(val.value().toUpperCase());
     }
     return ErrorValue.typeMismatch("string", val);
@@ -118,7 +129,7 @@ export const stringFunctions: Overload[] = [
 
   // string.trim() -> string
   new UnaryDispatcherOverload("trim_string", (val: Value): Value => {
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       return StringValue.of(val.value().trim());
     }
     return ErrorValue.typeMismatch("string", val);
@@ -126,7 +137,7 @@ export const stringFunctions: Overload[] = [
 
   // string.split(string) -> list(string)
   new BinaryDispatcherOverload("split_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof StringValue && rhs instanceof StringValue) {
+    if (isStringValue(lhs) && isStringValue(rhs)) {
       const parts = lhs.value().split(rhs.value());
       return ListValue.of(parts.map((p) => StringValue.of(p)));
     }
@@ -135,10 +146,10 @@ export const stringFunctions: Overload[] = [
 
   // string.join(list) -> string
   new BinaryDispatcherOverload("join_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof ListValue && rhs instanceof StringValue) {
+    if (isListValue(lhs) && isStringValue(rhs)) {
       const parts: string[] = [];
       for (const elem of lhs) {
-        if (elem instanceof StringValue) {
+        if (isStringValue(elem)) {
           parts.push(elem.value());
         } else {
           return ErrorValue.typeMismatch("string", elem);
@@ -155,8 +166,10 @@ export const stringFunctions: Overload[] = [
       return ErrorValue.of("replace requires 3 arguments");
     }
     const [str, from, to] = args;
-    if (str instanceof StringValue && from instanceof StringValue && to instanceof StringValue) {
-      return StringValue.of(str.value().replaceAll(from.value(), to.value()));
+    if (str !== undefined && from !== undefined && to !== undefined && isStringValue(str) && isStringValue(from) && isStringValue(to)) {
+      return StringValue.of(
+        str.value().replaceAll(from.value(), to.value())
+      );
     }
     return ErrorValue.typeMismatch("string", str!);
   }),
@@ -165,42 +178,45 @@ export const stringFunctions: Overload[] = [
 export const typeConversionFunctions: Overload[] = [
   // int(value) -> int
   new UnaryDispatcherOverload("int", (val: Value): Value => {
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       return val;
     }
-    if (val instanceof UintValue) {
+    if (isUintValue(val)) {
       const raw = val.value();
       if (raw > IntLimits.Int64Max) {
         return ErrorValue.of("range error");
       }
       return IntValue.of(raw);
     }
-    if (val instanceof DoubleValue) {
-      const d = val.value();
-      if (!Number.isFinite(d)) {
+    if (isDoubleValue(val)) {
+      const doubleValue = val.value();
+      if (!Number.isFinite(doubleValue)) {
         return ErrorValue.of("cannot convert infinity or NaN to int");
       }
-      if (d <= Number(IntLimits.Int64Min) || d >= Number(IntLimits.Int64Max)) {
+      if (
+        doubleValue <= Number(IntLimits.Int64Min) ||
+        doubleValue >= Number(IntLimits.Int64Max)
+      ) {
         return ErrorValue.of("range error");
       }
-      const truncated = BigInt(Math.trunc(d));
+      const truncated = BigInt(Math.trunc(doubleValue));
       if (truncated < IntLimits.Int64Min || truncated > IntLimits.Int64Max) {
         return ErrorValue.of("range error");
       }
       return IntValue.of(truncated);
     }
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       try {
-        const n = BigInt(val.value());
-        if (n < IntLimits.Int64Min || n > IntLimits.Int64Max) {
+        const numericValue = BigInt(val.value());
+        if (numericValue < IntLimits.Int64Min || numericValue > IntLimits.Int64Max) {
           return ErrorValue.of("range error");
         }
-        return IntValue.of(n);
+        return IntValue.of(numericValue);
       } catch {
         return ErrorValue.of(`cannot parse '${val.value()}' as int`);
       }
     }
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return IntValue.of(val.value() / 1_000_000_000n);
     }
     return ErrorValue.of(`cannot convert ${val.type()} to int`);
@@ -208,40 +224,40 @@ export const typeConversionFunctions: Overload[] = [
 
   // uint(value) -> uint
   new UnaryDispatcherOverload("uint", (val: Value): Value => {
-    if (val instanceof UintValue) {
+    if (isUintValue(val)) {
       return val;
     }
-    if (val instanceof IntValue) {
-      const n = val.value();
-      if (n < 0n) {
+    if (isIntValue(val)) {
+      const numericValue = val.value();
+      if (numericValue < 0n) {
         return ErrorValue.of("cannot convert negative int to uint");
       }
-      if (n > IntLimits.Uint64Max) {
+      if (numericValue > IntLimits.Uint64Max) {
         return ErrorValue.of("range error");
       }
-      return UintValue.of(n);
+      return UintValue.of(numericValue);
     }
-    if (val instanceof DoubleValue) {
-      const d = val.value();
-      if (!Number.isFinite(d) || d < 0) {
+    if (isDoubleValue(val)) {
+      const doubleValue = val.value();
+      if (!Number.isFinite(doubleValue) || doubleValue < 0) {
         return ErrorValue.of("cannot convert to uint");
       }
-      const truncated = BigInt(Math.trunc(d));
+      const truncated = BigInt(Math.trunc(doubleValue));
       if (truncated > IntLimits.Uint64Max) {
         return ErrorValue.of("range error");
       }
       return UintValue.of(truncated);
     }
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       try {
-        const n = BigInt(val.value());
-        if (n < 0n) {
+        const numericValue = BigInt(val.value());
+        if (numericValue < 0n) {
           return ErrorValue.of("cannot convert negative string to uint");
         }
-        if (n > IntLimits.Uint64Max) {
+        if (numericValue > IntLimits.Uint64Max) {
           return ErrorValue.of("range error");
         }
-        return UintValue.of(n);
+        return UintValue.of(numericValue);
       } catch {
         return ErrorValue.of(`cannot parse '${val.value()}' as uint`);
       }
@@ -251,40 +267,41 @@ export const typeConversionFunctions: Overload[] = [
 
   // double(value) -> double
   new UnaryDispatcherOverload("double", (val: Value): Value => {
-    if (val instanceof DoubleValue) {
+    if (isDoubleValue(val)) {
       return val;
     }
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       return DoubleValue.of(Number(val.value()));
     }
-    if (val instanceof UintValue) {
+    if (isUintValue(val)) {
       return DoubleValue.of(Number(val.value()));
     }
-    if (val instanceof StringValue) {
-      const d = Number.parseFloat(val.value());
-      if (Number.isNaN(d) && val.value() !== "NaN") {
-        return ErrorValue.of(`cannot parse '${val.value()}' as double`);
+    if (isStringValue(val)) {
+      const raw = val.value();
+      const doubleValue = Number.parseFloat(raw);
+      if (Number.isNaN(doubleValue) && raw !== "NaN") {
+        return ErrorValue.of(`cannot parse '${raw}' as double`);
       }
-      return DoubleValue.of(d);
+      return DoubleValue.of(doubleValue);
     }
     return ErrorValue.of(`cannot convert ${val.type()} to double`);
   }),
 
   // string(value) -> string
   new UnaryDispatcherOverload("string", (val: Value): Value => {
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       return val;
     }
-    if (val instanceof IntValue || val instanceof UintValue) {
+    if (isIntValue(val) || isUintValue(val)) {
       return StringValue.of(val.value().toString());
     }
-    if (val instanceof DoubleValue) {
+    if (isDoubleValue(val)) {
       return StringValue.of(val.value().toString());
     }
-    if (val instanceof BoolValue) {
+    if (isBoolValue(val)) {
       return StringValue.of(val.value() ? "true" : "false");
     }
-    if (val instanceof BytesValue) {
+    if (isBytesValue(val)) {
       const decoder = new TextDecoder("utf-8", { fatal: true });
       try {
         return StringValue.of(decoder.decode(val.value()));
@@ -292,10 +309,10 @@ export const typeConversionFunctions: Overload[] = [
         return ErrorValue.of("invalid UTF-8 in bytes");
       }
     }
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return StringValue.of(val.toString());
     }
-    if (val instanceof DurationValue) {
+    if (isDurationValue(val)) {
       return StringValue.of(val.toString());
     }
     return ErrorValue.of(`cannot convert ${val.type()} to string`);
@@ -303,10 +320,10 @@ export const typeConversionFunctions: Overload[] = [
 
   // bytes(value) -> bytes
   new UnaryDispatcherOverload("bytes", (val: Value): Value => {
-    if (val instanceof BytesValue) {
+    if (isBytesValue(val)) {
       return val;
     }
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       return BytesValue.fromString(val.value());
     }
     return ErrorValue.of(`cannot convert ${val.type()} to bytes`);
@@ -314,25 +331,37 @@ export const typeConversionFunctions: Overload[] = [
 
   // bool(value) -> bool
   new UnaryDispatcherOverload("bool", (val: Value): Value => {
-    if (val instanceof BoolValue) {
+    if (isBoolValue(val)) {
       return val;
     }
-    if (val instanceof StringValue) {
-      const s = val.value();
-      if (s === "true" || s === "TRUE" || s === "True" || s === "t" || s === "1") {
+    if (isStringValue(val)) {
+      const stringValue = val.value();
+      if (
+        stringValue === "true" ||
+        stringValue === "TRUE" ||
+        stringValue === "True" ||
+        stringValue === "t" ||
+        stringValue === "1"
+      ) {
         return BoolValue.True;
       }
-      if (s === "false" || s === "FALSE" || s === "False" || s === "f" || s === "0") {
+      if (
+        stringValue === "false" ||
+        stringValue === "FALSE" ||
+        stringValue === "False" ||
+        stringValue === "f" ||
+        stringValue === "0"
+      ) {
         return BoolValue.False;
       }
-      return ErrorValue.of(`cannot parse '${val.value()}' as bool`);
+      return ErrorValue.of(`cannot parse '${stringValue}' as bool`);
     }
     return ErrorValue.of(`cannot convert ${val.type()} to bool`);
   }),
 
   // type(value) -> type
   new UnaryDispatcherOverload("type", (val: Value): Value => {
-    return ValueUtil.toTypeValue(val.type());
+    return toTypeValue(val.type());
   }),
 
   // dyn(value) -> dyn
@@ -373,9 +402,9 @@ export const mapFunctions: Overload[] = [
 export const timeFunctions: Overload[] = [
   // timestamp(string) -> timestamp
   new UnaryDispatcherOverload("timestamp_string", (val: Value): Value => {
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       const parsed = parseTimestamp(val.value());
-      if (ValueUtil.isError(parsed)) {
+      if (isErrorValue(parsed)) {
         return parsed;
       }
       return parsed;
@@ -385,14 +414,14 @@ export const timeFunctions: Overload[] = [
 
   // timestamp(int) -> timestamp (seconds since epoch)
   new UnaryDispatcherOverload("timestamp_int", (val: Value): Value => {
-    if (val instanceof IntValue) {
+    if (isIntValue(val)) {
       return TimestampValue.fromSeconds(Number(val.value()));
     }
     return ErrorValue.typeMismatch("int", val);
   }),
   // timestamp(timestamp) -> timestamp
   new UnaryDispatcherOverload("timestamp_timestamp", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val;
     }
     return ErrorValue.typeMismatch("timestamp", val);
@@ -400,9 +429,9 @@ export const timeFunctions: Overload[] = [
 
   // duration(string) -> duration
   new UnaryDispatcherOverload("duration_string", (val: Value): Value => {
-    if (val instanceof StringValue) {
+    if (isStringValue(val)) {
       const parsed = parseDuration(val.value());
-      if (ValueUtil.isError(parsed)) {
+      if (isErrorValue(parsed)) {
         return parsed;
       }
       return parsed;
@@ -411,7 +440,7 @@ export const timeFunctions: Overload[] = [
   }),
   // duration(duration) -> duration
   new UnaryDispatcherOverload("duration_duration", (val: Value): Value => {
-    if (val instanceof DurationValue) {
+    if (isDurationValue(val)) {
       return val;
     }
     return ErrorValue.typeMismatch("duration", val);
@@ -419,13 +448,13 @@ export const timeFunctions: Overload[] = [
 
   // timestamp.getFullYear() -> int
   new UnaryDispatcherOverload("getFullYear", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val.getFullYear();
     }
     return ErrorValue.typeMismatch("timestamp", val);
   }),
   new BinaryDispatcherOverload("getFullYear_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+    if (isTimestampValue(lhs) && isStringValue(rhs)) {
       return lhs.getFullYear(rhs.value());
     }
     return ErrorValue.typeMismatch("timestamp, string", lhs);
@@ -433,26 +462,26 @@ export const timeFunctions: Overload[] = [
 
   // timestamp.getMonth() -> int
   new UnaryDispatcherOverload("getMonth", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val.getMonth();
     }
     return ErrorValue.typeMismatch("timestamp", val);
   }),
   new BinaryDispatcherOverload("getMonth_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+    if (isTimestampValue(lhs) && isStringValue(rhs)) {
       return lhs.getMonth(rhs.value());
     }
     return ErrorValue.typeMismatch("timestamp, string", lhs);
   }),
   // timestamp.getDate() -> int
   new UnaryDispatcherOverload("getDate", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val.getDate();
     }
     return ErrorValue.typeMismatch("timestamp", val);
   }),
   new BinaryDispatcherOverload("getDate_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+    if (isTimestampValue(lhs) && isStringValue(rhs)) {
       return lhs.getDate(rhs.value());
     }
     return ErrorValue.typeMismatch("timestamp, string", lhs);
@@ -460,13 +489,13 @@ export const timeFunctions: Overload[] = [
 
   // timestamp.getDayOfMonth() -> int
   new UnaryDispatcherOverload("getDayOfMonth", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val.getDayOfMonth();
     }
     return ErrorValue.typeMismatch("timestamp", val);
   }),
   new BinaryDispatcherOverload("getDayOfMonth_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+    if (isTimestampValue(lhs) && isStringValue(rhs)) {
       return lhs.getDayOfMonth(rhs.value());
     }
     return ErrorValue.typeMismatch("timestamp, string", lhs);
@@ -474,26 +503,26 @@ export const timeFunctions: Overload[] = [
 
   // timestamp.getDayOfWeek() -> int
   new UnaryDispatcherOverload("getDayOfWeek", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val.getDayOfWeek();
     }
     return ErrorValue.typeMismatch("timestamp", val);
   }),
   new BinaryDispatcherOverload("getDayOfWeek_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+    if (isTimestampValue(lhs) && isStringValue(rhs)) {
       return lhs.getDayOfWeek(rhs.value());
     }
     return ErrorValue.typeMismatch("timestamp, string", lhs);
   }),
   // timestamp.getDayOfYear() -> int
   new UnaryDispatcherOverload("getDayOfYear", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val.getDayOfYear();
     }
     return ErrorValue.typeMismatch("timestamp", val);
   }),
   new BinaryDispatcherOverload("getDayOfYear_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+    if (isTimestampValue(lhs) && isStringValue(rhs)) {
       return lhs.getDayOfYear(rhs.value());
     }
     return ErrorValue.typeMismatch("timestamp, string", lhs);
@@ -501,16 +530,16 @@ export const timeFunctions: Overload[] = [
 
   // timestamp.getHours() -> int
   new UnaryDispatcherOverload("getHours", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val.getHours();
     }
-    if (val instanceof DurationValue) {
+    if (isDurationValue(val)) {
       return val.getHours();
     }
     return ErrorValue.typeMismatch("timestamp or duration", val);
   }),
   new BinaryDispatcherOverload("getHours_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+    if (isTimestampValue(lhs) && isStringValue(rhs)) {
       return lhs.getHours(rhs.value());
     }
     return ErrorValue.typeMismatch("timestamp, string", lhs);
@@ -518,16 +547,16 @@ export const timeFunctions: Overload[] = [
 
   // timestamp.getMinutes() -> int
   new UnaryDispatcherOverload("getMinutes", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val.getMinutes();
     }
-    if (val instanceof DurationValue) {
+    if (isDurationValue(val)) {
       return val.getMinutes();
     }
     return ErrorValue.typeMismatch("timestamp or duration", val);
   }),
   new BinaryDispatcherOverload("getMinutes_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+    if (isTimestampValue(lhs) && isStringValue(rhs)) {
       return lhs.getMinutes(rhs.value());
     }
     return ErrorValue.typeMismatch("timestamp, string", lhs);
@@ -535,16 +564,16 @@ export const timeFunctions: Overload[] = [
 
   // timestamp.getSeconds() -> int
   new UnaryDispatcherOverload("getSeconds", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val.getSeconds();
     }
-    if (val instanceof DurationValue) {
+    if (isDurationValue(val)) {
       return val.getSeconds();
     }
     return ErrorValue.typeMismatch("timestamp or duration", val);
   }),
   new BinaryDispatcherOverload("getSeconds_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+    if (isTimestampValue(lhs) && isStringValue(rhs)) {
       return lhs.getSeconds(rhs.value());
     }
     return ErrorValue.typeMismatch("timestamp, string", lhs);
@@ -552,16 +581,16 @@ export const timeFunctions: Overload[] = [
 
   // timestamp.getMilliseconds() -> int
   new UnaryDispatcherOverload("getMilliseconds", (val: Value): Value => {
-    if (val instanceof TimestampValue) {
+    if (isTimestampValue(val)) {
       return val.getMilliseconds();
     }
-    if (val instanceof DurationValue) {
+    if (isDurationValue(val)) {
       return val.getMilliseconds();
     }
     return ErrorValue.typeMismatch("timestamp or duration", val);
   }),
   new BinaryDispatcherOverload("getMilliseconds_string", (lhs: Value, rhs: Value): Value => {
-    if (lhs instanceof TimestampValue && rhs instanceof StringValue) {
+    if (isTimestampValue(lhs) && isStringValue(rhs)) {
       return lhs.getMilliseconds(rhs.value());
     }
     return ErrorValue.typeMismatch("timestamp, string", lhs);
@@ -609,7 +638,7 @@ function parseTimestamp(value: string): TimestampValue | ErrorValue {
     return ErrorValue.of("timestamp out of range");
   }
 
-  const offsetMinutes = parseTimestampOffset(tz);
+  const offsetMinutes = parseTimeZoneOffset(tz);
   if (offsetMinutes === undefined) {
     return ErrorValue.of(`cannot parse '${value}' as timestamp`);
   }
@@ -642,21 +671,6 @@ function parseTimestamp(value: string): TimestampValue | ErrorValue {
     return ErrorValue.of("timestamp out of range");
   }
   return TimestampValue.of(timestampNanos);
-}
-
-function parseTimestampOffset(tz: string): number | undefined {
-  const normalized = tz.trim();
-  if (normalized === "Z" || normalized === "UTC") {
-    return 0;
-  }
-  const match = /^([+-]?)(\d{2}):(\d{2})$/.exec(normalized);
-  if (match === null) {
-    return undefined;
-  }
-  const sign = match[1] === "-" ? -1 : 1;
-  const hours = Number(match[2]);
-  const minutes = Number(match[3]);
-  return sign * (hours * 60 + minutes);
 }
 
 function utcMillisForDate(

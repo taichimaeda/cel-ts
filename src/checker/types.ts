@@ -46,6 +46,13 @@ export class Type {
   }
 
   /**
+   * Unique key representation for type maps.
+   */
+  typeKey(): string {
+    return this.toString();
+  }
+
+  /**
    * Check if types are exactly equal (including type parameter names)
    */
   isExactType(other: Type): boolean {
@@ -96,13 +103,6 @@ export class Type {
       default:
         return false;
     }
-  }
-
-  /**
-   * Unique key representation for type maps.
-   */
-  typeKey(): string {
-    return this.toString();
   }
 
   /**
@@ -166,21 +166,19 @@ class PrimitiveType extends Type {
 /**
  * Primitive CEL types as singleton instances.
  */
-export const PrimitiveTypes = {
-  Bool: new PrimitiveType("bool", "bool"),
-  Int: new PrimitiveType("int", "int"),
-  Uint: new PrimitiveType("uint", "uint"),
-  Double: new PrimitiveType("double", "double"),
-  String: new PrimitiveType("string", "string"),
-  Bytes: new PrimitiveType("bytes", "bytes"),
-  Null: new PrimitiveType("null_type", "null_type"),
-  Duration: new PrimitiveType("duration", "google.protobuf.Duration"),
-  Timestamp: new PrimitiveType("timestamp", "google.protobuf.Timestamp"),
-  Dyn: new PrimitiveType("dyn", "dyn"),
-  Error: new PrimitiveType("error", "error"),
-  Type: new PrimitiveType("type", "type"),
-  Any: new PrimitiveType("any", "any"),
-} as const;
+export const BoolType = new PrimitiveType("bool", "bool");
+export const IntType = new PrimitiveType("int", "int");
+export const UintType = new PrimitiveType("uint", "uint");
+export const DoubleType = new PrimitiveType("double", "double");
+export const StringType = new PrimitiveType("string", "string");
+export const BytesType = new PrimitiveType("bytes", "bytes");
+export const NullType = new PrimitiveType("null_type", "null_type");
+export const DurationType = new PrimitiveType("duration", "google.protobuf.Duration");
+export const TimestampType = new PrimitiveType("timestamp", "google.protobuf.Timestamp");
+export const DynType = new PrimitiveType("dyn", "dyn");
+export const ErrorType = new PrimitiveType("error", "error");
+export const TypeType = new PrimitiveType("type", "type");
+export const AnyType = new PrimitiveType("any", "any");
 
 // ---------------------------------------------------------------------------
 // Concrete Type Implementations
@@ -287,10 +285,10 @@ export class PolymorphicTypeType extends Type {
 }
 
 /** List type with dyn element type. */
-export const DynListType = new ListType(PrimitiveTypes.Dyn);
+export const DynListType = new ListType(DynType);
 
 /** Map type with dyn key and value types. */
-export const DynMapType = new MapType(PrimitiveTypes.Dyn, PrimitiveTypes.Dyn);
+export const DynMapType = new MapType(DynType, DynType);
 
 /**
  * Join two types to find their common type
@@ -310,17 +308,17 @@ export function joinTypes(typ1: Type, typ2: Type): Type {
     return typ2;
   }
   if (typ1.isOptionalType() || typ2.isOptionalType()) {
-    const inner1 = typ1.isOptionalType() ? (typ1.parameters[0] ?? PrimitiveTypes.Dyn) : typ1;
-    const inner2 = typ2.isOptionalType() ? (typ2.parameters[0] ?? PrimitiveTypes.Dyn) : typ2;
+    const inner1 = typ1.isOptionalType() ? (typ1.parameters[0] ?? DynType) : typ1;
+    const inner2 = typ2.isOptionalType() ? (typ2.parameters[0] ?? DynType) : typ2;
     return new OptionalType(joinTypes(inner1, inner2));
   }
 
   // If either is Dyn or Error, result is Dyn
   if (typ1.kind === "dyn" || typ1.kind === "error") {
-    return PrimitiveTypes.Dyn;
+    return DynType;
   }
   if (typ2.kind === "dyn" || typ2.kind === "error") {
-    return PrimitiveTypes.Dyn;
+    return DynType;
   }
 
   if (typ1.kind === "null_type" && isLegacyNullableTarget(typ2)) {
@@ -351,31 +349,31 @@ export function joinTypes(typ1: Type, typ2: Type): Type {
   }
 
   if (typ1.kind === "list" && typ2.kind === "list") {
-    const elem1 = typ1.parameters[0] ?? PrimitiveTypes.Dyn;
-    const elem2 = typ2.parameters[0] ?? PrimitiveTypes.Dyn;
+    const elem1 = typ1.parameters[0] ?? DynType;
+    const elem2 = typ2.parameters[0] ?? DynType;
     return new ListType(joinTypes(elem1, elem2));
   }
 
   if (typ1.kind === "map" && typ2.kind === "map") {
-    const key1 = typ1.parameters[0] ?? PrimitiveTypes.Dyn;
-    const key2 = typ2.parameters[0] ?? PrimitiveTypes.Dyn;
-    const val1 = typ1.parameters[1] ?? PrimitiveTypes.Dyn;
-    const val2 = typ2.parameters[1] ?? PrimitiveTypes.Dyn;
+    const key1 = typ1.parameters[0] ?? DynType;
+    const key2 = typ2.parameters[0] ?? DynType;
+    const val1 = typ1.parameters[1] ?? DynType;
+    const val2 = typ2.parameters[1] ?? DynType;
     return new MapType(joinTypes(key1, key2), joinTypes(val1, val2));
   }
 
   if (typ1.kind === "opaque" && typ2.kind === "opaque") {
     if (typ1.runtimeTypeName !== typ2.runtimeTypeName) {
-      return PrimitiveTypes.Dyn;
+      return DynType;
     }
     if (typ1.parameters.length !== typ2.parameters.length) {
-      return PrimitiveTypes.Dyn;
+      return DynType;
     }
     if (typ1.parameters.length === 0) {
       return typ1;
     }
     const params = typ1.parameters.map((param, index) => {
-      const other = typ2.parameters[index] ?? PrimitiveTypes.Dyn;
+      const other = typ2.parameters[index] ?? DynType;
       return joinTypes(param, other);
     });
     return new OpaqueType(typ1.runtimeTypeName, ...params);
@@ -387,7 +385,7 @@ export function joinTypes(typ1: Type, typ2: Type): Type {
   }
 
   // Otherwise, fall back to Dyn
-  return PrimitiveTypes.Dyn;
+  return DynType;
 }
 
 function isLegacyNullableTarget(type: Type): boolean {
@@ -429,15 +427,15 @@ export type WrapperTypeKind = "bool" | "bytes" | "double" | "float" | "int" | "u
  * Maps protobuf wrapper type names to their CEL Type.
  */
 const WrapperTypeToType = new Map<WrapperTypeName, Type>([
-  ["google.protobuf.BoolValue", PrimitiveTypes.Bool],
-  ["google.protobuf.BytesValue", PrimitiveTypes.Bytes],
-  ["google.protobuf.DoubleValue", PrimitiveTypes.Double],
-  ["google.protobuf.FloatValue", PrimitiveTypes.Double],
-  ["google.protobuf.Int32Value", PrimitiveTypes.Int],
-  ["google.protobuf.Int64Value", PrimitiveTypes.Int],
-  ["google.protobuf.UInt32Value", PrimitiveTypes.Uint],
-  ["google.protobuf.UInt64Value", PrimitiveTypes.Uint],
-  ["google.protobuf.StringValue", PrimitiveTypes.String],
+  ["google.protobuf.BoolValue", BoolType],
+  ["google.protobuf.BytesValue", BytesType],
+  ["google.protobuf.DoubleValue", DoubleType],
+  ["google.protobuf.FloatValue", DoubleType],
+  ["google.protobuf.Int32Value", IntType],
+  ["google.protobuf.Int64Value", IntType],
+  ["google.protobuf.UInt32Value", UintType],
+  ["google.protobuf.UInt64Value", UintType],
+  ["google.protobuf.StringValue", StringType],
 ]);
 
 /**
@@ -473,10 +471,10 @@ export type WellKnownTypeKind = "dyn" | "map" | "list";
  * Maps protobuf well-known type names to their CEL Type.
  */
 const WellKnownTypeToType = new Map<WellKnownTypeName, Type>([
-  ["google.protobuf.Value", PrimitiveTypes.Dyn],
-  ["google.protobuf.Any", PrimitiveTypes.Dyn],
-  ["google.protobuf.Struct", new MapType(PrimitiveTypes.String, PrimitiveTypes.Dyn)],
-  ["google.protobuf.ListValue", new ListType(PrimitiveTypes.Dyn)],
+  ["google.protobuf.Value", DynType],
+  ["google.protobuf.Any", DynType],
+  ["google.protobuf.Struct", new MapType(StringType, DynType)],
+  ["google.protobuf.ListValue", new ListType(DynType)],
 ]);
 
 /**
@@ -515,19 +513,19 @@ export type BuiltinTypeName =
  * Maps builtin type names to their CEL Type.
  */
 const BuiltinNameToType = new Map<BuiltinTypeName, Type>([
-  ["bool", PrimitiveTypes.Bool],
-  ["int", PrimitiveTypes.Int],
-  ["uint", PrimitiveTypes.Uint],
-  ["double", PrimitiveTypes.Double],
-  ["string", PrimitiveTypes.String],
-  ["bytes", PrimitiveTypes.Bytes],
-  ["null_type", PrimitiveTypes.Null],
+  ["bool", BoolType],
+  ["int", IntType],
+  ["uint", UintType],
+  ["double", DoubleType],
+  ["string", StringType],
+  ["bytes", BytesType],
+  ["null_type", NullType],
   ["list", DynListType],
   ["map", DynMapType],
-  ["type", PrimitiveTypes.Type],
-  ["optional_type", new OptionalType(PrimitiveTypes.Dyn)],
-  ["google.protobuf.Timestamp", PrimitiveTypes.Timestamp],
-  ["google.protobuf.Duration", PrimitiveTypes.Duration],
+  ["type", TypeType],
+  ["optional_type", new OptionalType(DynType)],
+  ["google.protobuf.Timestamp", TimestampType],
+  ["google.protobuf.Duration", DurationType],
 ]);
 
 // ---------------------------------------------------------------------------

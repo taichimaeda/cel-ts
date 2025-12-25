@@ -3,20 +3,20 @@ import {
   BoolType,
   BytesType,
   DoubleType,
-  DurationType,
   DynType,
+  DurationType,
   ErrorType,
   IntType,
   ListType,
   MapType,
-  NullType,
   OpaqueType,
+  PolymorphicTypeType,
+  NullType,
   StringType,
   StructType,
   TimestampType,
   type Type,
   TypeParamType,
-  PolymorphicTypeType,
   UintType,
 } from "../../src/checker/types";
 import {
@@ -37,8 +37,7 @@ import {
   UintValue,
   type Value,
 } from "../../src/interpreter/values";
-import { stripTypeUrl } from "./proto";
-import { type ProtoObject, runtime } from "./runtime";
+import { type ProtoObject, protoLoader, stripTypeUrl } from "./protos";
 
 export function protoToValue(value: ProtoObject): Value | null {
   const kind = value["kind"] as string | undefined;
@@ -101,6 +100,9 @@ export function protoToValue(value: ProtoObject): Value | null {
   }
 }
 
+/**
+ * Convert a CEL Constant proto value into a runtime Value.
+ */
 export function protoToObjectValue(anyValue: ProtoObject): Value | null {
   const typeUrl = anyValue["type_url"] ?? anyValue["typeUrl"];
   const bytes = anyValue["value"] as Uint8Array | number[] | undefined;
@@ -112,7 +114,7 @@ export function protoToObjectValue(anyValue: ProtoObject): Value | null {
   const typeName = stripTypeUrl(String(typeUrl));
   let messageType: protobuf.Type;
   try {
-    messageType = runtime.root.lookupType(typeName);
+    messageType = protoLoader.root.lookupType(typeName);
   } catch {
     return null;
   }
@@ -121,7 +123,7 @@ export function protoToObjectValue(anyValue: ProtoObject): Value | null {
   }
   const byteArray = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const decoded = messageType.decode(byteArray);
-  const object = messageType.toObject(decoded, runtime.options) as ProtoObject;
+  const object = messageType.toObject(decoded, protoLoader.options) as ProtoObject;
   return messageToValue(messageType, object, decoded as unknown as ProtoObject);
 }
 
@@ -220,12 +222,12 @@ export function anyToValue(typeUrl: string, bytes: Uint8Array): Value | null {
   const typeName = stripTypeUrl(typeUrl);
   let messageType: protobuf.Type;
   try {
-    messageType = runtime.root.lookupType(typeName);
+    messageType = protoLoader.root.lookupType(typeName);
   } catch {
     return null;
   }
   const decoded = messageType.decode(bytes);
-  const object = messageType.toObject(decoded, runtime.options) as ProtoObject;
+  const object = messageType.toObject(decoded, protoLoader.options) as ProtoObject;
   return messageToValue(messageType, object);
 }
 
@@ -284,7 +286,7 @@ export function messageToValue(
   for (const field of messageType.fieldsArray) {
     const protoFieldName = normalizeProtoFieldName(field.name);
     const fieldName = stripLeadingDot(protoFieldName);
-    const fieldType = runtime.protobufTypeProvider.findStructFieldType(typeName, fieldName);
+    const fieldType = protoLoader.typeProvider.findStructFieldType(typeName, fieldName);
     if (fieldType) {
       fieldTypes.set(fieldName, fieldType);
     }
@@ -306,7 +308,7 @@ export function messageToValue(
       presentFields.add(fieldName);
     }
   }
-  return StructValue.of(typeName, values, presentFields, fieldTypes, runtime.protobufTypeProvider);
+  return StructValue.of(typeName, values, presentFields, fieldTypes, protoLoader.typeProvider);
 }
 
 export function messageToWrapperValue(
@@ -460,9 +462,10 @@ export function fieldScalarOrMessageToValue(
   if (resolved instanceof protobuf.Type) {
     const decodedMessage = getDecodedMessage(raw) ?? getDecodedMessage(decodedRaw);
     const object = decodedMessage
-      ? (resolved.toObject(decodedMessage, runtime.options) as ProtoObject)
+      ? (resolved.toObject(decodedMessage, protoLoader.options) as ProtoObject)
       : ((raw ?? {}) as ProtoObject);
-    return messageToValue(resolved, object, decodedMessage ?? (raw as ProtoObject));
+    const decoded = decodedMessage ? (decodedMessage as unknown as ProtoObject) : (raw as ProtoObject | undefined);
+    return messageToValue(resolved, object, decoded);
   }
   return null;
 }
@@ -755,7 +758,7 @@ export function typeNameToTypeValue(name: string): Value | null {
     default:
       break;
   }
-  const enumType = runtime.protobufTypeProvider.findEnumType(name);
+  const enumType = protoLoader.typeProvider.findEnumType(name);
   if (enumType) {
     return TypeValue.of(enumType);
   }

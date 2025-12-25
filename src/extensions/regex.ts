@@ -1,8 +1,9 @@
-import { type EnvOptions, Function, Overload, PrimitiveTypes } from "../cel";
+import { type EnvOptions, Function, IntType, Overload, StringType } from "../cel";
 import { ListType, OptionalType } from "../checker/types";
 import {
   ErrorValue,
-  IntValue,
+  isIntValue,
+  isStringValue,
   ListValue,
   OptionalValue,
   StringValue,
@@ -22,8 +23,8 @@ export class RegexExtension implements Extension {
           "regex.extract",
           new Overload(
             "regex_extract_string_string",
-            [PrimitiveTypes.String, PrimitiveTypes.String],
-            new OptionalType(PrimitiveTypes.String),
+            [StringType, StringType],
+            new OptionalType(StringType),
             (lhs: Value, rhs: Value) => extractOne(lhs, rhs)
           )
         ),
@@ -31,8 +32,8 @@ export class RegexExtension implements Extension {
           "regex.extractAll",
           new Overload(
             "regex_extractAll_string_string",
-            [PrimitiveTypes.String, PrimitiveTypes.String],
-            new ListType(PrimitiveTypes.String),
+            [StringType, StringType],
+            new ListType(StringType),
             (lhs: Value, rhs: Value) => extractAll(lhs, rhs)
           )
         ),
@@ -40,14 +41,14 @@ export class RegexExtension implements Extension {
           "regex.replace",
           new Overload(
             "regex_replace_string_string_string",
-            [PrimitiveTypes.String, PrimitiveTypes.String, PrimitiveTypes.String],
-            PrimitiveTypes.String,
+            [StringType, StringType, StringType],
+            StringType,
             (args: Value[]) => replaceRegex(args)
           ),
           new Overload(
             "regex_replace_string_string_string_int",
-            [PrimitiveTypes.String, PrimitiveTypes.String, PrimitiveTypes.String, PrimitiveTypes.Int],
-            PrimitiveTypes.String,
+            [StringType, StringType, StringType, IntType],
+            StringType,
             (args: Value[]) => replaceRegex(args)
           )
         ),
@@ -57,7 +58,7 @@ export class RegexExtension implements Extension {
 }
 
 function extractOne(target: Value, pattern: Value): Value {
-  if (!(target instanceof StringValue) || !(pattern instanceof StringValue)) {
+  if (!isStringValue(target) || !isStringValue(pattern)) {
     return ErrorValue.of("regex.extract expects string arguments");
   }
   let regex: RegExp;
@@ -79,7 +80,7 @@ function extractOne(target: Value, pattern: Value): Value {
 }
 
 function extractAll(target: Value, pattern: Value): Value {
-  if (!(target instanceof StringValue) || !(pattern instanceof StringValue)) {
+  if (!isStringValue(target) || !isStringValue(pattern)) {
     return ErrorValue.of("regex.extractAll expects string arguments");
   }
   let regex: RegExp;
@@ -111,15 +112,18 @@ function replaceRegex(args: Value[]): Value {
   const replacement = args[2];
   const count = args[3];
   if (
-    !(target instanceof StringValue) ||
-    !(pattern instanceof StringValue) ||
-    !(replacement instanceof StringValue)
+    target === undefined ||
+    pattern === undefined ||
+    replacement === undefined ||
+    !isStringValue(target) ||
+    !isStringValue(pattern) ||
+    !isStringValue(replacement)
   ) {
     return ErrorValue.of("regex.replace expects string arguments");
   }
   let limit = -1;
   if (count !== undefined) {
-    if (!(count instanceof IntValue)) {
+    if (!isIntValue(count)) {
       return ErrorValue.typeMismatch("int", count);
     }
     limit = Number(count.value());

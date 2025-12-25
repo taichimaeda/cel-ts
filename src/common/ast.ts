@@ -604,15 +604,24 @@ export const AccumulatorName = "__result__";
  * Reference information for a checked expression.
  * Contains resolution information from type checking.
  */
-export type ReferenceInfo = VariableReference | FunctionReference;
+export type ReferenceInfo = VariableReference | ConstantReference | FunctionReference;
 
 /**
  * Variable reference information.
+ * Represents runtime variables resolved from the activation.
  */
 export class VariableReference {
+  constructor(readonly name: string) { }
+}
+
+/**
+ * Constant reference information.
+ * Represents compile-time constants and enum values folded into the AST.
+ */
+export class ConstantReference {
   constructor(
     readonly name: string,
-    readonly value?: unknown
+    readonly value: unknown
   ) { }
 }
 

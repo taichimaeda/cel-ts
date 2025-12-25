@@ -12,6 +12,17 @@ import {
   DurationValue,
   EnumValue,
   ErrorValue,
+  isBoolValue,
+  isBytesValue,
+  isDoubleValue,
+  isIntValue,
+  isListValue,
+  isMapValue,
+  isNullValue,
+  isOptionalValue,
+  isStringValue,
+  isStructValue,
+  isUintValue,
   IntValue,
   ListValue,
   MapValue,
@@ -87,29 +98,29 @@ export function googleValueToValue(values: Map<string, Value>): Value {
     return NullValue.Instance;
   }
   const numberValue = unwrapOptional(values.get("number_value"));
-  if (numberValue instanceof DoubleValue) {
+  if (numberValue !== undefined && isDoubleValue(numberValue)) {
     return numberValue;
   }
-  if (numberValue instanceof IntValue || numberValue instanceof UintValue) {
+  if (numberValue !== undefined && (isIntValue(numberValue) || isUintValue(numberValue))) {
     return DoubleValue.of(Number(numberValue.value()));
   }
   const stringValue = unwrapOptional(values.get("string_value"));
-  if (stringValue instanceof StringValue) {
+  if (stringValue !== undefined && isStringValue(stringValue)) {
     return stringValue;
   }
   const boolValue = unwrapOptional(values.get("bool_value"));
-  if (boolValue instanceof BoolValue) {
+  if (boolValue !== undefined && isBoolValue(boolValue)) {
     return boolValue;
   }
   const structValue = unwrapOptional(values.get("struct_value"));
-  if (structValue instanceof MapValue) {
+  if (structValue !== undefined && isMapValue(structValue)) {
     return structValue;
   }
-  if (structValue instanceof StructValue) {
+  if (structValue !== undefined && isStructValue(structValue)) {
     return structValueToMapValue(structValue);
   }
   const listValue = unwrapOptional(values.get("list_value"));
-  if (listValue instanceof ListValue) {
+  if (listValue !== undefined && isListValue(listValue)) {
     return listValue;
   }
   return NullValue.Instance;
@@ -121,13 +132,13 @@ export function googleValueToValue(values: Map<string, Value>): Value {
  */
 export function googleStructToValue(values: Map<string, Value>): Value {
   const fieldsValue = unwrapOptional(values.get("fields"));
-  if (fieldsValue === undefined || fieldsValue instanceof NullValue) {
+  if (fieldsValue === undefined || isNullValue(fieldsValue)) {
     return MapValue.of([]);
   }
-  if (fieldsValue instanceof MapValue) {
+  if (isMapValue(fieldsValue)) {
     return fieldsValue;
   }
-  if (fieldsValue instanceof StructValue) {
+  if (isStructValue(fieldsValue)) {
     return structValueToMapValue(fieldsValue);
   }
   return ErrorValue.typeMismatch("map", fieldsValue);
@@ -139,10 +150,10 @@ export function googleStructToValue(values: Map<string, Value>): Value {
  */
 export function googleListToValue(values: Map<string, Value>): Value {
   const valuesValue = unwrapOptional(values.get("values"));
-  if (valuesValue === undefined || valuesValue instanceof NullValue) {
+  if (valuesValue === undefined || isNullValue(valuesValue)) {
     return ListValue.of([]);
   }
-  if (valuesValue instanceof ListValue) {
+  if (isListValue(valuesValue)) {
     return valuesValue;
   }
   return ErrorValue.typeMismatch("list", valuesValue);
@@ -156,7 +167,12 @@ export function googleListToValue(values: Map<string, Value>): Value {
 export function googleAnyToValue(values: Map<string, Value>): Value | undefined {
   const typeUrl = unwrapOptional(values.get("type_url"));
   const bytesValue = unwrapOptional(values.get("value"));
-  if (!(typeUrl instanceof StringValue) || !(bytesValue instanceof BytesValue)) {
+  if (
+    typeUrl === undefined ||
+    bytesValue === undefined ||
+    !isStringValue(typeUrl) ||
+    !isBytesValue(bytesValue)
+  ) {
     return undefined;
   }
   return resolveAnyValue(typeUrl.value(), bytesValue.value());
@@ -178,13 +194,13 @@ export function structValueToMapValue(structValue: StructValue): MapValue {
  * Validates that all map keys are strings. Returns an error if validation fails.
  */
 export function googleStructToMapValue(value: Value): MapValue | ErrorValue {
-  if (value instanceof MapValue) {
+  if (isMapValue(value)) {
     if (!mapKeysAreStrings(value)) {
       return ErrorValue.of("bad key type");
     }
     return value;
   }
-  if (value instanceof StructValue) {
+  if (isStructValue(value)) {
     return structValueToMapValue(value);
   }
   return ErrorValue.typeMismatch("map", value);
@@ -204,6 +220,23 @@ export function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): s
   }
   const { line, column } = sourceInfo.getLocation(position.start);
   return `${line}:${column}: ${error.getMessage()}`;
+}
+
+export function normalizeIndexValue(value: Value): IntValue | ErrorValue {
+  if (isIntValue(value)) {
+    return value;
+  }
+  if (isUintValue(value)) {
+    return IntValue.of(value.value());
+  }
+  if (isDoubleValue(value)) {
+    const num = value.value();
+    if (Number.isFinite(num) && Number.isInteger(num)) {
+      return IntValue.of(num);
+    }
+    return ErrorValue.of("invalid_argument");
+  }
+  return ErrorValue.typeMismatch("int or uint", value);
 }
 
 /**
@@ -376,7 +409,7 @@ export function protoDefaultToValue(
  * Unwrap an OptionalValue to its inner value, or return the value as-is.
  */
 function unwrapOptional(value: Value | undefined): Value | undefined {
-  if (value instanceof OptionalValue) {
+  if (value !== undefined && isOptionalValue(value)) {
     return value.hasValue() ? (value.value() ?? NullValue.Instance) : NullValue.Instance;
   }
   return value;
@@ -387,7 +420,7 @@ function unwrapOptional(value: Value | undefined): Value | undefined {
  */
 function mapKeysAreStrings(value: MapValue): boolean {
   for (const entry of value.value()) {
-    if (!(entry.key instanceof StringValue)) {
+    if (entry.key.kind !== "string") {
       return false;
     }
   }
@@ -441,4 +474,3 @@ export function isActivation(value: unknown): value is Activation {
     typeof (value as Activation).resolve === "function"
   );
 }
-

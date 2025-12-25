@@ -363,8 +363,8 @@ export class MacroRegistry {
   private readonly macros: Map<string, Macro> = new Map();
 
   constructor(macros: Macro[] = AllMacros) {
-    for (const m of macros) {
-      this.macros.set(m.macroKey(), m);
+    for (const macro of macros) {
+      this.macros.set(macro.macroKey(), macro);
     }
   }
 

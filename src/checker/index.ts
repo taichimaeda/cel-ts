@@ -5,7 +5,7 @@ export { Checker } from "./checker";
 export type { CheckResult } from "./checker";
 
 // Re-export ReferenceInfo helpers from common/ast
-export { FunctionReference, VariableReference } from "../common/ast";
+export { ConstantReference, FunctionReference, VariableReference } from "../common/ast";
 export type { ReferenceInfo } from "../common/ast";
 
 export {
@@ -21,25 +21,37 @@ export type { LookupResult } from "./env";
 export { CompositeTypeProvider, ProtobufTypeProvider, StructTypeProvider } from "./provider";
 export type { TypeProvider } from "./provider";
 
-export { CheckerErrors } from "./error";
-export type { CheckerError, Location } from "./error";
+export { Errors } from "./errors";
+export type { Error, Location } from "./errors";
 
 export { TypeMapping } from "./mapping";
 export {
+  AnyType,
+  BoolType,
+  BytesType,
+  DoubleType,
   DynListType,
   DynMapType,
+  DynType,
+  DurationType,
+  ErrorType,
+  IntType,
   joinTypes,
   ListType,
   MapType,
   OpaqueType,
   OptionalType,
   PolymorphicTypeType,
-  PrimitiveTypes,
+  NullType,
+  StringType,
   StructType,
+  TimestampType,
   Type,
   TypeParamType,
+  TypeType,
+  UintType,
   wellKnownTypeNameToKind,
-  wrapperTypeNameToKind,
+  wrapperTypeNameToKind
 } from "./types";
 
 export type {
@@ -52,7 +64,7 @@ export type {
   WellKnownTypeKind,
   WellKnownTypeName,
   WrapperTypeKind,
-  WrapperTypeName,
+  WrapperTypeName
 } from "./types";
 
 export { StandardLibrary } from "./stdlib";

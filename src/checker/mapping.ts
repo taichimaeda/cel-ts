@@ -2,10 +2,10 @@
 // Type parameter bindings for type unification and substitution
 
 import {
+  DynType,
   ListType,
   MapType,
   OpaqueType,
-  PrimitiveTypes,
   type Type,
   PolymorphicTypeType,
   wellKnownTypeToNative,
@@ -190,7 +190,7 @@ export class TypeMapping {
     if (bound !== undefined) {
       return this.substituteType(bound, typeParamToDyn);
     }
-    return typeParamToDyn ? PrimitiveTypes.Dyn : type;
+    return typeParamToDyn ? DynType : type;
   }
 
   private substituteList(type: Type, typeParamToDyn: boolean): Type {

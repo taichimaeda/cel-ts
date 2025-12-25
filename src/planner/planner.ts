@@ -3,11 +3,12 @@
 // Ported from cel-go/interpreter/planner.go
 
 import type { TypeProvider } from "../checker/provider";
-import { type Type as CheckerType, ListType, MapType, PrimitiveTypes } from "../checker/types";
+import { type Type as CheckerType, IntType, ListType, MapType } from "../checker/types";
 import {
   type AST,
   CallExpr,
   ComprehensionExpr,
+  ConstantReference,
   type Expr,
   type ExprId,
   FunctionReference,
@@ -59,11 +60,13 @@ import {
   EnumValue,
   ErrorValue,
   IntValue,
+  isStringValue,
+  isValue,
   NullValue,
   StringValue,
+  toTypeValue,
   UintValue,
   type Value,
-  ValueUtil,
 } from "../interpreter/values";
 
 /**
@@ -174,8 +177,8 @@ export class Planner {
    */
   private planIdent(expr: IdentExpr): Interpretable {
     const ref = this.refMap.get(expr.id);
-    if (ref instanceof VariableReference && ref.value !== undefined) {
-      return new ConstValue(expr.id, this.enumValueToValue(ref, expr.id));
+    if (ref instanceof ConstantReference) {
+      return new ConstValue(expr.id, this.refValueToValue(ref, expr.id));
     }
     if (ref instanceof VariableReference && ref.name !== expr.name) {
       const attr = this.attributeForName(expr.id, ref.name);
@@ -185,7 +188,7 @@ export class Planner {
     if (identType?.kind === "type") {
       const targetType = identType.parameters[0];
       if (targetType !== undefined) {
-        return new ConstValue(expr.id, ValueUtil.toTypeValue(targetType));
+        return new ConstValue(expr.id, toTypeValue(targetType));
       }
     }
     const attr = this.attributeForName(expr.id, expr.name);
@@ -197,14 +200,14 @@ export class Planner {
    */
   private planSelect(expr: SelectExpr): Interpretable {
     const ref = this.refMap.get(expr.id);
-    if (ref instanceof VariableReference && ref.value !== undefined) {
-      return new ConstValue(expr.id, this.enumValueToValue(ref, expr.id));
+    if (ref instanceof ConstantReference) {
+      return new ConstValue(expr.id, this.refValueToValue(ref, expr.id));
     }
     const selectType = this.typeMap?.get(expr.id);
     if (selectType?.kind === "type") {
       const targetType = selectType.parameters[0];
       if (targetType !== undefined) {
-        return new ConstValue(expr.id, ValueUtil.toTypeValue(targetType));
+        return new ConstValue(expr.id, toTypeValue(targetType));
       }
     }
     if (!expr.testOnly && !expr.optional) {
@@ -669,7 +672,7 @@ export class Planner {
       return type;
     }
     if (type.kind === "opaque" && this.typeProvider?.findEnumType(type.runtimeTypeName)) {
-      return PrimitiveTypes.Int;
+      return IntType;
     }
     if (type.kind === "list") {
       const elem = type.parameters[0];
@@ -752,11 +755,18 @@ export class Planner {
     }
   }
 
-  private enumValueToValue(ref: VariableReference, exprId: ExprId): Value {
+  private refValueToValue(ref: ConstantReference, exprId: ExprId): Value {
     const value = ref.value;
+
+    // If value is already a Value object (constant), return it directly
+    if (isValue(value)) {
+      return value;
+    }
+
+    // Otherwise treat as enum value (numeric)
     const numeric = this.enumNumericValue(value);
     if (numeric === undefined) {
-      return ErrorValue.of("invalid enum value", exprId);
+      return ErrorValue.of("invalid constant value", exprId);
     }
     const exprType = this.typeMap?.get(exprId);
     if (exprType?.kind === "int" || exprType?.kind === "uint") {
@@ -777,7 +787,7 @@ export class Planner {
   ): Qualifier {
     if ("type" in value && typeof value.type === "function") {
       const literal = value as Value;
-      if (literal instanceof StringValue) {
+      if (isStringValue(literal)) {
         return new StringQualifier(exprId, literal.value(), isOptional);
       }
       return new IndexQualifier(exprId, literal, isOptional);
@@ -795,7 +805,7 @@ export class Planner {
     return undefined;
   }
 
-  private enumTypeFromRef(ref: VariableReference): string | undefined {
+  private enumTypeFromRef(ref: ConstantReference): string | undefined {
     const refName = ref.name;
     if (refName === "") {
       return undefined;

@@ -1,24 +1,31 @@
 import {
+  BoolType,
+  DoubleType,
+  DynType,
   type EnvOptions,
   Function,
+  IntType,
   Overload,
-  PrimitiveTypes,
+  UintType,
 } from "../cel";
 import { ListType } from "../checker/types";
 import {
   BoolValue,
   DoubleValue,
   ErrorValue,
+  isDoubleValue,
+  isIntValue,
+  isListValue,
+  isUintValue,
   IntLimits,
   IntValue,
-  ListValue,
   UintValue,
   type Value,
+  compareValues,
 } from "../interpreter/values";
 import { type Macro, MacroError, ReceiverVarArgMacro } from "../parser";
 import type { Extension } from "./extensions";
-import { macroTargetMatchesNamespace } from "./macros";
-import { compareValues } from "./utils";
+import { macroTargetMatchesNamespace } from "./utils";
 
 /** Options for configuring the math extension version. */
 export type MathOptions = { version?: number };
@@ -75,39 +82,39 @@ export class MathExtension implements Extension {
     const functions = [
       new Function(
         minFunc,
-        new Overload("math_@min_double", [PrimitiveTypes.Double], PrimitiveTypes.Double, (arg: Value) => arg),
-        new Overload("math_@min_int", [PrimitiveTypes.Int], PrimitiveTypes.Int, (arg: Value) => arg),
-        new Overload("math_@min_uint", [PrimitiveTypes.Uint], PrimitiveTypes.Uint, (arg: Value) => arg),
-        new Overload("math_@min_double_double", [PrimitiveTypes.Double, PrimitiveTypes.Double], PrimitiveTypes.Double, minPair),
-        new Overload("math_@min_int_int", [PrimitiveTypes.Int, PrimitiveTypes.Int], PrimitiveTypes.Int, minPair),
-        new Overload("math_@min_uint_uint", [PrimitiveTypes.Uint, PrimitiveTypes.Uint], PrimitiveTypes.Uint, minPair),
-        new Overload("math_@min_int_uint", [PrimitiveTypes.Int, PrimitiveTypes.Uint], PrimitiveTypes.Dyn, minPair),
-        new Overload("math_@min_int_double", [PrimitiveTypes.Int, PrimitiveTypes.Double], PrimitiveTypes.Dyn, minPair),
-        new Overload("math_@min_double_int", [PrimitiveTypes.Double, PrimitiveTypes.Int], PrimitiveTypes.Dyn, minPair),
-        new Overload("math_@min_double_uint", [PrimitiveTypes.Double, PrimitiveTypes.Uint], PrimitiveTypes.Dyn, minPair),
-        new Overload("math_@min_uint_int", [PrimitiveTypes.Uint, PrimitiveTypes.Int], PrimitiveTypes.Dyn, minPair),
-        new Overload("math_@min_uint_double", [PrimitiveTypes.Uint, PrimitiveTypes.Double], PrimitiveTypes.Dyn, minPair),
-        new Overload("math_@min_list_double", [new ListType(PrimitiveTypes.Double)], PrimitiveTypes.Double, minList),
-        new Overload("math_@min_list_int", [new ListType(PrimitiveTypes.Int)], PrimitiveTypes.Int, minList),
-        new Overload("math_@min_list_uint", [new ListType(PrimitiveTypes.Uint)], PrimitiveTypes.Uint, minList)
+        new Overload("math_@min_double", [DoubleType], DoubleType, (arg: Value) => arg),
+        new Overload("math_@min_int", [IntType], IntType, (arg: Value) => arg),
+        new Overload("math_@min_uint", [UintType], UintType, (arg: Value) => arg),
+        new Overload("math_@min_double_double", [DoubleType, DoubleType], DoubleType, minPair),
+        new Overload("math_@min_int_int", [IntType, IntType], IntType, minPair),
+        new Overload("math_@min_uint_uint", [UintType, UintType], UintType, minPair),
+        new Overload("math_@min_int_uint", [IntType, UintType], DynType, minPair),
+        new Overload("math_@min_int_double", [IntType, DoubleType], DynType, minPair),
+        new Overload("math_@min_double_int", [DoubleType, IntType], DynType, minPair),
+        new Overload("math_@min_double_uint", [DoubleType, UintType], DynType, minPair),
+        new Overload("math_@min_uint_int", [UintType, IntType], DynType, minPair),
+        new Overload("math_@min_uint_double", [UintType, DoubleType], DynType, minPair),
+        new Overload("math_@min_list_double", [new ListType(DoubleType)], DoubleType, minList),
+        new Overload("math_@min_list_int", [new ListType(IntType)], IntType, minList),
+        new Overload("math_@min_list_uint", [new ListType(UintType)], UintType, minList)
       ),
       new Function(
         maxFunc,
-        new Overload("math_@max_double", [PrimitiveTypes.Double], PrimitiveTypes.Double, (arg: Value) => arg),
-        new Overload("math_@max_int", [PrimitiveTypes.Int], PrimitiveTypes.Int, (arg: Value) => arg),
-        new Overload("math_@max_uint", [PrimitiveTypes.Uint], PrimitiveTypes.Uint, (arg: Value) => arg),
-        new Overload("math_@max_double_double", [PrimitiveTypes.Double, PrimitiveTypes.Double], PrimitiveTypes.Double, maxPair),
-        new Overload("math_@max_int_int", [PrimitiveTypes.Int, PrimitiveTypes.Int], PrimitiveTypes.Int, maxPair),
-        new Overload("math_@max_uint_uint", [PrimitiveTypes.Uint, PrimitiveTypes.Uint], PrimitiveTypes.Uint, maxPair),
-        new Overload("math_@max_int_uint", [PrimitiveTypes.Int, PrimitiveTypes.Uint], PrimitiveTypes.Dyn, maxPair),
-        new Overload("math_@max_int_double", [PrimitiveTypes.Int, PrimitiveTypes.Double], PrimitiveTypes.Dyn, maxPair),
-        new Overload("math_@max_double_int", [PrimitiveTypes.Double, PrimitiveTypes.Int], PrimitiveTypes.Dyn, maxPair),
-        new Overload("math_@max_double_uint", [PrimitiveTypes.Double, PrimitiveTypes.Uint], PrimitiveTypes.Dyn, maxPair),
-        new Overload("math_@max_uint_int", [PrimitiveTypes.Uint, PrimitiveTypes.Int], PrimitiveTypes.Dyn, maxPair),
-        new Overload("math_@max_uint_double", [PrimitiveTypes.Uint, PrimitiveTypes.Double], PrimitiveTypes.Dyn, maxPair),
-        new Overload("math_@max_list_double", [new ListType(PrimitiveTypes.Double)], PrimitiveTypes.Double, maxList),
-        new Overload("math_@max_list_int", [new ListType(PrimitiveTypes.Int)], PrimitiveTypes.Int, maxList),
-        new Overload("math_@max_list_uint", [new ListType(PrimitiveTypes.Uint)], PrimitiveTypes.Uint, maxList)
+        new Overload("math_@max_double", [DoubleType], DoubleType, (arg: Value) => arg),
+        new Overload("math_@max_int", [IntType], IntType, (arg: Value) => arg),
+        new Overload("math_@max_uint", [UintType], UintType, (arg: Value) => arg),
+        new Overload("math_@max_double_double", [DoubleType, DoubleType], DoubleType, maxPair),
+        new Overload("math_@max_int_int", [IntType, IntType], IntType, maxPair),
+        new Overload("math_@max_uint_uint", [UintType, UintType], UintType, maxPair),
+        new Overload("math_@max_int_uint", [IntType, UintType], DynType, maxPair),
+        new Overload("math_@max_int_double", [IntType, DoubleType], DynType, maxPair),
+        new Overload("math_@max_double_int", [DoubleType, IntType], DynType, maxPair),
+        new Overload("math_@max_double_uint", [DoubleType, UintType], DynType, maxPair),
+        new Overload("math_@max_uint_int", [UintType, IntType], DynType, maxPair),
+        new Overload("math_@max_uint_double", [UintType, DoubleType], DynType, maxPair),
+        new Overload("math_@max_list_double", [new ListType(DoubleType)], DoubleType, maxList),
+        new Overload("math_@max_list_int", [new ListType(IntType)], IntType, maxList),
+        new Overload("math_@max_list_uint", [new ListType(UintType)], UintType, maxList)
       ),
     ];
 
@@ -115,144 +122,145 @@ export class MathExtension implements Extension {
       functions.push(
         new Function(
           "math.ceil",
-          new Overload("math_ceil_double", [PrimitiveTypes.Double], PrimitiveTypes.Double, (arg: Value) => {
-            if (!(arg instanceof DoubleValue)) return ErrorValue.typeMismatch("double", arg);
+          new Overload("math_ceil_double", [DoubleType], DoubleType, (arg: Value) => {
+            if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return DoubleValue.of(globalThis.Math.ceil(arg.value()));
           })
         ),
         new Function(
           "math.floor",
-          new Overload("math_floor_double", [PrimitiveTypes.Double], PrimitiveTypes.Double, (arg: Value) => {
-            if (!(arg instanceof DoubleValue)) return ErrorValue.typeMismatch("double", arg);
+          new Overload("math_floor_double", [DoubleType], DoubleType, (arg: Value) => {
+            if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return DoubleValue.of(globalThis.Math.floor(arg.value()));
           })
         ),
         new Function(
           "math.round",
-          new Overload("math_round_double", [PrimitiveTypes.Double], PrimitiveTypes.Double, (arg: Value) => {
-            if (!(arg instanceof DoubleValue)) return ErrorValue.typeMismatch("double", arg);
+          new Overload("math_round_double", [DoubleType], DoubleType, (arg: Value) => {
+            if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return DoubleValue.of(roundHalfAwayFromZero(arg.value()));
           })
         ),
         new Function(
           "math.trunc",
-          new Overload("math_trunc_double", [PrimitiveTypes.Double], PrimitiveTypes.Double, (arg: Value) => {
-            if (!(arg instanceof DoubleValue)) return ErrorValue.typeMismatch("double", arg);
+          new Overload("math_trunc_double", [DoubleType], DoubleType, (arg: Value) => {
+            if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return DoubleValue.of(globalThis.Math.trunc(arg.value()));
           })
         ),
         new Function(
           "math.isInf",
-          new Overload("math_isInf_double", [PrimitiveTypes.Double], PrimitiveTypes.Bool, (arg: Value) => {
-            if (!(arg instanceof DoubleValue)) return ErrorValue.typeMismatch("double", arg);
+          new Overload("math_isInf_double", [DoubleType], BoolType, (arg: Value) => {
+            if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return BoolValue.of(
-              arg.value() === Number.POSITIVE_INFINITY || arg.value() === Number.NEGATIVE_INFINITY
+              arg.value() === Number.POSITIVE_INFINITY ||
+                arg.value() === Number.NEGATIVE_INFINITY
             );
           })
         ),
         new Function(
           "math.isNaN",
-          new Overload("math_isNaN_double", [PrimitiveTypes.Double], PrimitiveTypes.Bool, (arg: Value) => {
-            if (!(arg instanceof DoubleValue)) return ErrorValue.typeMismatch("double", arg);
+          new Overload("math_isNaN_double", [DoubleType], BoolType, (arg: Value) => {
+            if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return BoolValue.of(Number.isNaN(arg.value()));
           })
         ),
         new Function(
           "math.isFinite",
-          new Overload("math_isFinite_double", [PrimitiveTypes.Double], PrimitiveTypes.Bool, (arg: Value) => {
-            if (!(arg instanceof DoubleValue)) return ErrorValue.typeMismatch("double", arg);
+          new Overload("math_isFinite_double", [DoubleType], BoolType, (arg: Value) => {
+            if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return BoolValue.of(Number.isFinite(arg.value()));
           })
         ),
         new Function(
           "math.abs",
-          new Overload("math_abs_double", [PrimitiveTypes.Double], PrimitiveTypes.Double, (arg: Value) => {
-            if (!(arg instanceof DoubleValue)) return ErrorValue.typeMismatch("double", arg);
+          new Overload("math_abs_double", [DoubleType], DoubleType, (arg: Value) => {
+            if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return DoubleValue.of(globalThis.Math.abs(arg.value()));
           }),
-          new Overload("math_abs_int", [PrimitiveTypes.Int], PrimitiveTypes.Int, (arg: Value) => {
-            if (!(arg instanceof IntValue)) return ErrorValue.typeMismatch("int", arg);
+          new Overload("math_abs_int", [IntType], IntType, (arg: Value) => {
+            if (!isIntValue(arg)) return ErrorValue.typeMismatch("int", arg);
             const value = arg.value();
             if (value === IntLimits.Int64Min) {
               return ErrorValue.of("int overflow");
             }
             return IntValue.of(value < 0n ? -value : value);
           }),
-          new Overload("math_abs_uint", [PrimitiveTypes.Uint], PrimitiveTypes.Uint, (arg: Value) => {
-            if (!(arg instanceof UintValue)) return ErrorValue.typeMismatch("uint", arg);
+          new Overload("math_abs_uint", [UintType], UintType, (arg: Value) => {
+            if (!isUintValue(arg)) return ErrorValue.typeMismatch("uint", arg);
             return arg;
           })
         ),
         new Function(
           "math.sign",
-          new Overload("math_sign_double", [PrimitiveTypes.Double], PrimitiveTypes.Double, (arg: Value) => {
-            if (!(arg instanceof DoubleValue)) return ErrorValue.typeMismatch("double", arg);
+          new Overload("math_sign_double", [DoubleType], DoubleType, (arg: Value) => {
+            if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             const value = arg.value();
             if (Number.isNaN(value)) return DoubleValue.of(Number.NaN);
             return DoubleValue.of(globalThis.Math.sign(value));
           }),
-          new Overload("math_sign_int", [PrimitiveTypes.Int], PrimitiveTypes.Int, (arg: Value) => {
-            if (!(arg instanceof IntValue)) return ErrorValue.typeMismatch("int", arg);
+          new Overload("math_sign_int", [IntType], IntType, (arg: Value) => {
+            if (!isIntValue(arg)) return ErrorValue.typeMismatch("int", arg);
             const value = arg.value();
             return IntValue.of(value === 0n ? 0n : value > 0n ? 1n : -1n);
           }),
-          new Overload("math_sign_uint", [PrimitiveTypes.Uint], PrimitiveTypes.Int, (arg: Value) => {
-            if (!(arg instanceof UintValue)) return ErrorValue.typeMismatch("uint", arg);
+          new Overload("math_sign_uint", [UintType], IntType, (arg: Value) => {
+            if (!isUintValue(arg)) return ErrorValue.typeMismatch("uint", arg);
             return IntValue.of(arg.value() === 0n ? 0n : 1n);
           })
         ),
         new Function(
           "math.sqrt",
-          new Overload("math_sqrt_double", [PrimitiveTypes.Double], PrimitiveTypes.Double, (arg: Value) => {
-            if (!(arg instanceof DoubleValue)) return ErrorValue.typeMismatch("double", arg);
+          new Overload("math_sqrt_double", [DoubleType], DoubleType, (arg: Value) => {
+            if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return DoubleValue.of(globalThis.Math.sqrt(arg.value()));
           }),
-          new Overload("math_sqrt_int", [PrimitiveTypes.Int], PrimitiveTypes.Double, (arg: Value) => {
-            if (!(arg instanceof IntValue)) return ErrorValue.typeMismatch("int", arg);
+          new Overload("math_sqrt_int", [IntType], DoubleType, (arg: Value) => {
+            if (!isIntValue(arg)) return ErrorValue.typeMismatch("int", arg);
             return DoubleValue.of(globalThis.Math.sqrt(Number(arg.value())));
           }),
-          new Overload("math_sqrt_uint", [PrimitiveTypes.Uint], PrimitiveTypes.Double, (arg: Value) => {
-            if (!(arg instanceof UintValue)) return ErrorValue.typeMismatch("uint", arg);
+          new Overload("math_sqrt_uint", [UintType], DoubleType, (arg: Value) => {
+            if (!isUintValue(arg)) return ErrorValue.typeMismatch("uint", arg);
             return DoubleValue.of(globalThis.Math.sqrt(Number(arg.value())));
           })
         ),
         new Function(
           "math.bitAnd",
-          new Overload("math_bitAnd_int_int", [PrimitiveTypes.Int, PrimitiveTypes.Int], PrimitiveTypes.Int, bitAndInt),
-          new Overload("math_bitAnd_uint_uint", [PrimitiveTypes.Uint, PrimitiveTypes.Uint], PrimitiveTypes.Uint, bitAndUint)
+          new Overload("math_bitAnd_int_int", [IntType, IntType], IntType, bitAndInt),
+          new Overload("math_bitAnd_uint_uint", [UintType, UintType], UintType, bitAndUint)
         ),
         new Function(
           "math.bitOr",
-          new Overload("math_bitOr_int_int", [PrimitiveTypes.Int, PrimitiveTypes.Int], PrimitiveTypes.Int, bitOrInt),
-          new Overload("math_bitOr_uint_uint", [PrimitiveTypes.Uint, PrimitiveTypes.Uint], PrimitiveTypes.Uint, bitOrUint)
+          new Overload("math_bitOr_int_int", [IntType, IntType], IntType, bitOrInt),
+          new Overload("math_bitOr_uint_uint", [UintType, UintType], UintType, bitOrUint)
         ),
         new Function(
           "math.bitXor",
-          new Overload("math_bitXor_int_int", [PrimitiveTypes.Int, PrimitiveTypes.Int], PrimitiveTypes.Int, bitXorInt),
-          new Overload("math_bitXor_uint_uint", [PrimitiveTypes.Uint, PrimitiveTypes.Uint], PrimitiveTypes.Uint, bitXorUint)
+          new Overload("math_bitXor_int_int", [IntType, IntType], IntType, bitXorInt),
+          new Overload("math_bitXor_uint_uint", [UintType, UintType], UintType, bitXorUint)
         ),
         new Function(
           "math.bitNot",
-          new Overload("math_bitNot_int_int", [PrimitiveTypes.Int], PrimitiveTypes.Int, bitNotInt),
-          new Overload("math_bitNot_uint_uint", [PrimitiveTypes.Uint], PrimitiveTypes.Uint, bitNotUint)
+          new Overload("math_bitNot_int_int", [IntType], IntType, bitNotInt),
+          new Overload("math_bitNot_uint_uint", [UintType], UintType, bitNotUint)
         ),
         new Function(
           "math.bitShiftLeft",
-          new Overload("math_bitShiftLeft_int_int", [PrimitiveTypes.Int, PrimitiveTypes.Int], PrimitiveTypes.Int, bitShiftLeftInt),
+          new Overload("math_bitShiftLeft_int_int", [IntType, IntType], IntType, bitShiftLeftInt),
           new Overload(
             "math_bitShiftLeft_uint_int",
-            [PrimitiveTypes.Uint, PrimitiveTypes.Int],
-            PrimitiveTypes.Uint,
+            [UintType, IntType],
+            UintType,
             bitShiftLeftUint
           )
         ),
         new Function(
           "math.bitShiftRight",
-          new Overload("math_bitShiftRight_int_int", [PrimitiveTypes.Int, PrimitiveTypes.Int], PrimitiveTypes.Int, bitShiftRightInt),
+          new Overload("math_bitShiftRight_int_int", [IntType, IntType], IntType, bitShiftRightInt),
           new Overload(
             "math_bitShiftRight_uint_int",
-            [PrimitiveTypes.Uint, PrimitiveTypes.Int],
-            PrimitiveTypes.Uint,
+            [UintType, IntType],
+            UintType,
             bitShiftRightUint
           )
         )
@@ -280,7 +288,7 @@ function roundHalfAwayFromZero(value: number): number {
 
 function selectMinMax(left: Value, right: Value, pickMin: boolean): Value {
   const cmp = compareValues(left, right);
-  if (cmp instanceof ErrorValue) {
+  if (typeof cmp !== "number") {
     return cmp;
   }
   const pickRight = pickMin ? cmp > 0 : cmp < 0;
@@ -296,7 +304,7 @@ function maxList(arg: Value): Value {
 }
 
 function selectMinMaxList(arg: Value, pickMin: boolean): Value {
-  if (!(arg instanceof ListValue)) {
+  if (!isListValue(arg)) {
     return ErrorValue.typeMismatch("list", arg);
   }
   const values = arg.value();
@@ -306,7 +314,7 @@ function selectMinMaxList(arg: Value, pickMin: boolean): Value {
   let result = values[0]!;
   for (let i = 1; i < values.length; i++) {
     const cmp = compareValues(result, values[i]!);
-    if (cmp instanceof ErrorValue) {
+    if (typeof cmp !== "number") {
       return cmp;
     }
     const pickRight = pickMin ? cmp > 0 : cmp < 0;
@@ -318,63 +326,75 @@ function selectMinMaxList(arg: Value, pickMin: boolean): Value {
 }
 
 function bitAndInt(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof IntValue) || !(rhs instanceof IntValue)) {
+  if (!isIntValue(lhs) || !isIntValue(rhs)) {
     return ErrorValue.of("math.bitAnd expects int arguments");
   }
-  return IntValue.of(BigInt.asIntN(64, lhs.value() & rhs.value()));
+  return IntValue.of(
+    BigInt.asIntN(64, lhs.value() & rhs.value())
+  );
 }
 
 function bitAndUint(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof UintValue) || !(rhs instanceof UintValue)) {
+  if (!isUintValue(lhs) || !isUintValue(rhs)) {
     return ErrorValue.of("math.bitAnd expects uint arguments");
   }
-  return UintValue.of(BigInt.asUintN(64, lhs.value() & rhs.value()));
+  return UintValue.of(
+    BigInt.asUintN(64, lhs.value() & rhs.value())
+  );
 }
 
 function bitOrInt(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof IntValue) || !(rhs instanceof IntValue)) {
+  if (!isIntValue(lhs) || !isIntValue(rhs)) {
     return ErrorValue.of("math.bitOr expects int arguments");
   }
-  return IntValue.of(BigInt.asIntN(64, lhs.value() | rhs.value()));
+  return IntValue.of(
+    BigInt.asIntN(64, lhs.value() | rhs.value())
+  );
 }
 
 function bitOrUint(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof UintValue) || !(rhs instanceof UintValue)) {
+  if (!isUintValue(lhs) || !isUintValue(rhs)) {
     return ErrorValue.of("math.bitOr expects uint arguments");
   }
-  return UintValue.of(BigInt.asUintN(64, lhs.value() | rhs.value()));
+  return UintValue.of(
+    BigInt.asUintN(64, lhs.value() | rhs.value())
+  );
 }
 
 function bitXorInt(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof IntValue) || !(rhs instanceof IntValue)) {
+  if (!isIntValue(lhs) || !isIntValue(rhs)) {
     return ErrorValue.of("math.bitXor expects int arguments");
   }
-  return IntValue.of(BigInt.asIntN(64, lhs.value() ^ rhs.value()));
+  return IntValue.of(
+    BigInt.asIntN(64, lhs.value() ^ rhs.value())
+  );
 }
 
 function bitXorUint(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof UintValue) || !(rhs instanceof UintValue)) {
+  if (!isUintValue(lhs) || !isUintValue(rhs)) {
     return ErrorValue.of("math.bitXor expects uint arguments");
   }
-  return UintValue.of(BigInt.asUintN(64, lhs.value() ^ rhs.value()));
+  return UintValue.of(
+    BigInt.asUintN(64, lhs.value() ^ rhs.value())
+  );
 }
 
 function bitNotInt(arg: Value): Value {
-  if (!(arg instanceof IntValue)) {
+  if (!isIntValue(arg)) {
     return ErrorValue.of("math.bitNot expects int argument");
   }
   return IntValue.of(BigInt.asIntN(64, ~arg.value()));
 }
 
 function bitNotUint(arg: Value): Value {
-  if (!(arg instanceof UintValue)) {
+  if (!isUintValue(arg)) {
     return ErrorValue.of("math.bitNot expects uint argument");
   }
   return UintValue.of(BigInt.asUintN(64, ~arg.value()));
 }
 
 function bitShiftLeftInt(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof IntValue) || !(rhs instanceof IntValue)) {
+  if (!isIntValue(lhs) || !isIntValue(rhs)) {
     return ErrorValue.of("math.bitShiftLeft expects int arguments");
   }
   const shift = Number(rhs.value());
@@ -384,11 +404,13 @@ function bitShiftLeftInt(lhs: Value, rhs: Value): Value {
   if (shift >= 64) {
     return IntValue.of(0n);
   }
-  return IntValue.of(BigInt.asIntN(64, lhs.value() << BigInt(shift)));
+  return IntValue.of(
+    BigInt.asIntN(64, lhs.value() << BigInt(shift))
+  );
 }
 
 function bitShiftLeftUint(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof UintValue) || !(rhs instanceof IntValue)) {
+  if (!isUintValue(lhs) || !isIntValue(rhs)) {
     return ErrorValue.of("math.bitShiftLeft expects uint, int arguments");
   }
   const shift = Number(rhs.value());
@@ -398,11 +420,13 @@ function bitShiftLeftUint(lhs: Value, rhs: Value): Value {
   if (shift >= 64) {
     return UintValue.of(0n);
   }
-  return UintValue.of(BigInt.asUintN(64, lhs.value() << BigInt(shift)));
+  return UintValue.of(
+    BigInt.asUintN(64, lhs.value() << BigInt(shift))
+  );
 }
 
 function bitShiftRightInt(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof IntValue) || !(rhs instanceof IntValue)) {
+  if (!isIntValue(lhs) || !isIntValue(rhs)) {
     return ErrorValue.of("math.bitShiftRight expects int arguments");
   }
   const shift = Number(rhs.value());
@@ -418,7 +442,7 @@ function bitShiftRightInt(lhs: Value, rhs: Value): Value {
 }
 
 function bitShiftRightUint(lhs: Value, rhs: Value): Value {
-  if (!(lhs instanceof UintValue) || !(rhs instanceof IntValue)) {
+  if (!isUintValue(lhs) || !isIntValue(rhs)) {
     return ErrorValue.of("math.bitShiftRight expects uint, int arguments");
   }
   const shift = Number(rhs.value());

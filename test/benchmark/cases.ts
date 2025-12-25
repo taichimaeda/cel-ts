@@ -1,15 +1,12 @@
 import { applyExtensions, StringsExtension } from "../../src";
-import { Env, StringType, Types, Variable } from "../../src/cel";
+import { type Env, type Program, StringType, Types, Variable } from "../../src/cel";
 
 export type BenchCase = {
   name: string;
   expr: string;
   env: ConstructorParameters<typeof Env>[0];
   activation: Record<string, unknown>;
-};
-
-export type PreparedCase = BenchCase & {
-  program: ReturnType<Env["program"]>;
+  program?: Program;
 };
 
 export const cases: BenchCase[] = [
@@ -122,11 +119,3 @@ export const cases: BenchCase[] = [
     activation: {},
   },
 ];
-
-export const prepareCase = (benchCase: BenchCase): PreparedCase => {
-  const env = new Env(benchCase.env);
-  const ast = env.compile(benchCase.expr);
-  return { ...benchCase, program: env.program(ast) };
-};
-
-export const preparedCases = cases.map(prepareCase);

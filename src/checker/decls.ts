@@ -14,6 +14,18 @@ export class VariableDecl {
 }
 
 /**
+ * Represents a constant declaration with a name, type, and compile-time value.
+ * Constants are folded into the AST at compile time.
+ */
+export class ConstantDecl {
+  constructor(
+    readonly name: string,
+    readonly type: Type,
+    readonly value: unknown
+  ) { }
+}
+
+/**
  * Represents a struct field declaration
  */
 export class StructFieldDecl {
