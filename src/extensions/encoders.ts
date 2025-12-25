@@ -1,9 +1,13 @@
-import { BytesType, type EnvOptions, Function, Overload, StringType } from "../cel";
+import { type EnvOptions, Function, Overload, PrimitiveTypes } from "../cel";
 import { BytesValue, ErrorValue, StringValue, type Value } from "../interpreter/values";
 import { type Macro, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { macroTargetMatchesNamespace } from "./macros";
 
+/**
+ * Encoders extension.
+ * Provides base64.encode() and base64.decode() functions.
+ */
 export class EncodersExtension implements Extension {
   envOptions(): EnvOptions {
     const macros: Macro[] = [
@@ -26,7 +30,7 @@ export class EncodersExtension implements Extension {
       functions: [
         new Function(
           "base64.decode",
-          new Overload("base64_decode_string", [StringType], BytesType, (arg: Value) => {
+          new Overload("base64_decode_string", [PrimitiveTypes.String], PrimitiveTypes.Bytes, (arg: Value) => {
             if (!(arg instanceof StringValue)) {
               return ErrorValue.typeMismatch("string", arg);
             }
@@ -39,7 +43,7 @@ export class EncodersExtension implements Extension {
         ),
         new Function(
           "base64.encode",
-          new Overload("base64_encode_bytes", [BytesType], StringType, (arg: Value) => {
+          new Overload("base64_encode_bytes", [PrimitiveTypes.Bytes], PrimitiveTypes.String, (arg: Value) => {
             if (!(arg instanceof BytesValue)) {
               return ErrorValue.typeMismatch("bytes", arg);
             }
@@ -68,7 +72,7 @@ function decodeBase64(value: string): Uint8Array | ErrorValue {
     return bytes;
   } catch (error) {
     const message = error instanceof Error ? error.message : "invalid base64 input";
-    return ErrorValue.create(`base64.decode: ${message}`);
+    return ErrorValue.of(`base64.decode: ${message}`);
   }
 }
 
@@ -84,6 +88,6 @@ function encodeBase64(value: Uint8Array): string | ErrorValue {
     return btoa(str);
   } catch (error) {
     const message = error instanceof Error ? error.message : "invalid bytes input";
-    return ErrorValue.create(`base64.encode: ${message}`);
+    return ErrorValue.of(`base64.encode: ${message}`);
   }
 }

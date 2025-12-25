@@ -2,11 +2,16 @@
 
 import type { EntryExpr, Expr } from "./ast";
 
+// ---------------------------------------------------------------------------
+// Visit Order
+// ---------------------------------------------------------------------------
+
 /** Order to visit nodes during traversal. */
-export enum VisitOrder {
-  Pre = "pre",
-  Post = "post",
-}
+export type VisitOrder = "pre" | "post";
+
+// ---------------------------------------------------------------------------
+// Visitor Interface
+// ---------------------------------------------------------------------------
 
 /**
  * Visitor interface for traversing AST nodes.
@@ -17,6 +22,10 @@ export interface Visitor {
   /** Visit an entry expression (map entry or struct field). */
   visitEntryExpr(entry: EntryExpr): void;
 }
+
+// ---------------------------------------------------------------------------
+// Visitor Implementations
+// ---------------------------------------------------------------------------
 
 /**
  * Base visitor implementation that can be extended.

@@ -5,6 +5,10 @@ import { ErrorValue, type MapEntry, MapValue, type Value } from "../interpreter/
 import { type Macro, MacroError, type MacroExpander, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 
+/**
+ * Two-variable comprehensions extension.
+ * Provides two-variable variants of all(), exists(), existsOne(), and transform macros.
+ */
 export class TwoVarComprehensionsExtension implements Extension {
   envOptions(): EnvOptions {
     const macros: Macro[] = [
@@ -256,10 +260,10 @@ function mapInsertKeyValue(args: Value[]): Value {
     return ErrorValue.typeMismatch("map", map!);
   }
   if (key === undefined || value === undefined) {
-    return ErrorValue.create("cel.@mapInsert expects map, key, value");
+    return ErrorValue.of("cel.@mapInsert expects map, key, value");
   }
   if (map.contains(key).value()) {
-    return ErrorValue.create("duplicate map key");
+    return ErrorValue.of("duplicate map key");
   }
   const entries: MapEntry[] = [...map.value(), { key, value }];
   return MapValue.of(entries);
@@ -267,12 +271,12 @@ function mapInsertKeyValue(args: Value[]): Value {
 
 function mapInsertMap(lhs: Value, rhs: Value): Value {
   if (!(lhs instanceof MapValue) || !(rhs instanceof MapValue)) {
-    return ErrorValue.create("cel.@mapInsert expects map arguments");
+    return ErrorValue.of("cel.@mapInsert expects map arguments");
   }
   const entries: MapEntry[] = [...lhs.value()];
   for (const entry of rhs.value()) {
     if (lhs.contains(entry.key).value()) {
-      return ErrorValue.create("duplicate map key");
+      return ErrorValue.of("duplicate map key");
     }
     entries.push(entry);
   }

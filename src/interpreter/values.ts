@@ -3,22 +3,10 @@
 
 import type { TypeProvider } from "../checker/provider";
 import {
-  BoolType as CheckerBoolType,
-  BytesType as CheckerBytesType,
-  DoubleType as CheckerDoubleType,
-  DurationType as CheckerDurationType,
-  ErrorType as CheckerErrorType,
-  IntType as CheckerIntType,
-  NullType as CheckerNullType,
   OptionalType as CheckerOptionalType,
-  StringType as CheckerStringType,
+  PrimitiveTypes,
   StructType as CheckerStructType,
-  TimestampType as CheckerTimestampType,
   type Type as CheckerType,
-  TypeKind as CheckerTypeKind,
-  TypeType as CheckerTypeType,
-  UintType as CheckerUintType,
-  DynType,
   OpaqueType,
 } from "../checker/types";
 import type { ExprId } from "../common/ast";
@@ -32,24 +20,37 @@ import {
 import {
   defaultValueForType,
   formatTimestamp,
-  getWrapperTypeKind,
+  wrapperTypeNameToKind,
   parseTimeZoneOffset,
   protoDefaultToValue,
   weekdayToNumber,
 } from "./utils";
 
-export const INT64_MIN = -(1n << 63n);
-export const INT64_MAX = (1n << 63n) - 1n;
-export const UINT64_MAX = (1n << 64n) - 1n;
-export const INT32_MIN = -2147483648n;
-export const INT32_MAX = 2147483647n;
-export const UINT32_MAX = 4294967295n;
+// ---------------------------------------------------------------------------
+// Integer Limits
+// ---------------------------------------------------------------------------
+
+/**
+ * Integer range limits for CEL types.
+ */
+export const IntLimits = {
+  Int64Min: -(1n << 63n),
+  Int64Max: (1n << 63n) - 1n,
+  Uint64Max: (1n << 64n) - 1n,
+  Int32Min: -2147483648n,
+  Int32Max: 2147483647n,
+  Uint32Max: 4294967295n,
+} as const;
 const DURATION_MAX_SECONDS = 315576000000n;
 const DURATION_MAX_NANOS = DURATION_MAX_SECONDS * 1_000_000_000n;
 const TIMESTAMP_MIN_SECONDS = -62135596800n;
 const TIMESTAMP_MAX_SECONDS = 253402300799n;
 const TIMESTAMP_MIN_NANOS = TIMESTAMP_MIN_SECONDS * 1_000_000_000n;
 const TIMESTAMP_MAX_NANOS = TIMESTAMP_MAX_SECONDS * 1_000_000_000n + 999_999_999n;
+
+// ---------------------------------------------------------------------------
+// Value Kind Type
+// ---------------------------------------------------------------------------
 
 export type ValueKind =
   | "bool"
@@ -70,18 +71,26 @@ export type ValueKind =
   | "unknown"
   | "optional";
 
+// ---------------------------------------------------------------------------
+// Helper Functions
+// ---------------------------------------------------------------------------
+
 function isDurationInRange(nanos: bigint): boolean {
   return (
     nanos >= -DURATION_MAX_NANOS &&
     nanos <= DURATION_MAX_NANOS &&
-    nanos >= INT64_MIN &&
-    nanos <= INT64_MAX
+    nanos >= IntLimits.Int64Min &&
+    nanos <= IntLimits.Int64Max
   );
 }
 
 function isTimestampInRange(nanos: bigint): boolean {
   return nanos >= TIMESTAMP_MIN_NANOS && nanos <= TIMESTAMP_MAX_NANOS;
 }
+
+// ---------------------------------------------------------------------------
+// Base Value Class
+// ---------------------------------------------------------------------------
 
 /**
  * Base class for all CEL runtime values
@@ -133,7 +142,7 @@ export class BoolValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerBoolType;
+    return PrimitiveTypes.Bool;
   }
 
   toString(): string {
@@ -189,7 +198,7 @@ export class IntValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerIntType;
+    return PrimitiveTypes.Int;
   }
 
   toString(): string {
@@ -218,24 +227,24 @@ export class IntValue extends BaseValue {
 
   add(other: IntValue): IntValue | ErrorValue {
     const result = this.val + other.val;
-    if (result < INT64_MIN || result > INT64_MAX) {
-      return ErrorValue.create("int overflow");
+    if (result < IntLimits.Int64Min || result > IntLimits.Int64Max) {
+      return ErrorValue.of("int overflow");
     }
     return IntValue.of(result);
   }
 
   subtract(other: IntValue): IntValue | ErrorValue {
     const result = this.val - other.val;
-    if (result < INT64_MIN || result > INT64_MAX) {
-      return ErrorValue.create("int overflow");
+    if (result < IntLimits.Int64Min || result > IntLimits.Int64Max) {
+      return ErrorValue.of("int overflow");
     }
     return IntValue.of(result);
   }
 
   multiply(other: IntValue): IntValue | ErrorValue {
     const result = this.val * other.val;
-    if (result < INT64_MIN || result > INT64_MAX) {
-      return ErrorValue.create("int overflow");
+    if (result < IntLimits.Int64Min || result > IntLimits.Int64Max) {
+      return ErrorValue.of("int overflow");
     }
     return IntValue.of(result);
   }
@@ -244,8 +253,8 @@ export class IntValue extends BaseValue {
     if (other.val === 0n) {
       return ErrorValue.divisionByZero();
     }
-    if (this.val === INT64_MIN && other.val === -1n) {
-      return ErrorValue.create("int overflow");
+    if (this.val === IntLimits.Int64Min && other.val === -1n) {
+      return ErrorValue.of("int overflow");
     }
     return IntValue.of(this.val / other.val);
   }
@@ -258,8 +267,8 @@ export class IntValue extends BaseValue {
   }
 
   negate(): IntValue | ErrorValue {
-    if (this.val === INT64_MIN) {
-      return ErrorValue.create("int overflow");
+    if (this.val === IntLimits.Int64Min) {
+      return ErrorValue.of("int overflow");
     }
     return IntValue.of(-this.val);
   }
@@ -298,7 +307,7 @@ export class UintValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerUintType;
+    return PrimitiveTypes.Uint;
   }
 
   toString(): string {
@@ -325,23 +334,23 @@ export class UintValue extends BaseValue {
 
   add(other: UintValue): UintValue | ErrorValue {
     const result = this.val + other.val;
-    if (result > UINT64_MAX) {
-      return ErrorValue.create("uint overflow");
+    if (result > IntLimits.Uint64Max) {
+      return ErrorValue.of("uint overflow");
     }
     return UintValue.of(result);
   }
 
   subtract(other: UintValue): UintValue | ErrorValue {
     if (this.val < other.val) {
-      return ErrorValue.create("uint overflow on subtraction");
+      return ErrorValue.of("uint overflow on subtraction");
     }
     return UintValue.of(this.val - other.val);
   }
 
   multiply(other: UintValue): UintValue | ErrorValue {
     const result = this.val * other.val;
-    if (result > UINT64_MAX) {
-      return ErrorValue.create("uint overflow");
+    if (result > IntLimits.Uint64Max) {
+      return ErrorValue.of("uint overflow");
     }
     return UintValue.of(result);
   }
@@ -449,7 +458,7 @@ export class DoubleValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerDoubleType;
+    return PrimitiveTypes.Double;
   }
 
   toString(): string {
@@ -522,7 +531,7 @@ export class StringValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerStringType;
+    return PrimitiveTypes.String;
   }
 
   toString(): string {
@@ -572,7 +581,7 @@ export class StringValue extends BaseValue {
       const regex = new RegExp(pattern.val);
       return BoolValue.of(regex.test(this.val));
     } catch {
-      return ErrorValue.create(`invalid regex: ${pattern.val}`);
+      return ErrorValue.of(`invalid regex: ${pattern.val}`);
     }
   }
 
@@ -609,7 +618,7 @@ export class BytesValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerBytesType;
+    return PrimitiveTypes.Bytes;
   }
 
   toString(): string {
@@ -669,7 +678,7 @@ export class NullValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerNullType;
+    return PrimitiveTypes.Null;
   }
 
   toString(): string {
@@ -1004,12 +1013,12 @@ export class StructValue extends BaseValue {
       }
     }
     if (
-      fieldType.kind === CheckerTypeKind.Struct &&
-      getWrapperTypeKind(fieldType.runtimeTypeName) !== undefined
+      fieldType.kind === "struct" &&
+      wrapperTypeNameToKind(fieldType.runtimeTypeName) !== undefined
     ) {
       return NullValue.Instance;
     }
-    if (fieldType.kind === CheckerTypeKind.Struct && this.typeProvider) {
+    if (fieldType.kind === "struct" && this.typeProvider) {
       const nestedFields = new Map<string, CheckerType>();
       const nestedNames = this.typeProvider.structFieldNames(fieldType.runtimeTypeName);
       for (const fieldName of nestedNames) {
@@ -1029,7 +1038,7 @@ export class StructValue extends BaseValue {
         this.typeProvider
       );
     }
-    if (fieldType.kind === CheckerTypeKind.Opaque && this.typeProvider) {
+    if (fieldType.kind === "opaque" && this.typeProvider) {
       const enumType = this.typeProvider.findEnumType(fieldType.runtimeTypeName);
       if (enumType !== undefined) {
         return EnumValue.of(enumType.runtimeTypeName, 0n);
@@ -1043,18 +1052,18 @@ export class StructValue extends BaseValue {
  * Type value - represents a type itself as a value
  */
 export class TypeValue extends BaseValue {
-  static readonly BoolType = new TypeValue(CheckerBoolType);
-  static readonly IntType = new TypeValue(CheckerIntType);
-  static readonly UintType = new TypeValue(CheckerUintType);
-  static readonly DoubleType = new TypeValue(CheckerDoubleType);
-  static readonly StringType = new TypeValue(CheckerStringType);
-  static readonly BytesType = new TypeValue(CheckerBytesType);
-  static readonly NullType = new TypeValue(CheckerNullType);
+  static readonly BoolType = new TypeValue(PrimitiveTypes.Bool);
+  static readonly IntType = new TypeValue(PrimitiveTypes.Int);
+  static readonly UintType = new TypeValue(PrimitiveTypes.Uint);
+  static readonly DoubleType = new TypeValue(PrimitiveTypes.Double);
+  static readonly StringType = new TypeValue(PrimitiveTypes.String);
+  static readonly BytesType = new TypeValue(PrimitiveTypes.Bytes);
+  static readonly NullType = new TypeValue(PrimitiveTypes.Null);
   static readonly ListType = new TypeValue(GenericListType);
   static readonly MapType = new TypeValue(GenericMapType);
-  static readonly TypeType = new TypeValue(CheckerTypeType);
-  static readonly DurationType = new TypeValue(CheckerDurationType);
-  static readonly TimestampType = new TypeValue(CheckerTimestampType);
+  static readonly TypeType = new TypeValue(PrimitiveTypes.Type);
+  static readonly DurationType = new TypeValue(PrimitiveTypes.Duration);
+  static readonly TimestampType = new TypeValue(PrimitiveTypes.Timestamp);
   readonly kind: ValueKind = "type";
 
   private constructor(private readonly typeName: ValueType) {
@@ -1066,7 +1075,7 @@ export class TypeValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerTypeType;
+    return PrimitiveTypes.Type;
   }
 
   toString(): string {
@@ -1092,20 +1101,20 @@ export type { ValueType } from "./types";
 
 export class ValueUtil {
   static toTypeValue(type: ValueType): TypeValue {
-    if (type === CheckerBoolType) return TypeValue.BoolType;
-    if (type === CheckerIntType) return TypeValue.IntType;
-    if (type === CheckerUintType) return TypeValue.UintType;
-    if (type === CheckerDoubleType) return TypeValue.DoubleType;
-    if (type === CheckerStringType) return TypeValue.StringType;
-    if (type === CheckerBytesType) return TypeValue.BytesType;
-    if (type === CheckerNullType) return TypeValue.NullType;
+    if (type === PrimitiveTypes.Bool) return TypeValue.BoolType;
+    if (type === PrimitiveTypes.Int) return TypeValue.IntType;
+    if (type === PrimitiveTypes.Uint) return TypeValue.UintType;
+    if (type === PrimitiveTypes.Double) return TypeValue.DoubleType;
+    if (type === PrimitiveTypes.String) return TypeValue.StringType;
+    if (type === PrimitiveTypes.Bytes) return TypeValue.BytesType;
+    if (type === PrimitiveTypes.Null) return TypeValue.NullType;
     if (type === GenericListType) return TypeValue.ListType;
     if (type === GenericMapType) return TypeValue.MapType;
-    if (type === CheckerTypeType) return TypeValue.TypeType;
-    if (type === CheckerDurationType) return TypeValue.DurationType;
-    if (type === CheckerTimestampType) return TypeValue.TimestampType;
+    if (type === PrimitiveTypes.Type) return TypeValue.TypeType;
+    if (type === PrimitiveTypes.Duration) return TypeValue.DurationType;
+    if (type === PrimitiveTypes.Timestamp) return TypeValue.TimestampType;
     if (type === RuntimeOptionalType) {
-      return TypeValue.of(new CheckerOptionalType(DynType));
+      return TypeValue.of(new CheckerOptionalType(PrimitiveTypes.Dyn));
     }
     return TypeValue.of(type);
   }
@@ -1148,7 +1157,7 @@ export class DurationValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerDurationType;
+    return PrimitiveTypes.Duration;
   }
 
   toString(): string {
@@ -1170,7 +1179,7 @@ export class DurationValue extends BaseValue {
   add(other: DurationValue): DurationValue | ErrorValue {
     const result = this.nanos + other.nanos;
     if (!isDurationInRange(result)) {
-      return ErrorValue.create("duration out of range");
+      return ErrorValue.of("duration out of range");
     }
     return DurationValue.of(result);
   }
@@ -1178,7 +1187,7 @@ export class DurationValue extends BaseValue {
   subtract(other: DurationValue): DurationValue | ErrorValue {
     const result = this.nanos - other.nanos;
     if (!isDurationInRange(result)) {
-      return ErrorValue.create("duration out of range");
+      return ErrorValue.of("duration out of range");
     }
     return DurationValue.of(result);
   }
@@ -1186,7 +1195,7 @@ export class DurationValue extends BaseValue {
   negate(): DurationValue | ErrorValue {
     const result = -this.nanos;
     if (!isDurationInRange(result)) {
-      return ErrorValue.create("duration out of range");
+      return ErrorValue.of("duration out of range");
     }
     return DurationValue.of(result);
   }
@@ -1241,7 +1250,7 @@ export class TimestampValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerTimestampType;
+    return PrimitiveTypes.Timestamp;
   }
 
   toString(): string {
@@ -1262,7 +1271,7 @@ export class TimestampValue extends BaseValue {
   add(duration: DurationValue): TimestampValue | ErrorValue {
     const result = this.nanos + duration.value();
     if (!isTimestampInRange(result)) {
-      return ErrorValue.create("timestamp out of range");
+      return ErrorValue.of("timestamp out of range");
     }
     return TimestampValue.of(result);
   }
@@ -1271,13 +1280,13 @@ export class TimestampValue extends BaseValue {
     if (other instanceof TimestampValue) {
       const diff = this.nanos - other.nanos;
       if (!isDurationInRange(diff)) {
-        return ErrorValue.create("duration out of range");
+        return ErrorValue.of("duration out of range");
       }
       return DurationValue.of(diff);
     }
     const result = this.nanos - other.value();
     if (!isTimestampInRange(result)) {
-      return ErrorValue.create("timestamp out of range");
+      return ErrorValue.of("timestamp out of range");
     }
     return TimestampValue.of(result);
   }
@@ -1448,12 +1457,11 @@ export class ErrorValue extends BaseValue {
     super();
   }
 
+  /**
+   * Create an ErrorValue with the given message.
+   */
   static of(message: string, exprId?: ExprId): ErrorValue {
     return new ErrorValue(message, exprId);
-  }
-
-  static create(message: string, exprId?: ExprId): ErrorValue {
-    return ErrorValue.of(message, exprId);
   }
 
   static divisionByZero(exprId?: ExprId): ErrorValue {
@@ -1481,7 +1489,7 @@ export class ErrorValue extends BaseValue {
   }
 
   type(): ValueType {
-    return CheckerErrorType;
+    return PrimitiveTypes.Error;
   }
 
   toString(): string {

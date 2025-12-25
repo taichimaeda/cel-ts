@@ -25,8 +25,9 @@ import {
   runtime,
 } from "./runtime";
 import { messageToValue, protoToType, protoToValue } from "./values";
+import type { ConformanceReporter } from "./reporter";
 
-export async function runConformance(): Promise<RunStats> {
+export async function runConformance(reporter?: ConformanceReporter): Promise<RunStats> {
   ensureDescriptorSet();
 
   await runtime.root.load(
@@ -57,59 +58,70 @@ export async function runConformance(): Promise<RunStats> {
   const stats: RunStats = { total: 0, passed: 0, failed: 0, skipped: 0 };
 
   for (const fileName of files) {
+    const fileObj = loadSimpleTestFile(fileName);
     if (runtime.skipFiles.has(fileName)) {
-      stats.skipped += countTestsInFile(fileName);
+      const tests = collectTests(fileObj);
+      stats.skipped += tests.length;
+      for (const { sectionName, test } of tests) {
+        reporter?.skipTest(
+          {
+            fileName,
+            sectionName,
+            testName: test.name ?? "<test>",
+            expr: test.expr,
+          },
+          "file skipped"
+        );
+      }
       continue;
     }
-    runSimpleTestFile(fileName, stats);
+    runSimpleTestFile(fileName, fileObj, stats, reporter);
   }
 
   return stats;
 }
 
-function countTestsInFile(fileName: string): number {
+function loadSimpleTestFile(fileName: string): SimpleTestFile {
   const filePath = path.join(runtime.paths.testdataRoot, fileName);
   const testFile = decodeTextProto(filePath);
-  const fileObj = protoToSimpleTestFile(
+  return protoToSimpleTestFile(
     testFile.type.toObject(testFile.message, runtime.options) as SimpleTestFile
   );
-  const sections = fileObj.section ?? [];
-  let count = 0;
-  for (const section of sections) {
-    count += section.test?.length ?? 0;
-  }
-  return count;
 }
 
-function runSimpleTestFile(fileName: string, stats: RunStats): void {
-  const filePath = path.join(runtime.paths.testdataRoot, fileName);
-  const testFile = decodeTextProto(filePath);
-  const fileObj = protoToSimpleTestFile(
-    testFile.type.toObject(testFile.message, runtime.options) as SimpleTestFile
-  );
+function runSimpleTestFile(
+  fileName: string,
+  fileObj: SimpleTestFile,
+  stats: RunStats,
+  reporter?: ConformanceReporter
+): void {
+  for (const { sectionName, test } of collectTests(fileObj)) {
+    stats.total += 1;
+    const testName = test.name ?? "<test>";
+    const uuid = reporter?.startTest({
+      fileName,
+      sectionName,
+      testName,
+      expr: test.expr,
+    });
 
-  const sections = fileObj.section ?? [];
-  for (const section of sections) {
-    const sectionName = section.name ?? "";
-    for (const test of section.test ?? []) {
-      stats.total += 1;
-
-      try {
-        const result = runSimpleTest(test, fileName, sectionName);
-        if (result) {
-          stats.passed += 1;
-        } else {
-          stats.failed += 1;
-          console.error(
-            `[FAIL] ${fileName} :: ${section.name ?? "<section>"} :: ${test.name ?? "<test>"}`
-          );
+    try {
+      const result = runSimpleTest(test, fileName, sectionName);
+      if (result) {
+        stats.passed += 1;
+        if (uuid) {
+          reporter?.passTest(uuid);
         }
-      } catch (error) {
+      } else {
         stats.failed += 1;
-        console.error(
-          `[ERROR] ${fileName} :: ${section.name ?? "<section>"} :: ${test.name ?? "<test>"}`
-        );
-        console.error(error);
+        if (uuid) {
+          reporter?.failTest(uuid, { fileName, sectionName, testName }, "assertion failed");
+        }
+      }
+    } catch (error) {
+      stats.failed += 1;
+      if (uuid) {
+        reporter?.errorTest(uuid, { fileName, sectionName, testName }, error);
       }
     }
   }
@@ -449,4 +461,16 @@ function collectTypeParams(type: Type, params: Set<string>): void {
   for (const param of type.parameters) {
     collectTypeParams(param, params);
   }
+}
+
+function collectTests(fileObj: SimpleTestFile): Array<{ sectionName: string; test: SimpleTest }> {
+  const tests: Array<{ sectionName: string; test: SimpleTest }> = [];
+  const sections = fileObj.section ?? [];
+  for (const section of sections) {
+    const sectionName = section.name ?? "";
+    for (const test of section.test ?? []) {
+      tests.push({ sectionName, test });
+    }
+  }
+  return tests;
 }

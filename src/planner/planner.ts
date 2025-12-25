@@ -3,7 +3,7 @@
 // Ported from cel-go/interpreter/planner.go
 
 import type { TypeProvider } from "../checker/provider";
-import { type Type as CheckerType, IntType, ListType, MapType, TypeKind } from "../checker/types";
+import { type Type as CheckerType, ListType, MapType, PrimitiveTypes } from "../checker/types";
 import {
   type AST,
   CallExpr,
@@ -182,7 +182,7 @@ export class Planner {
       return new AttrValue(attr);
     }
     const identType = this.typeMap?.get(expr.id);
-    if (identType?.kind === TypeKind.Type) {
+    if (identType?.kind === "type") {
       const targetType = identType.parameters[0];
       if (targetType !== undefined) {
         return new ConstValue(expr.id, ValueUtil.toTypeValue(targetType));
@@ -201,7 +201,7 @@ export class Planner {
       return new ConstValue(expr.id, this.enumValueToValue(ref, expr.id));
     }
     const selectType = this.typeMap?.get(expr.id);
-    if (selectType?.kind === TypeKind.Type) {
+    if (selectType?.kind === "type") {
       const targetType = selectType.parameters[0];
       if (targetType !== undefined) {
         return new ConstValue(expr.id, ValueUtil.toTypeValue(targetType));
@@ -558,7 +558,7 @@ export class Planner {
     }
     for (const arg of args) {
       const argType = this.typeMap.get(arg.id);
-      if (argType?.kind === TypeKind.Dyn) {
+      if (argType?.kind === "dyn") {
         return true;
       }
     }
@@ -608,7 +608,7 @@ export class Planner {
   private planCreateStruct(expr: StructExpr): Interpretable {
     const resolvedType = this.typeMap?.get(expr.id);
     const resolvedName =
-      resolvedType?.kind === TypeKind.Struct
+      resolvedType?.kind === "struct"
         ? resolvedType.runtimeTypeName
         : this.resolveStructTypeName(expr.typeName);
     const fieldNames: string[] = [];
@@ -668,10 +668,10 @@ export class Planner {
     if (!this.enumValuesAsInt) {
       return type;
     }
-    if (type.kind === TypeKind.Opaque && this.typeProvider?.findEnumType(type.runtimeTypeName)) {
-      return IntType;
+    if (type.kind === "opaque" && this.typeProvider?.findEnumType(type.runtimeTypeName)) {
+      return PrimitiveTypes.Int;
     }
-    if (type.kind === TypeKind.List) {
+    if (type.kind === "list") {
       const elem = type.parameters[0];
       if (elem === undefined) {
         return type;
@@ -679,7 +679,7 @@ export class Planner {
       const coerced = this.coerceEnumToInt(elem);
       return coerced === elem ? type : new ListType(coerced);
     }
-    if (type.kind === TypeKind.Map) {
+    if (type.kind === "map") {
       const key = type.parameters[0];
       const val = type.parameters[1];
       if (key === undefined || val === undefined) {
@@ -748,7 +748,7 @@ export class Planner {
       case "uint":
         return UintValue.of(value.value);
       default:
-        return ErrorValue.create("unknown literal kind", expr.id);
+        return ErrorValue.of("unknown literal kind", expr.id);
     }
   }
 
@@ -756,13 +756,13 @@ export class Planner {
     const value = ref.value;
     const numeric = this.enumNumericValue(value);
     if (numeric === undefined) {
-      return ErrorValue.create("invalid enum value", exprId);
+      return ErrorValue.of("invalid enum value", exprId);
     }
     const exprType = this.typeMap?.get(exprId);
-    if (exprType?.kind === TypeKind.Int || exprType?.kind === TypeKind.Uint) {
+    if (exprType?.kind === "int" || exprType?.kind === "uint") {
       return IntValue.of(numeric);
     }
-    const enumType = exprType?.kind === TypeKind.Opaque ? exprType.runtimeTypeName : undefined;
+    const enumType = exprType?.kind === "opaque" ? exprType.runtimeTypeName : undefined;
     const inferredType = enumType ?? this.enumTypeFromRef(ref);
     if (inferredType !== undefined) {
       return EnumValue.of(inferredType, numeric);
@@ -811,6 +811,6 @@ export class Planner {
    * Create an error node.
    */
   private errorNode(id: ExprId, message: string): Interpretable {
-    return new ConstValue(id, ErrorValue.create(message, id));
+    return new ConstValue(id, ErrorValue.of(message, id));
   }
 }

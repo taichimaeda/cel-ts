@@ -12,6 +12,15 @@ The runner uses `protoc` to encode textproto fixtures before decoding them
 with `protobufjs`, then executes supported tests against `cel-ts`.
 Ensure `protoc` is available in `PATH`.
 
+## Allure Report
+
+The conformance runner writes Allure results to `allure-results` by default.
+To view them in an HTML server, run the Allure CLI if it is available:
+
+```bash
+allure serve allure-results
+```
+
 ## Notes
 
 - The `test/conformance/cel-spec` submodule provides the CEL proto and testdata.

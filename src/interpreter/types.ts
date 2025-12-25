@@ -1,4 +1,4 @@
-import { DynType, ListType, MapType, type Type } from "../checker/types";
+import { ListType, MapType, PrimitiveTypes, type Type } from "../checker/types";
 
 /**
  * Lightweight runtime-only type markers for interpreter values that
@@ -18,8 +18,8 @@ export const OptionalType = new RuntimeType("optional");
 /**
  * Shared generic type aliases used by interpreter values.
  */
-export const GenericListType = new ListType(DynType);
-export const GenericMapType = new MapType(DynType, DynType);
+export const GenericListType = new ListType(PrimitiveTypes.Dyn);
+export const GenericMapType = new MapType(PrimitiveTypes.Dyn, PrimitiveTypes.Dyn);
 
 /**
  * Type representation for CEL runtime values (either a declared type or

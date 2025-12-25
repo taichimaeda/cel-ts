@@ -1,11 +1,9 @@
 import {
-  DynType,
   type EnvOptions,
   Function,
-  IntType,
   MemberOverload,
   Overload,
-  StringType,
+  PrimitiveTypes,
 } from "../cel";
 import { ListType } from "../checker/types";
 import {
@@ -28,8 +26,13 @@ import { type Macro, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { macroTargetMatchesNamespace } from "./macros";
 
+/** Options for configuring the strings extension version. */
 export type StringsOptions = { version?: number };
 
+/**
+ * Strings extension.
+ * Provides string manipulation functions: charAt, indexOf, lastIndexOf, split, substring, trim, etc.
+ */
 export class StringsExtension implements Extension {
   private readonly version: number;
 
@@ -45,8 +48,8 @@ export class StringsExtension implements Extension {
         "charAt",
         new MemberOverload(
           "string_char_at_int",
-          [StringType, IntType],
-          StringType,
+          [PrimitiveTypes.String, PrimitiveTypes.Int],
+          PrimitiveTypes.String,
           (lhs: Value, rhs: Value) => stringCharAt(lhs, rhs)
         )
       ),
@@ -54,14 +57,14 @@ export class StringsExtension implements Extension {
         "indexOf",
         new MemberOverload(
           "string_index_of_string",
-          [StringType, StringType],
-          IntType,
+          [PrimitiveTypes.String, PrimitiveTypes.String],
+          PrimitiveTypes.Int,
           (lhs: Value, rhs: Value) => stringIndexOf(lhs, rhs)
         ),
         new MemberOverload(
           "string_index_of_string_int",
-          [StringType, StringType, IntType],
-          IntType,
+          [PrimitiveTypes.String, PrimitiveTypes.String, PrimitiveTypes.Int],
+          PrimitiveTypes.Int,
           (args: Value[]) => stringIndexOfOffset(args)
         )
       ),
@@ -69,20 +72,20 @@ export class StringsExtension implements Extension {
         "lastIndexOf",
         new MemberOverload(
           "string_last_index_of_string",
-          [StringType, StringType],
-          IntType,
+          [PrimitiveTypes.String, PrimitiveTypes.String],
+          PrimitiveTypes.Int,
           (lhs: Value, rhs: Value) => stringLastIndexOf(lhs, rhs)
         ),
         new MemberOverload(
           "string_last_index_of_string_int",
-          [StringType, StringType, IntType],
-          IntType,
+          [PrimitiveTypes.String, PrimitiveTypes.String, PrimitiveTypes.Int],
+          PrimitiveTypes.Int,
           (args: Value[]) => stringLastIndexOfOffset(args)
         )
       ),
       new Function(
         "lowerAscii",
-        new MemberOverload("string_lower_ascii", [StringType], StringType, (arg: Value) => {
+        new MemberOverload("string_lower_ascii", [PrimitiveTypes.String], PrimitiveTypes.String, (arg: Value) => {
           if (!(arg instanceof StringValue)) return ErrorValue.typeMismatch("string", arg);
           return StringValue.of(toLowerAscii(arg.value()));
         })
@@ -91,14 +94,14 @@ export class StringsExtension implements Extension {
         "replace",
         new MemberOverload(
           "string_replace_string_string",
-          [StringType, StringType, StringType],
-          StringType,
+          [PrimitiveTypes.String, PrimitiveTypes.String, PrimitiveTypes.String],
+          PrimitiveTypes.String,
           (args: Value[]) => stringReplace(args)
         ),
         new MemberOverload(
           "string_replace_string_string_int",
-          [StringType, StringType, StringType, IntType],
-          StringType,
+          [PrimitiveTypes.String, PrimitiveTypes.String, PrimitiveTypes.String, PrimitiveTypes.Int],
+          PrimitiveTypes.String,
           (args: Value[]) => stringReplace(args)
         )
       ),
@@ -106,14 +109,14 @@ export class StringsExtension implements Extension {
         "split",
         new MemberOverload(
           "string_split_string",
-          [StringType, StringType],
-          new ListType(StringType),
+          [PrimitiveTypes.String, PrimitiveTypes.String],
+          new ListType(PrimitiveTypes.String),
           (lhs: Value, rhs: Value) => stringSplit(lhs, rhs)
         ),
         new MemberOverload(
           "string_split_string_int",
-          [StringType, StringType, IntType],
-          new ListType(StringType),
+          [PrimitiveTypes.String, PrimitiveTypes.String, PrimitiveTypes.Int],
+          new ListType(PrimitiveTypes.String),
           (args: Value[]) => stringSplitN(args)
         )
       ),
@@ -121,27 +124,27 @@ export class StringsExtension implements Extension {
         "substring",
         new MemberOverload(
           "string_substring_int",
-          [StringType, IntType],
-          StringType,
+          [PrimitiveTypes.String, PrimitiveTypes.Int],
+          PrimitiveTypes.String,
           (lhs: Value, rhs: Value) => stringSubstring(lhs, rhs)
         ),
         new MemberOverload(
           "string_substring_int_int",
-          [StringType, IntType, IntType],
-          StringType,
+          [PrimitiveTypes.String, PrimitiveTypes.Int, PrimitiveTypes.Int],
+          PrimitiveTypes.String,
           (args: Value[]) => stringSubstringRange(args)
         )
       ),
       new Function(
         "trim",
-        new MemberOverload("string_trim", [StringType], StringType, (arg: Value) => {
+        new MemberOverload("string_trim", [PrimitiveTypes.String], PrimitiveTypes.String, (arg: Value) => {
           if (!(arg instanceof StringValue)) return ErrorValue.typeMismatch("string", arg);
           return StringValue.of(trimUnicodeSpaces(arg.value()));
         })
       ),
       new Function(
         "upperAscii",
-        new MemberOverload("string_upper_ascii", [StringType], StringType, (arg: Value) => {
+        new MemberOverload("string_upper_ascii", [PrimitiveTypes.String], PrimitiveTypes.String, (arg: Value) => {
           if (!(arg instanceof StringValue)) return ErrorValue.typeMismatch("string", arg);
           return StringValue.of(toUpperAscii(arg.value()));
         })
@@ -162,14 +165,14 @@ export class StringsExtension implements Extension {
           "format",
           new MemberOverload(
             "string_format",
-            [StringType, new ListType(DynType)],
-            StringType,
+            [PrimitiveTypes.String, new ListType(PrimitiveTypes.Dyn)],
+            PrimitiveTypes.String,
             (lhs: Value, rhs: Value) => stringFormatPair(lhs, rhs)
           )
         ),
         new Function(
           "strings.quote",
-          new Overload("strings_quote", [StringType], StringType, (arg: Value) => {
+          new Overload("strings_quote", [PrimitiveTypes.String], PrimitiveTypes.String, (arg: Value) => {
             if (!(arg instanceof StringValue)) return ErrorValue.typeMismatch("string", arg);
             return StringValue.of(quoteString(arg.value()));
           })
@@ -181,19 +184,19 @@ export class StringsExtension implements Extension {
       functions.push(
         new Function(
           "join",
-          new MemberOverload("list_join", [new ListType(StringType)], StringType, (arg: Value) =>
+          new MemberOverload("list_join", [new ListType(PrimitiveTypes.String)], PrimitiveTypes.String, (arg: Value) =>
             listJoin(arg, "")
           ),
           new MemberOverload(
             "list_join_string",
-            [new ListType(StringType), StringType],
-            StringType,
+            [new ListType(PrimitiveTypes.String), PrimitiveTypes.String],
+            PrimitiveTypes.String,
             (lhs: Value, rhs: Value) => listJoin(lhs, rhs)
           )
         ),
         new Function(
           "reverse",
-          new MemberOverload("string_reverse", [StringType], StringType, (arg: Value) => {
+          new MemberOverload("string_reverse", [PrimitiveTypes.String], PrimitiveTypes.String, (arg: Value) => {
             if (!(arg instanceof StringValue)) return ErrorValue.typeMismatch("string", arg);
             const reversed = [...arg.value()].reverse().join("");
             return StringValue.of(reversed);
@@ -212,7 +215,7 @@ function stringCharAt(target: Value, index: Value): Value {
   const idx = Number(index.value());
   const chars = toRunes(target.value());
   if (idx < 0 || idx > chars.length) {
-    return ErrorValue.create(`index out of range: ${idx}`);
+    return ErrorValue.of(`index out of range: ${idx}`);
   }
   if (idx === chars.length) {
     return StringValue.Empty;
@@ -222,7 +225,7 @@ function stringCharAt(target: Value, index: Value): Value {
 
 function stringIndexOf(target: Value, search: Value): Value {
   if (!(target instanceof StringValue) || !(search instanceof StringValue)) {
-    return ErrorValue.create("indexOf expects string arguments");
+    return ErrorValue.of("indexOf expects string arguments");
   }
   return IntValue.of(indexOfRunes(target.value(), search.value(), 0));
 }
@@ -236,19 +239,19 @@ function stringIndexOfOffset(args: Value[]): Value {
     !(search instanceof StringValue) ||
     !(offset instanceof IntValue)
   ) {
-    return ErrorValue.create("indexOf expects string, string, int arguments");
+    return ErrorValue.of("indexOf expects string, string, int arguments");
   }
   const offsetNum = Number(offset.value());
   const targetRunes = toRunes(target.value());
   if (offsetNum < 0 || offsetNum > targetRunes.length) {
-    return ErrorValue.create(`index out of range: ${offsetNum}`);
+    return ErrorValue.of(`index out of range: ${offsetNum}`);
   }
   return IntValue.of(indexOfRunes(target.value(), search.value(), offsetNum));
 }
 
 function stringLastIndexOf(target: Value, search: Value): Value {
   if (!(target instanceof StringValue) || !(search instanceof StringValue)) {
-    return ErrorValue.create("lastIndexOf expects string arguments");
+    return ErrorValue.of("lastIndexOf expects string arguments");
   }
   const targetRunes = toRunes(target.value());
   const searchRunes = toRunes(search.value());
@@ -264,12 +267,12 @@ function stringLastIndexOfOffset(args: Value[]): Value {
     !(search instanceof StringValue) ||
     !(offset instanceof IntValue)
   ) {
-    return ErrorValue.create("lastIndexOf expects string, string, int arguments");
+    return ErrorValue.of("lastIndexOf expects string, string, int arguments");
   }
   const offsetNum = Number(offset.value());
   const targetRunes = toRunes(target.value());
   if (offsetNum < 0 || offsetNum > targetRunes.length) {
-    return ErrorValue.create(`index out of range: ${offsetNum}`);
+    return ErrorValue.of(`index out of range: ${offsetNum}`);
   }
   const searchRunes = toRunes(search.value());
   return IntValue.of(lastIndexOfRunes(targetRunes, searchRunes, offsetNum));
@@ -285,7 +288,7 @@ function stringReplace(args: Value[]): Value {
     !(oldValue instanceof StringValue) ||
     !(newValue instanceof StringValue)
   ) {
-    return ErrorValue.create("replace expects string arguments");
+    return ErrorValue.of("replace expects string arguments");
   }
   if (limit !== undefined) {
     if (!(limit instanceof IntValue)) {
@@ -324,7 +327,7 @@ function replaceN(source: string, search: string, replacement: string, count: nu
 
 function stringSplit(target: Value, separator: Value): Value {
   if (!(target instanceof StringValue) || !(separator instanceof StringValue)) {
-    return ErrorValue.create("split expects string arguments");
+    return ErrorValue.of("split expects string arguments");
   }
   const parts = target.value().split(separator.value());
   return ListValue.of(parts.map((part) => StringValue.of(part)));
@@ -339,7 +342,7 @@ function stringSplitN(args: Value[]): Value {
     !(separator instanceof StringValue) ||
     !(limit instanceof IntValue)
   ) {
-    return ErrorValue.create("split expects string, string, int arguments");
+    return ErrorValue.of("split expects string, string, int arguments");
   }
   const count = Number(limit.value());
   if (count === 0) {
@@ -358,12 +361,12 @@ function stringSplitN(args: Value[]): Value {
 
 function stringSubstring(target: Value, offset: Value): Value {
   if (!(target instanceof StringValue) || !(offset instanceof IntValue)) {
-    return ErrorValue.create("substring expects string, int arguments");
+    return ErrorValue.of("substring expects string, int arguments");
   }
   const start = Number(offset.value());
   const chars = toRunes(target.value());
   if (start < 0 || start > chars.length) {
-    return ErrorValue.create(`index out of range: ${start}`);
+    return ErrorValue.of(`index out of range: ${start}`);
   }
   return StringValue.of(chars.slice(start).join(""));
 }
@@ -377,22 +380,22 @@ function stringSubstringRange(args: Value[]): Value {
     !(start instanceof IntValue) ||
     !(end instanceof IntValue)
   ) {
-    return ErrorValue.create("substring expects string, int, int arguments");
+    return ErrorValue.of("substring expects string, int, int arguments");
   }
   const startNum = Number(start.value());
   const endNum = Number(end.value());
   const chars = toRunes(target.value());
   if (startNum < 0 || endNum < 0) {
-    return ErrorValue.create(`index out of range: ${startNum < 0 ? startNum : endNum}`);
+    return ErrorValue.of(`index out of range: ${startNum < 0 ? startNum : endNum}`);
   }
   if (startNum > endNum) {
-    return ErrorValue.create(`invalid substring range. start: ${startNum}, end: ${endNum}`);
+    return ErrorValue.of(`invalid substring range. start: ${startNum}, end: ${endNum}`);
   }
   if (startNum > chars.length) {
-    return ErrorValue.create(`index out of range: ${startNum}`);
+    return ErrorValue.of(`index out of range: ${startNum}`);
   }
   if (endNum > chars.length) {
-    return ErrorValue.create(`index out of range: ${endNum}`);
+    return ErrorValue.of(`index out of range: ${endNum}`);
   }
   return StringValue.of(chars.slice(startNum, endNum).join(""));
 }
@@ -424,7 +427,7 @@ function stringFormat(args: Value[]): Value {
   const format = args[0];
   const list = args[1];
   if (!(format instanceof StringValue) || !(list instanceof ListValue)) {
-    return ErrorValue.create("format expects string and list arguments");
+    return ErrorValue.of("format expects string and list arguments");
   }
   const formatted = formatString(format.value(), list.value());
   if (formatted instanceof ErrorValue) {
@@ -453,7 +456,7 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
       continue;
     }
     if (next === undefined) {
-      return ErrorValue.create(
+      return ErrorValue.of(
         'could not parse formatting clause: unrecognized formatting clause "%"'
       );
     }
@@ -468,7 +471,7 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
         cursor += 1;
       }
       if (digits === "") {
-        return ErrorValue.create(
+        return ErrorValue.of(
           "could not parse formatting clause: precision must be a non-negative integer"
         );
       }
@@ -477,12 +480,12 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
 
     const code = format[cursor];
     if (code === undefined) {
-      return ErrorValue.create(
+      return ErrorValue.of(
         'could not parse formatting clause: unrecognized formatting clause "%"'
       );
     }
     if (argIndex >= args.length) {
-      return ErrorValue.create(`index ${argIndex} out of range`);
+      return ErrorValue.of(`index ${argIndex} out of range`);
     }
     const arg = args[argIndex++]!;
     i = cursor;
@@ -514,7 +517,7 @@ function formatArg(code: string, value: Value, precision: number | undefined): s
     case "e":
       return wrapFormatError(formatScientific(value, precision ?? 6));
     default:
-      return ErrorValue.create(
+      return ErrorValue.of(
         `could not parse formatting clause: unrecognized formatting clause "${code}"`
       );
   }
@@ -576,7 +579,7 @@ function formatStringValue(value: Value): string | ErrorValue {
     const pairs = rendered.map((entry) => `${entry.key}: ${entry.val}`);
     return `{${pairs.join(", ")}}`;
   }
-  return ErrorValue.create(
+  return ErrorValue.of(
     `string clause can only be used on strings, bools, bytes, ints, doubles, maps, lists, types, durations, and timestamps, was given ${value.type()}`
   );
 }
@@ -589,9 +592,9 @@ function formatDecimal(value: Value): string | ErrorValue {
     if (Number.isNaN(num)) return "NaN";
     if (num === Number.POSITIVE_INFINITY) return "Infinity";
     if (num === Number.NEGATIVE_INFINITY) return "-Infinity";
-    return ErrorValue.create("decimal clause can only be used on integers, was given double");
+    return ErrorValue.of("decimal clause can only be used on integers, was given double");
   }
-  return ErrorValue.create(
+  return ErrorValue.of(
     `decimal clause can only be used on integers, was given ${value.type()}`
   );
 }
@@ -600,7 +603,7 @@ function formatFixed(value: Value, precision: number): string | ErrorValue {
   if (value instanceof IntValue) return formatFixedNumber(Number(value.value()), precision);
   if (value instanceof UintValue) return formatFixedNumber(Number(value.value()), precision);
   if (value instanceof DoubleValue) return formatFixedNumber(value.value(), precision);
-  return ErrorValue.create(
+  return ErrorValue.of(
     `fixed-point clause can only be used on doubles, was given ${value.type()}`
   );
 }
@@ -611,7 +614,7 @@ function formatScientific(value: Value, precision: number): string | ErrorValue 
   else if (value instanceof UintValue) num = Number(value.value());
   else if (value instanceof DoubleValue) num = value.value();
   else
-    return ErrorValue.create(
+    return ErrorValue.of(
       `scientific clause can only be used on doubles, was given ${value.type()}`
     );
 
@@ -630,7 +633,7 @@ function formatBinary(value: Value): string | ErrorValue {
   if (value instanceof IntValue) return value.value().toString(2);
   if (value instanceof UintValue) return value.value().toString(2);
   if (value instanceof BoolValue) return value.value() ? "1" : "0";
-  return ErrorValue.create(
+  return ErrorValue.of(
     `only integers and bools can be formatted as binary, was given ${value.type()}`
   );
 }
@@ -638,7 +641,7 @@ function formatBinary(value: Value): string | ErrorValue {
 function formatOctal(value: Value): string | ErrorValue {
   if (value instanceof IntValue) return value.value().toString(8);
   if (value instanceof UintValue) return value.value().toString(8);
-  return ErrorValue.create(`octal clause can only be used on integers, was given ${value.type()}`);
+  return ErrorValue.of(`octal clause can only be used on integers, was given ${value.type()}`);
 }
 
 function formatHex(value: Value, upper: boolean): string | ErrorValue {
@@ -653,7 +656,7 @@ function formatHex(value: Value, upper: boolean): string | ErrorValue {
   } else if (value instanceof BytesValue) {
     hex = bytesToHex(value.value());
   } else {
-    return ErrorValue.create(
+    return ErrorValue.of(
       `only integers, byte buffers, and strings can be formatted as hex, was given ${value.type()}`
     );
   }
@@ -700,7 +703,7 @@ function roundHalfToEven(value: number): number {
 
 function wrapFormatError(result: string | ErrorValue): string | ErrorValue {
   if (result instanceof ErrorValue) {
-    return ErrorValue.create(`error during formatting: ${result.getMessage()}`);
+    return ErrorValue.of(`error during formatting: ${result.getMessage()}`);
   }
   return result;
 }

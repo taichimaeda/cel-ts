@@ -1,10 +1,14 @@
-import { BoolType, type EnvOptions, Function, Overload } from "../cel";
+import { type EnvOptions, Function, Overload, PrimitiveTypes } from "../cel";
 import { ListType, TypeParamType } from "../checker/types";
 import { BoolValue, ErrorValue, ListValue, type Value } from "../interpreter/values";
 import { ReceiverVarArgMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { macroTargetMatchesNamespace } from "./macros";
 
+/**
+ * Sets extension.
+ * Provides sets.contains(), sets.equivalent(), and sets.intersects() for list-based set operations.
+ */
 export class SetsExtension implements Extension {
   envOptions(): EnvOptions {
     const listType = new ListType(new TypeParamType("T"));
@@ -32,15 +36,15 @@ export class SetsExtension implements Extension {
       functions: [
         new Function(
           "sets.contains",
-          new Overload("list_sets_contains_list", [listType, listType], BoolType, setsContains)
+          new Overload("list_sets_contains_list", [listType, listType], PrimitiveTypes.Bool, setsContains)
         ),
         new Function(
           "sets.equivalent",
-          new Overload("list_sets_equivalent_list", [listType, listType], BoolType, setsEquivalent)
+          new Overload("list_sets_equivalent_list", [listType, listType], PrimitiveTypes.Bool, setsEquivalent)
         ),
         new Function(
           "sets.intersects",
-          new Overload("list_sets_intersects_list", [listType, listType], BoolType, setsIntersects)
+          new Overload("list_sets_intersects_list", [listType, listType], PrimitiveTypes.Bool, setsIntersects)
         ),
       ],
     };
@@ -49,7 +53,7 @@ export class SetsExtension implements Extension {
 
 function setsContains(lhs: Value, rhs: Value): Value {
   if (!(lhs instanceof ListValue) || !(rhs instanceof ListValue)) {
-    return ErrorValue.create("sets.contains expects list arguments");
+    return ErrorValue.of("sets.contains expects list arguments");
   }
   for (const elem of rhs.value()) {
     const contains = listContains(lhs, elem);
@@ -65,7 +69,7 @@ function setsContains(lhs: Value, rhs: Value): Value {
 
 function setsEquivalent(lhs: Value, rhs: Value): Value {
   if (!(lhs instanceof ListValue) || !(rhs instanceof ListValue)) {
-    return ErrorValue.create("sets.equivalent expects list arguments");
+    return ErrorValue.of("sets.equivalent expects list arguments");
   }
   const leftContains = setsContains(lhs, rhs);
   if (leftContains instanceof ErrorValue) {
@@ -82,7 +86,7 @@ function setsEquivalent(lhs: Value, rhs: Value): Value {
 
 function setsIntersects(lhs: Value, rhs: Value): Value {
   if (!(lhs instanceof ListValue) || !(rhs instanceof ListValue)) {
-    return ErrorValue.create("sets.intersects expects list arguments");
+    return ErrorValue.of("sets.intersects expects list arguments");
   }
   for (const elem of rhs.value()) {
     const contains = listContains(lhs, elem);

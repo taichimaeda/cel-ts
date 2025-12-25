@@ -1,5 +1,8 @@
 import { type Expr, IdentExpr, SelectExpr } from "../common/ast";
 
+/**
+ * Check if a macro call target matches a namespace identifier.
+ */
 export function macroTargetMatchesNamespace(
   namespace: string,
   target: Expr | undefined
@@ -17,6 +20,9 @@ export function macroTargetMatchesNamespace(
   return false;
 }
 
+/**
+ * Extract identifier name from an expression if it is an IdentExpr.
+ */
 export function extractIdentName(expr: Expr | undefined): string | undefined {
   if (expr instanceof IdentExpr) {
     return expr.name;

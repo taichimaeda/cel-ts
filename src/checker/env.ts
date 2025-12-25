@@ -4,12 +4,11 @@
 import type { FunctionDecl, VariableDecl } from "./decls";
 import type { TypeProvider } from "./provider";
 import {
-  builtinTypeForName,
-  IntType,
+  builtinTypeNameToType,
   ListType,
   MapType,
+  PrimitiveTypes,
   type Type,
-  TypeKind,
   PolymorphicTypeType,
 } from "./types";
 
@@ -192,7 +191,11 @@ export class Container {
   }
 }
 
+/**
+ * Options for configuring checker environment behavior.
+ */
 export interface CheckerEnvOptions {
+  /** Coerce enum types to int during type checking. */
   coerceEnumToInt?: boolean;
 }
 
@@ -272,7 +275,7 @@ export class CheckerEnv {
       }
 
       // Check built-in type identifiers
-      const builtinType = builtinTypeForName(candidate);
+      const builtinType = builtinTypeNameToType(candidate);
       if (builtinType !== undefined) {
         return {
           name: candidate,
@@ -312,7 +315,7 @@ export class CheckerEnv {
       if (enumValueByName !== undefined && enumTypeByName !== undefined) {
         return {
           name: candidate,
-          type: this.coerceEnumToInt(enumTypeByName ?? IntType),
+          type: this.coerceEnumToInt(enumTypeByName ?? PrimitiveTypes.Int),
           kind: "enum",
           value: enumValueByName,
         };
@@ -356,7 +359,7 @@ export class CheckerEnv {
    * Look up a struct field type
    */
   lookupFieldType(structType: Type, fieldName: string): Type | undefined {
-    if (structType.kind !== TypeKind.Struct) {
+    if (structType.kind !== "struct") {
       return undefined;
     }
     const fieldType = this.provider?.findStructFieldType(structType.runtimeTypeName, fieldName);
@@ -396,10 +399,10 @@ export class CheckerEnv {
       return type;
     }
 
-    if (type.kind === TypeKind.Opaque && this.provider?.findEnumType(type.runtimeTypeName)) {
-      return IntType;
+    if (type.kind === "opaque" && this.provider?.findEnumType(type.runtimeTypeName)) {
+      return PrimitiveTypes.Int;
     }
-    if (type.kind === TypeKind.List) {
+    if (type.kind === "list") {
       const elem = type.parameters[0];
       if (elem === undefined) {
         return type;
@@ -407,7 +410,7 @@ export class CheckerEnv {
       const newElem = this.coerceEnumToInt(elem);
       return newElem === elem ? type : new ListType(newElem);
     }
-    if (type.kind === TypeKind.Map) {
+    if (type.kind === "map") {
       const keyType = type.parameters[0];
       const valType = type.parameters[1];
       if (keyType === undefined || valType === undefined) {

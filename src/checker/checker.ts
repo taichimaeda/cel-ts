@@ -25,21 +25,12 @@ import type { CheckerEnv } from "./env";
 import { CheckerErrors, type Location } from "./error";
 import { TypeMapping } from "./mapping";
 import {
-  BoolType,
-  BytesType,
-  DoubleType,
-  DynType,
-  ErrorType,
-  IntType,
   ListType,
   MapType,
-  NullType,
   OptionalType,
-  StringType,
+  PrimitiveTypes,
   type Type,
-  TypeKind,
   TypeParamType,
-  UintType,
   joinTypes,
 } from "./types";
 
@@ -120,7 +111,7 @@ export class Checker {
       this.checkComprehension(expr);
       return;
     }
-    this.setType(expr.id, DynType);
+    this.setType(expr.id, PrimitiveTypes.Dyn);
   }
 
   /**
@@ -130,28 +121,28 @@ export class Checker {
     const value = expr.value;
     switch (value.kind) {
       case "bool":
-        this.setType(expr.id, BoolType);
+        this.setType(expr.id, PrimitiveTypes.Bool);
         break;
       case "bytes":
-        this.setType(expr.id, BytesType);
+        this.setType(expr.id, PrimitiveTypes.Bytes);
         break;
       case "double":
-        this.setType(expr.id, DoubleType);
+        this.setType(expr.id, PrimitiveTypes.Double);
         break;
       case "int":
-        this.setType(expr.id, IntType);
+        this.setType(expr.id, PrimitiveTypes.Int);
         break;
       case "null":
-        this.setType(expr.id, NullType);
+        this.setType(expr.id, PrimitiveTypes.Null);
         break;
       case "string":
-        this.setType(expr.id, StringType);
+        this.setType(expr.id, PrimitiveTypes.String);
         break;
       case "uint":
-        this.setType(expr.id, UintType);
+        this.setType(expr.id, PrimitiveTypes.Uint);
         break;
       default:
-        this.setType(expr.id, DynType);
+        this.setType(expr.id, PrimitiveTypes.Dyn);
     }
   }
 
@@ -170,7 +161,7 @@ export class Checker {
       return;
     }
 
-    this.setType(expr.id, ErrorType);
+    this.setType(expr.id, PrimitiveTypes.Error);
     this.errors.reportUndeclaredReference(
       expr.id,
       this.env.container.name,
@@ -201,7 +192,7 @@ export class Checker {
     let wrapOptional = expr.optional;
     if (operandType.isOptionalType()) {
       wrapOptional = true;
-      operandType = operandType.parameters[0] ?? DynType;
+      operandType = operandType.parameters[0] ?? PrimitiveTypes.Dyn;
     }
 
     // Check field selection
@@ -209,7 +200,7 @@ export class Checker {
 
     // Presence test returns bool
     if (expr.testOnly) {
-      resultType = BoolType;
+      resultType = PrimitiveTypes.Bool;
     } else if (wrapOptional) {
       resultType = new OptionalType(resultType);
     }
@@ -222,15 +213,15 @@ export class Checker {
    */
   private checkSelectField(id: ExprId, targetType: Type, field: string): Type {
     // Default to error
-    let resultType = ErrorType;
+    let resultType = PrimitiveTypes.Error;
 
     switch (targetType.kind) {
-      case TypeKind.Map:
+      case "map":
         // Maps yield their value type
-        resultType = targetType.mapValueType() ?? DynType;
+        resultType = targetType.mapValueType() ?? PrimitiveTypes.Dyn;
         break;
 
-      case TypeKind.Struct:
+      case "struct":
         // Structs yield their field type
         const fieldType = this.env.lookupFieldType(targetType, field);
         if (fieldType !== undefined) {
@@ -240,10 +231,10 @@ export class Checker {
         }
         break;
 
-      case TypeKind.TypeParam:
+      case "type_param":
         // Type param gets treated as dyn
-        this.mapping.isAssignable(DynType, targetType);
-        resultType = DynType;
+        this.mapping.isAssignable(PrimitiveTypes.Dyn, targetType);
+        resultType = PrimitiveTypes.Dyn;
         break;
 
       default:
@@ -251,7 +242,7 @@ export class Checker {
         if (!targetType.isDynOrError()) {
           this.errors.reportUnexpectedType(id, "struct or map", targetType, this.getLocation(id));
         }
-        resultType = DynType;
+        resultType = PrimitiveTypes.Dyn;
     }
 
     return resultType;
@@ -301,10 +292,10 @@ export class Checker {
             false,
             this.getLocation(expr.id)
           );
-          this.setType(expr.id, ErrorType);
+          this.setType(expr.id, PrimitiveTypes.Error);
           return;
         }
-        const targetType = maybeType.type.parameters[0] ?? DynType;
+        const targetType = maybeType.type.parameters[0] ?? PrimitiveTypes.Dyn;
         this.setType(expr.id, targetType);
         this.setRef(expr.id, new VariableReference(maybeType.name));
         return;
@@ -315,7 +306,7 @@ export class Checker {
         funcName,
         this.getLocation(expr.id)
       );
-      this.setType(expr.id, ErrorType);
+      this.setType(expr.id, PrimitiveTypes.Error);
       return;
     }
 
@@ -336,8 +327,8 @@ export class Checker {
 
     // Condition must be bool
     const condType = this.getType(condArg.id);
-    if (!this.mapping.isAssignable(BoolType, condType)) {
-      this.errors.reportTypeMismatch(condArg.id, BoolType, condType, this.getLocation(condArg.id));
+    if (!this.mapping.isAssignable(PrimitiveTypes.Bool, condType)) {
+      this.errors.reportTypeMismatch(condArg.id, PrimitiveTypes.Bool, condType, this.getLocation(condArg.id));
     }
 
     // Retrieve branch types and join them
@@ -378,10 +369,10 @@ export class Checker {
             false,
             this.getLocation(expr.id)
           );
-          this.setType(expr.id, ErrorType);
+          this.setType(expr.id, PrimitiveTypes.Error);
           return;
         }
-        const targetType = maybeType.type.parameters[0] ?? DynType;
+        const targetType = maybeType.type.parameters[0] ?? PrimitiveTypes.Dyn;
         this.setType(expr.id, targetType);
         this.setRef(expr.id, new VariableReference(maybeType.name));
         return;
@@ -415,7 +406,7 @@ export class Checker {
       funcName,
       this.getLocation(expr.id)
     );
-    this.setType(expr.id, ErrorType);
+    this.setType(expr.id, PrimitiveTypes.Error);
   }
 
   /**
@@ -431,11 +422,11 @@ export class Checker {
       let elemType = this.getType(elem.id);
       if (optionalIndices.has(i)) {
         if (elemType.isOptionalType()) {
-          elemType = elemType.parameters[0] ?? DynType;
+          elemType = elemType.parameters[0] ?? PrimitiveTypes.Dyn;
         } else if (!elemType.isDynOrError()) {
           this.errors.reportTypeMismatch(
             elem.id,
-            new OptionalType(DynType),
+            new OptionalType(PrimitiveTypes.Dyn),
             elemType,
             this.getLocation(elem.id)
           );
@@ -473,11 +464,11 @@ export class Checker {
       let valueType = this.getType(entry.value.id);
       if (entry.optional) {
         if (valueType.isOptionalType()) {
-          valueType = valueType.parameters[0] ?? DynType;
+          valueType = valueType.parameters[0] ?? PrimitiveTypes.Dyn;
         } else if (!valueType.isDynOrError()) {
           this.errors.reportTypeMismatch(
             entry.value.id,
-            new OptionalType(DynType),
+            new OptionalType(PrimitiveTypes.Dyn),
             valueType,
             this.getLocation(entry.value.id)
           );
@@ -487,7 +478,7 @@ export class Checker {
     }
 
     if (keyTypes.length === 0) {
-      this.setType(expr.id, new MapType(DynType, DynType));
+      this.setType(expr.id, new MapType(PrimitiveTypes.Dyn, PrimitiveTypes.Dyn));
       return;
     }
 
@@ -512,7 +503,7 @@ export class Checker {
     const structType = this.env.lookupStructType(typeName);
     if (structType === undefined) {
       this.errors.reportNotAMessageType(expr.id, typeName, this.getLocation(expr.id));
-      this.setType(expr.id, DynType);
+      this.setType(expr.id, PrimitiveTypes.Dyn);
       return;
     }
 
@@ -528,7 +519,7 @@ export class Checker {
         let valueType = this.getType(field.value.id);
         if (field.optional) {
           if (valueType.isOptionalType()) {
-            valueType = valueType.parameters[0] ?? DynType;
+            valueType = valueType.parameters[0] ?? PrimitiveTypes.Dyn;
           } else if (!valueType.isDynOrError()) {
             this.errors.reportTypeMismatch(
               field.id,
@@ -539,7 +530,7 @@ export class Checker {
             continue;
           }
         }
-        if (valueType.kind === TypeKind.Null) {
+        if (valueType.kind === "null_type") {
           continue;
         }
         if (!valueType.isDynOrError() && !this.mapping.isAssignable(fieldType, valueType)) {
@@ -565,19 +556,19 @@ export class Checker {
     const rangeType = this.mapping.substitute(this.getType(expr.iterRange.id), false);
 
     // Determine the iteration variable type from the range
-    let iterVarType = DynType;
+    let iterVarType = PrimitiveTypes.Dyn;
     let iterVar2Type: Type | undefined;
-    if (rangeType.kind === TypeKind.List) {
+    if (rangeType.kind === "list") {
       if (expr.iterVar2) {
-        iterVarType = IntType;
-        iterVar2Type = rangeType.listElementType() ?? DynType;
+        iterVarType = PrimitiveTypes.Int;
+        iterVar2Type = rangeType.listElementType() ?? PrimitiveTypes.Dyn;
       } else {
-        iterVarType = rangeType.listElementType() ?? DynType;
+        iterVarType = rangeType.listElementType() ?? PrimitiveTypes.Dyn;
       }
-    } else if (rangeType.kind === TypeKind.Map) {
-      iterVarType = rangeType.mapKeyType() ?? DynType;
+    } else if (rangeType.kind === "map") {
+      iterVarType = rangeType.mapKeyType() ?? PrimitiveTypes.Dyn;
       if (expr.iterVar2) {
-        iterVar2Type = rangeType.mapValueType() ?? DynType;
+        iterVar2Type = rangeType.mapValueType() ?? PrimitiveTypes.Dyn;
       }
     }
 
@@ -585,7 +576,7 @@ export class Checker {
     this.env = this.env.enterScope();
     this.env.addVariables(new VariableDecl(expr.iterVar, iterVarType));
     if (expr.iterVar2) {
-      this.env.addVariables(new VariableDecl(expr.iterVar2, iterVar2Type ?? DynType));
+      this.env.addVariables(new VariableDecl(expr.iterVar2, iterVar2Type ?? PrimitiveTypes.Dyn));
     }
 
     // Check accumulator initializer
@@ -598,10 +589,10 @@ export class Checker {
     // Check loop condition
     this.checkExpr(expr.loopCondition);
     const condType = this.getType(expr.loopCondition.id);
-    if (!condType.isDynOrError() && condType.kind !== TypeKind.Bool) {
+    if (!condType.isDynOrError() && condType.kind !== "bool") {
       this.errors.reportTypeMismatch(
         expr.loopCondition.id,
-        BoolType,
+        PrimitiveTypes.Bool,
         condType,
         this.getLocation(expr.loopCondition.id)
       );
@@ -649,7 +640,7 @@ export class Checker {
         isMemberCall,
         this.getLocation(expr.id)
       );
-      this.setType(expr.id, ErrorType);
+      this.setType(expr.id, PrimitiveTypes.Error);
       return;
     }
 
@@ -702,7 +693,7 @@ export class Checker {
         if (resultType === undefined) {
           resultType = overloadResultType;
         } else if (!resultType.isEquivalentType(overloadResultType)) {
-          resultType = DynType;
+          resultType = PrimitiveTypes.Dyn;
         }
       }
     }
@@ -710,7 +701,7 @@ export class Checker {
     if (matchingOverloads.length === 0) return undefined;
 
     return {
-      resultType: resultType ?? DynType,
+      resultType: resultType ?? PrimitiveTypes.Dyn,
       overloadIds: matchingOverloads.map((o) => o.id),
     };
   }
@@ -724,35 +715,35 @@ export class Checker {
     argCount: number
   ): Type | undefined {
     if (receiverType.isDynOrError()) {
-      return DynType;
+      return PrimitiveTypes.Dyn;
     }
 
     // List methods
-    if (receiverType.kind === TypeKind.List) {
+    if (receiverType.kind === "list") {
       if (methodName === "size" && argCount === 0) {
-        return IntType;
+        return PrimitiveTypes.Int;
       }
     }
 
     // String methods
-    if (receiverType.kind === TypeKind.String) {
-      if (methodName === "size") return IntType;
-      if (methodName === "indexOf" || methodName === "lastIndexOf") return IntType;
-      if (["startsWith", "endsWith", "contains", "matches"].includes(methodName)) return BoolType;
+    if (receiverType.kind === "string") {
+      if (methodName === "size") return PrimitiveTypes.Int;
+      if (methodName === "indexOf" || methodName === "lastIndexOf") return PrimitiveTypes.Int;
+      if (["startsWith", "endsWith", "contains", "matches"].includes(methodName)) return PrimitiveTypes.Bool;
       if (["toLowerCase", "toUpperCase", "trim", "substring", "replace"].includes(methodName))
-        return StringType;
-      if (methodName === "split") return new ListType(StringType);
+        return PrimitiveTypes.String;
+      if (methodName === "split") return new ListType(PrimitiveTypes.String);
     }
 
     // Map methods
-    if (receiverType.kind === TypeKind.Map) {
+    if (receiverType.kind === "map") {
       if (methodName === "size" && argCount === 0) {
-        return IntType;
+        return PrimitiveTypes.Int;
       }
     }
 
     // Timestamp methods
-    if (receiverType.kind === TypeKind.Timestamp) {
+    if (receiverType.kind === "timestamp") {
       if (
         [
           "getFullYear",
@@ -767,14 +758,14 @@ export class Checker {
           "getMilliseconds",
         ].includes(methodName)
       ) {
-        return IntType;
+        return PrimitiveTypes.Int;
       }
     }
 
     // Duration methods
-    if (receiverType.kind === TypeKind.Duration) {
+    if (receiverType.kind === "duration") {
       if (["getHours", "getMinutes", "getSeconds", "getMilliseconds"].includes(methodName)) {
-        return IntType;
+        return PrimitiveTypes.Int;
       }
     }
 
@@ -804,7 +795,7 @@ export class Checker {
   // ============================================================================
 
   private getType(id: ExprId): Type {
-    return this.typeMap.get(id) ?? DynType;
+    return this.typeMap.get(id) ?? PrimitiveTypes.Dyn;
   }
 
   private setType(id: ExprId, type: Type): void {

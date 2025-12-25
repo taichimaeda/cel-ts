@@ -2,12 +2,11 @@
 // Type parameter bindings for type unification and substitution
 
 import {
-  DynType,
   ListType,
   MapType,
   OpaqueType,
+  PrimitiveTypes,
   type Type,
-  TypeKind,
   PolymorphicTypeType,
   wellKnownTypeToNative,
   wrapperTypeToPrimitive,
@@ -23,7 +22,7 @@ export class TypeMapping {
    * Add a type binding
    */
   add(typeParam: Type, boundType: Type): void {
-    if (typeParam.kind !== TypeKind.TypeParam) {
+    if (typeParam.kind !== "type_param") {
       return;
     }
     this.bindings.set(typeParam.typeKey(), boundType);
@@ -33,7 +32,7 @@ export class TypeMapping {
    * Find a binding for a type parameter
    */
   find(typeParam: Type): Type | undefined {
-    if (typeParam.kind !== TypeKind.TypeParam) {
+    if (typeParam.kind !== "type_param") {
       return undefined;
     }
     return this.bindings.get(typeParam.typeKey());
@@ -43,7 +42,7 @@ export class TypeMapping {
    * Check if a type parameter is bound
    */
   has(typeParam: Type): boolean {
-    if (typeParam.kind !== TypeKind.TypeParam) {
+    if (typeParam.kind !== "type_param") {
       return false;
     }
     return this.bindings.has(typeParam.typeKey());
@@ -89,7 +88,7 @@ export class TypeMapping {
       return this.isAssignable(targetWellKnown ?? target, sourceWellKnown ?? source);
     }
 
-    if (target.kind === TypeKind.Int && isEnumType(source)) {
+    if (target.kind === "int" && isEnumType(source)) {
       return true;
     }
 
@@ -123,10 +122,10 @@ export class TypeMapping {
   }
 
   private bindTypeParam(target: Type, source: Type): boolean | undefined {
-    if (target.kind === TypeKind.TypeParam) {
+    if (target.kind === "type_param") {
       return this.bindTargetTypeParam(target, source);
     }
-    if (source.kind === TypeKind.TypeParam) {
+    if (source.kind === "type_param") {
       return this.bindSourceTypeParam(target, source);
     }
     return undefined;
@@ -137,7 +136,7 @@ export class TypeMapping {
     if (existing !== undefined) {
       return this.isAssignable(existing, source);
     }
-    if (source.kind === TypeKind.TypeParam && source.typeKey() === target.typeKey()) {
+    if (source.kind === "type_param" && source.typeKey() === target.typeKey()) {
       return true;
     }
     if (occursIn(target, source)) {
@@ -152,7 +151,7 @@ export class TypeMapping {
     if (existing !== undefined) {
       return this.isAssignable(target, existing);
     }
-    if (target.kind === TypeKind.TypeParam && target.typeKey() === source.typeKey()) {
+    if (target.kind === "type_param" && target.typeKey() === source.typeKey()) {
       return true;
     }
     if (occursIn(source, target)) {
@@ -171,15 +170,15 @@ export class TypeMapping {
 
   private substituteType(type: Type, typeParamToDyn: boolean): Type {
     switch (type.kind) {
-      case TypeKind.TypeParam:
+      case "type_param":
         return this.substituteTypeParam(type, typeParamToDyn);
-      case TypeKind.List:
+      case "list":
         return this.substituteList(type, typeParamToDyn);
-      case TypeKind.Map:
+      case "map":
         return this.substituteMap(type, typeParamToDyn);
-      case TypeKind.Opaque:
+      case "opaque":
         return this.substituteOpaque(type, typeParamToDyn);
-      case TypeKind.Type:
+      case "type":
         return this.substituteTypeWrapper(type, typeParamToDyn);
       default:
         return type;
@@ -191,7 +190,7 @@ export class TypeMapping {
     if (bound !== undefined) {
       return this.substituteType(bound, typeParamToDyn);
     }
-    return typeParamToDyn ? DynType : type;
+    return typeParamToDyn ? PrimitiveTypes.Dyn : type;
   }
 
   private substituteList(type: Type, typeParamToDyn: boolean): Type {
@@ -240,28 +239,28 @@ export class TypeMapping {
 }
 
 function occursIn(typeParam: Type, type: Type): boolean {
-  if (type.kind === TypeKind.TypeParam) {
+  if (type.kind === "type_param") {
     return typeParam.typeKey() === type.typeKey();
   }
   return type.parameters.some((p) => occursIn(typeParam, p));
 }
 
 function isWildcardType(type: Type): boolean {
-  return type.kind === TypeKind.Dyn || type.kind === TypeKind.Error;
+  return type.kind === "dyn" || type.kind === "error";
 }
 
 function isNullAssignableToOptional(target: Type, source: Type): boolean {
-  return source.kind === TypeKind.Null && target.isOptionalType();
+  return source.kind === "null_type" && target.isOptionalType();
 }
 
 function isNullAssignableToReference(target: Type, source: Type): boolean {
-  if (source.kind !== TypeKind.Null) {
+  if (source.kind !== "null_type") {
     return false;
   }
   switch (target.kind) {
-    case TypeKind.Struct:
-    case TypeKind.Duration:
-    case TypeKind.Timestamp:
+    case "struct":
+    case "duration":
+    case "timestamp":
       return true;
     default:
       return false;
@@ -270,7 +269,7 @@ function isNullAssignableToReference(target: Type, source: Type): boolean {
 
 function isEnumType(type: Type): boolean {
   return (
-    type.kind === TypeKind.Opaque &&
+    type.kind === "opaque" &&
     type.runtimeTypeName !== "optional_type" &&
     type.parameters.length === 0
   );
@@ -281,7 +280,7 @@ function haveCompatibleKinds(target: Type, source: Type): boolean {
 }
 
 function namesMatchForStructuredTypes(target: Type, source: Type): boolean {
-  if (target.kind === TypeKind.Struct || target.kind === TypeKind.Opaque) {
+  if (target.kind === "struct" || target.kind === "opaque") {
     return target.runtimeTypeName === source.runtimeTypeName;
   }
   return true;

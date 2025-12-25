@@ -12,6 +12,7 @@ export {
   DurationValue,
   EnumValue,
   ErrorValue,
+  IntLimits,
   IntValue,
   ListValue,
   MapValue,
@@ -55,10 +56,10 @@ export {
 // Dispatcher - Function dispatcher
 export {
   BinaryDispatcherOverload,
-  Dispatcher as DefaultDispatcher,
+  Dispatcher,
   TryResolvedCall as ResolvedCall,
   UnaryDispatcherOverload,
-  NaryDispatcherOverload as VariadicDispatcherOverload,
+  NaryDispatcherOverload,
   type BinaryOp,
   type ResolvedCall as FunctionCall,
   type FunctionOp,

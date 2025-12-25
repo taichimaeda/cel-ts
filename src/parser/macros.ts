@@ -33,12 +33,18 @@ export type MacroExpander = (
   args: Expr[]
 ) => Expr | undefined;
 
+/**
+ * Union type for all macro variants.
+ */
 export type Macro =
   | GlobalMacro
   | ReceiverMacro
   | GlobalVarArgMacro
   | ReceiverVarArgMacro;
 
+/**
+ * Macro call style discriminator.
+ */
 export type MacroKind = "global" | "receiver" | "global_vararg" | "receiver_vararg";
 
 /**
@@ -75,7 +81,7 @@ class MacroKey {
 }
 
 /**
- * Macro variants for convenience.
+ * Global-style macro with fixed argument count.
  */
 export class GlobalMacro extends BaseMacro {
   readonly kind: MacroKind = "global";
@@ -85,6 +91,9 @@ export class GlobalMacro extends BaseMacro {
   }
 }
 
+/**
+ * Receiver-style macro with fixed argument count.
+ */
 export class ReceiverMacro extends BaseMacro {
   readonly kind: MacroKind = "receiver";
 
@@ -93,6 +102,9 @@ export class ReceiverMacro extends BaseMacro {
   }
 }
 
+/**
+ * Global-style macro with variable argument count.
+ */
 export class GlobalVarArgMacro extends BaseMacro {
   readonly kind: MacroKind = "global_vararg";
 
@@ -101,6 +113,9 @@ export class GlobalVarArgMacro extends BaseMacro {
   }
 }
 
+/**
+ * Receiver-style macro with variable argument count.
+ */
 export class ReceiverVarArgMacro extends BaseMacro {
   readonly kind: MacroKind = "receiver_vararg";
 
@@ -308,28 +323,32 @@ export const makeHas: MacroExpander = (helper, _target, args) => {
   throw new MacroError("invalid argument to has() macro");
 };
 
-// Standard macros
-export const HasMacro = new GlobalMacro("has", 1, makeHas);
-export const AllMacro = new ReceiverMacro("all", 2, makeAll);
-export const ExistsMacro = new ReceiverMacro("exists", 2, makeExists);
-export const ExistsOneMacro = new ReceiverMacro("exists_one", 2, makeExistsOne);
-export const ExistsOneMacroNew = new ReceiverMacro("existsOne", 2, makeExistsOne);
-export const MapMacro = new ReceiverMacro("map", 2, makeMap);
-export const MapFilterMacro = new ReceiverMacro("map", 3, makeMap);
-export const FilterMacro = new ReceiverMacro("filter", 2, makeFilter);
+/**
+ * Standard CEL macros.
+ */
+export const Macros = {
+  Has: new GlobalMacro("has", 1, makeHas),
+  All: new ReceiverMacro("all", 2, makeAll),
+  Exists: new ReceiverMacro("exists", 2, makeExists),
+  ExistsOne: new ReceiverMacro("exists_one", 2, makeExistsOne),
+  ExistsOneNew: new ReceiverMacro("existsOne", 2, makeExistsOne),
+  Map: new ReceiverMacro("map", 2, makeMap),
+  MapFilter: new ReceiverMacro("map", 3, makeMap),
+  Filter: new ReceiverMacro("filter", 2, makeFilter),
+} as const;
 
 /**
- * All standard macros.
+ * All standard macros as an array.
  */
 export const AllMacros: Macro[] = [
-  HasMacro,
-  AllMacro,
-  ExistsMacro,
-  ExistsOneMacro,
-  ExistsOneMacroNew,
-  MapMacro,
-  MapFilterMacro,
-  FilterMacro,
+  Macros.Has,
+  Macros.All,
+  Macros.Exists,
+  Macros.ExistsOne,
+  Macros.ExistsOneNew,
+  Macros.Map,
+  Macros.MapFilter,
+  Macros.Filter,
 ];
 
 /**

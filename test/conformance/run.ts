@@ -1,8 +1,8 @@
+import { ConformanceReporter } from "./reporter";
 import { runConformance } from "./runner";
 
-const stats = await runConformance();
-console.log(
-  `Conformance summary: ${stats.passed} passed, ${stats.failed} failed, ${stats.skipped} skipped, ${stats.total} total.`
-);
+const reporter = new ConformanceReporter();
+const stats = await runConformance(reporter);
+reporter.summarize(stats);
 
 process.exit(stats.failed > 0 ? 1 : 0);

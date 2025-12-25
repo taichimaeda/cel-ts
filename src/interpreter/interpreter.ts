@@ -22,6 +22,7 @@ import { type Activation, EmptyActivation, LazyActivation, MapActivation } from 
 import { Dispatcher } from "./dispatcher";
 import { standardFunctions } from "./functions";
 import type { Interpretable } from "./interpretable";
+import { formatRuntimeError, isActivation } from "./utils";
 import { ErrorValue, type Value, ValueUtil } from "./values";
 
 /**
@@ -283,7 +284,7 @@ export class Program {
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       return {
-        value: ErrorValue.create(errorMessage),
+        value: ErrorValue.of(errorMessage),
         success: false,
         error: errorMessage,
       };
@@ -295,24 +296,3 @@ export class Program {
   }
 }
 
-function isActivation(value: unknown): value is Activation {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "resolve" in (value as Record<string, unknown>) &&
-    typeof (value as Activation).resolve === "function"
-  );
-}
-
-function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): string {
-  const exprId = error.exprId;
-  if (exprId === undefined) {
-    return error.getMessage();
-  }
-  const position = sourceInfo.getPosition(exprId);
-  if (position === undefined) {
-    return error.getMessage();
-  }
-  const { line, column } = sourceInfo.getLocation(position.start);
-  return `${line}:${column}: ${error.getMessage()}`;
-}

@@ -11,6 +11,9 @@ import {
   type Value,
 } from "../interpreter/values";
 
+/**
+ * Compare two CEL values, returning -1, 0, or 1 for ordering.
+ */
 export function compareValues(lhs: Value, rhs: Value): number | ErrorValue {
   if (lhs instanceof IntValue && rhs instanceof IntValue) {
     return lhs.compare(rhs);
@@ -21,7 +24,7 @@ export function compareValues(lhs: Value, rhs: Value): number | ErrorValue {
   if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
     const cmp = lhs.compare(rhs);
     if (Number.isNaN(cmp)) {
-      return ErrorValue.create("cannot compare NaN");
+      return ErrorValue.of("cannot compare NaN");
     }
     return cmp;
   }
@@ -62,13 +65,16 @@ export function compareValues(lhs: Value, rhs: Value): number | ErrorValue {
     const left = toNumber(lhs);
     const right = toNumber(rhs);
     if (Number.isNaN(left) || Number.isNaN(right)) {
-      return ErrorValue.create("cannot compare NaN");
+      return ErrorValue.of("cannot compare NaN");
     }
     return left < right ? -1 : left > right ? 1 : 0;
   }
-  return ErrorValue.create(`cannot compare ${lhs.type()} with ${rhs.type()}`);
+  return ErrorValue.of(`cannot compare ${lhs.type()} with ${rhs.type()}`);
 }
 
+/**
+ * Check if a value is a comparable type (numeric, bool, duration, timestamp, string, bytes).
+ */
 export function isComparableValue(value: Value): boolean {
   return (
     value instanceof IntValue ||

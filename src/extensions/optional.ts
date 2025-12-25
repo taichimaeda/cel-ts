@@ -1,4 +1,4 @@
-import { BoolType, type EnvOptions, Function, IntType, MemberOverload, Overload } from "../cel";
+import { type EnvOptions, Function, MemberOverload, Overload, PrimitiveTypes } from "../cel";
 import { ListType, MapType, OptionalType, TypeParamType } from "../checker/types";
 import { Operators } from "../common/ast";
 import {
@@ -24,6 +24,10 @@ import { extractIdentName } from "./macros";
 
 const unusedIterVar = "#unused";
 
+/**
+ * Optional types extension.
+ * Provides optional.of(), optional.none(), hasValue(), value(), or(), orValue(), optMap(), optFlatMap().
+ */
 export class OptionalTypesExtension implements Extension {
   envOptions(): EnvOptions {
     const typeParamV = new TypeParamType("V");
@@ -112,7 +116,7 @@ export class OptionalTypesExtension implements Extension {
         new MemberOverload(
           "optional_hasValue",
           [optionalTypeV],
-          BoolType,
+          PrimitiveTypes.Bool,
           (arg: Value) => {
             if (!(arg instanceof OptionalValue)) {
               return ErrorValue.typeMismatch("optional", arg);
@@ -133,7 +137,7 @@ export class OptionalTypesExtension implements Extension {
               return ErrorValue.typeMismatch("optional", arg);
             }
             if (!arg.hasValue()) {
-              return ErrorValue.create("optional has no value");
+              return ErrorValue.of("optional has no value");
             }
             return arg.value() ?? NullValue.Instance;
           },
@@ -148,7 +152,7 @@ export class OptionalTypesExtension implements Extension {
           optionalTypeV,
           (lhs: Value, rhs: Value) => {
             if (!(lhs instanceof OptionalValue) || !(rhs instanceof OptionalValue)) {
-              return ErrorValue.create("optional.or expects optional arguments");
+              return ErrorValue.of("optional.or expects optional arguments");
             }
             return lhs.hasValue() ? lhs : rhs;
           },
@@ -163,7 +167,7 @@ export class OptionalTypesExtension implements Extension {
           typeParamV,
           (lhs: Value, rhs: Value) => {
             if (!(lhs instanceof OptionalValue)) {
-              return ErrorValue.create("optional.orValue expects optional receiver");
+              return ErrorValue.of("optional.orValue expects optional receiver");
             }
             return lhs.hasValue() ? (lhs.value() ?? NullValue.Instance) : rhs;
           },
@@ -172,12 +176,12 @@ export class OptionalTypesExtension implements Extension {
       ),
       new Function(
         Operators.OptIndex,
-        new Overload("list_optindex_optional_int", [listTypeV, IntType], optionalTypeV, undefined, {
+        new Overload("list_optindex_optional_int", [listTypeV, PrimitiveTypes.Int], optionalTypeV, undefined, {
           typeParams: ["V"],
         }),
         new Overload(
           "optional_list_optindex_optional_int",
-          [new OptionalType(listTypeV), IntType],
+          [new OptionalType(listTypeV), PrimitiveTypes.Int],
           optionalTypeV,
           undefined,
           { typeParams: ["V"] }
@@ -201,7 +205,7 @@ export class OptionalTypesExtension implements Extension {
         Operators.Index,
         new Overload(
           "optional_list_index_int",
-          [new OptionalType(listTypeV), IntType],
+          [new OptionalType(listTypeV), PrimitiveTypes.Int],
           optionalTypeV,
           undefined,
           { typeParams: ["V"] }

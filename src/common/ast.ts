@@ -5,41 +5,53 @@
 
 import type { Type } from "../checker/types";
 import type { SourceInfo } from "./source";
-import { VisitOrder, type Visitor } from "./visitor";
+import type { VisitOrder, Visitor } from "./visitor";
+
+// ---------------------------------------------------------------------------
+// Operators
+// ---------------------------------------------------------------------------
 
 /**
  * Operator names for CEL (shared between parser, checker, and interpreter).
+ * Maps human-readable operator names to internal CEL function names.
  */
-export enum Operators {
+export const Operators = {
   // Arithmetic
-  Add = "_+_",
-  Subtract = "_-_",
-  Multiply = "_*_",
-  Divide = "_/_",
-  Modulo = "_%_",
-  Negate = "-_",
+  Add: "_+_",
+  Subtract: "_-_",
+  Multiply: "_*_",
+  Divide: "_/_",
+  Modulo: "_%_",
+  Negate: "-_",
 
   // Comparison
-  Equals = "_==_",
-  NotEquals = "_!=_",
-  Less = "_<_",
-  LessEquals = "_<=_",
-  Greater = "_>_",
-  GreaterEquals = "_>=_",
-  In = "_in_",
+  Equals: "_==_",
+  NotEquals: "_!=_",
+  Less: "_<_",
+  LessEquals: "_<=_",
+  Greater: "_>_",
+  GreaterEquals: "_>=_",
+  In: "_in_",
 
   // Logical
-  LogicalAnd = "_&&_",
-  LogicalOr = "_||_",
-  LogicalNot = "!_",
-  NotStrictlyFalse = "@not_strictly_false",
-  Conditional = "_?_:_",
+  LogicalAnd: "_&&_",
+  LogicalOr: "_||_",
+  LogicalNot: "!_",
+  NotStrictlyFalse: "@not_strictly_false",
+  Conditional: "_?_:_",
 
   // Index
-  Index = "_[_]",
-  OptIndex = "_[?_]",
-  OptSelect = "_?._",
-}
+  Index: "_[_]",
+  OptIndex: "_[?_]",
+  OptSelect: "_?._",
+} as const;
+
+/** Type for operator string values */
+export type OperatorName = (typeof Operators)[keyof typeof Operators];
+
+// ---------------------------------------------------------------------------
+// Expression Types
+// ---------------------------------------------------------------------------
 
 /**
  * Expression identifiers and kinds.
@@ -122,17 +134,17 @@ export class UnspecifiedExpr extends BaseExpr {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitExpr(this);
     }
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitExpr(this);
     }
   }
@@ -153,17 +165,17 @@ export class LiteralExpr extends BaseExpr {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitExpr(this);
     }
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitExpr(this);
     }
   }
@@ -196,17 +208,17 @@ export class IdentExpr extends BaseExpr {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitExpr(this);
     }
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitExpr(this);
     }
   }
@@ -231,18 +243,18 @@ export class SelectExpr extends BaseExpr {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitExpr(this);
     }
     this.operand.accept(visitor, order, depth + 1, maxDepth);
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitExpr(this);
     }
   }
@@ -266,14 +278,14 @@ export class CallExpr extends BaseExpr {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitExpr(this);
     }
     if (this.target !== undefined) {
@@ -282,7 +294,7 @@ export class CallExpr extends BaseExpr {
     for (const arg of this.args) {
       arg.accept(visitor, order, depth + 1, maxDepth);
     }
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitExpr(this);
     }
   }
@@ -305,20 +317,20 @@ export class ListExpr extends BaseExpr {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitExpr(this);
     }
     for (const elem of this.elements) {
       elem.accept(visitor, order, depth + 1, maxDepth);
     }
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitExpr(this);
     }
   }
@@ -369,19 +381,19 @@ export class MapEntry extends BaseEntry {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitEntryExpr(this);
     }
     this.key.accept(visitor, order, depth + 1, maxDepth);
     this.value.accept(visitor, order, depth + 1, maxDepth);
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitEntryExpr(this);
     }
   }
@@ -402,20 +414,20 @@ export class MapExpr extends BaseExpr {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitExpr(this);
     }
     for (const entry of this.entries) {
       entry.accept(visitor, order, depth, maxDepth);
     }
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitExpr(this);
     }
   }
@@ -437,18 +449,18 @@ export class StructField extends BaseEntry {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitEntryExpr(this);
     }
     this.value.accept(visitor, order, depth + 1, maxDepth);
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitEntryExpr(this);
     }
   }
@@ -470,20 +482,20 @@ export class StructExpr extends BaseExpr {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitExpr(this);
     }
     for (const field of this.fields) {
       field.accept(visitor, order, depth, maxDepth);
     }
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitExpr(this);
     }
   }
@@ -549,14 +561,14 @@ export class ComprehensionExpr extends BaseExpr {
 
   override accept(
     visitor: Visitor,
-    order: VisitOrder = VisitOrder.Pre,
+    order: VisitOrder = "pre",
     depth = 0,
     maxDepth = 0
   ): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
-    if (order === VisitOrder.Pre) {
+    if (order === "pre") {
       visitor.visitExpr(this);
     }
     this.iterRange.accept(visitor, order, depth + 1, maxDepth);
@@ -564,7 +576,7 @@ export class ComprehensionExpr extends BaseExpr {
     this.loopCondition.accept(visitor, order, depth + 1, maxDepth);
     this.loopStep.accept(visitor, order, depth + 1, maxDepth);
     this.result.accept(visitor, order, depth + 1, maxDepth);
-    if (order === VisitOrder.Post) {
+    if (order === "post") {
       visitor.visitExpr(this);
     }
   }

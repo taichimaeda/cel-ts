@@ -210,7 +210,7 @@ export class StrictActivation {
   resolve(name: string): Value | undefined {
     const value = this.delegate.resolve(name);
     if (value === undefined) {
-      return ErrorValue.create(`undeclared variable: ${name}`);
+      return ErrorValue.of(`undeclared variable: ${name}`);
     }
     return value;
   }

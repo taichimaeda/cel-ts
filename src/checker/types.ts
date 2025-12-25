@@ -2,36 +2,34 @@
 // TypeScript-native implementation of CEL types
 
 
+// ---------------------------------------------------------------------------
+// Type Kind Constants and Union Types
+// ---------------------------------------------------------------------------
+
 /**
- * Type kinds representing all CEL type categories
+ * Primitive type kinds (bool, int, uint, double, string, bytes, null)
  */
-export enum TypeKind {
-  // Primitive types
-  Bool = "bool",
-  Int = "int",
-  Uint = "uint",
-  Double = "double",
-  String = "string",
-  Bytes = "bytes",
-  Null = "null_type",
+export type PrimitiveTypeKind = "bool" | "int" | "uint" | "double" | "string" | "bytes" | "null_type";
 
-  // Temporal types
-  Duration = "duration",
-  Timestamp = "timestamp",
+/**
+ * Temporal type kinds (duration, timestamp)
+ */
+export type TemporalTypeKind = "duration" | "timestamp";
 
-  // Complex types
-  List = "list",
-  Map = "map",
-  Struct = "struct",
-  Opaque = "opaque",
+/**
+ * Complex type kinds (list, map, struct, opaque)
+ */
+export type ComplexTypeKind = "list" | "map" | "struct" | "opaque";
 
-  // Special types
-  Dyn = "dyn",
-  Error = "error",
-  Type = "type",
-  TypeParam = "type_param",
-  Any = "any",
-}
+/**
+ * Special type kinds (dyn, error, type, type_param, any)
+ */
+export type SpecialTypeKind = "dyn" | "error" | "type" | "type_param" | "any";
+
+/**
+ * All type kinds as a union of categorized kinds
+ */
+export type TypeKind = PrimitiveTypeKind | TemporalTypeKind | ComplexTypeKind | SpecialTypeKind;
 
 /**
  * Represents a CEL type with optional type parameters
@@ -68,12 +66,12 @@ export class Type {
     if (this.parameters.length !== other.parameters.length) return false;
 
     // For type parameters, just check that both are type params
-    if (this.kind === TypeKind.TypeParam && other.kind === TypeKind.TypeParam) {
+    if (this.kind === "type_param" && other.kind === "type_param") {
       return true;
     }
 
     // For other kinds, names must match
-    if (this.kind !== TypeKind.TypeParam && this.runtimeTypeName !== other.runtimeTypeName) {
+    if (this.kind !== "type_param" && this.runtimeTypeName !== other.runtimeTypeName) {
       return false;
     }
 
@@ -88,12 +86,12 @@ export class Type {
    */
   isPrimitive(): boolean {
     switch (this.kind) {
-      case TypeKind.Bool:
-      case TypeKind.Int:
-      case TypeKind.Uint:
-      case TypeKind.Double:
-      case TypeKind.String:
-      case TypeKind.Bytes:
+      case "bool":
+      case "int":
+      case "uint":
+      case "double":
+      case "string":
+      case "bytes":
         return true;
       default:
         return false;
@@ -111,21 +109,21 @@ export class Type {
    * Check if this type represents Dyn or Error.
    */
   isDynOrError(): boolean {
-    return this.kind === TypeKind.Dyn || this.kind === TypeKind.Error;
+    return this.kind === "dyn" || this.kind === "error";
   }
 
   /**
    * Check if this is an optional type
    */
   isOptionalType(): boolean {
-    return this.kind === TypeKind.Opaque && this.runtimeTypeName === "optional_type";
+    return this.kind === "opaque" && this.runtimeTypeName === "optional_type";
   }
 
   /**
    * Get the element type of a list
    */
   listElementType(): Type | undefined {
-    if (this.kind === TypeKind.List && this.parameters.length > 0) {
+    if (this.kind === "list" && this.parameters.length > 0) {
       return this.parameters[0];
     }
     return undefined;
@@ -135,7 +133,7 @@ export class Type {
    * Get the key type of a map
    */
   mapKeyType(): Type | undefined {
-    if (this.kind === TypeKind.Map && this.parameters.length > 0) {
+    if (this.kind === "map" && this.parameters.length > 0) {
       return this.parameters[0];
     }
     return undefined;
@@ -145,7 +143,7 @@ export class Type {
    * Get the value type of a map
    */
   mapValueType(): Type | undefined {
-    if (this.kind === TypeKind.Map && this.parameters.length > 1) {
+    if (this.kind === "map" && this.parameters.length > 1) {
       return this.parameters[1];
     }
     return undefined;
@@ -165,27 +163,35 @@ class PrimitiveType extends Type {
   }
 }
 
-export const BoolType = new PrimitiveType(TypeKind.Bool, "bool");
-export const IntType = new PrimitiveType(TypeKind.Int, "int");
-export const UintType = new PrimitiveType(TypeKind.Uint, "uint");
-export const DoubleType = new PrimitiveType(TypeKind.Double, "double");
-export const StringType = new PrimitiveType(TypeKind.String, "string");
-export const BytesType = new PrimitiveType(TypeKind.Bytes, "bytes");
-export const NullType = new PrimitiveType(TypeKind.Null, "null_type");
-export const DurationType = new PrimitiveType(TypeKind.Duration, "google.protobuf.Duration");
-export const TimestampType = new PrimitiveType(TypeKind.Timestamp, "google.protobuf.Timestamp");
-export const DynType = new PrimitiveType(TypeKind.Dyn, "dyn");
-export const ErrorType = new PrimitiveType(TypeKind.Error, "error");
-export const TypeType = new PrimitiveType(TypeKind.Type, "type");
-export const AnyType = new PrimitiveType(TypeKind.Any, "any");
+/**
+ * Primitive CEL types as singleton instances.
+ */
+export const PrimitiveTypes = {
+  Bool: new PrimitiveType("bool", "bool"),
+  Int: new PrimitiveType("int", "int"),
+  Uint: new PrimitiveType("uint", "uint"),
+  Double: new PrimitiveType("double", "double"),
+  String: new PrimitiveType("string", "string"),
+  Bytes: new PrimitiveType("bytes", "bytes"),
+  Null: new PrimitiveType("null_type", "null_type"),
+  Duration: new PrimitiveType("duration", "google.protobuf.Duration"),
+  Timestamp: new PrimitiveType("timestamp", "google.protobuf.Timestamp"),
+  Dyn: new PrimitiveType("dyn", "dyn"),
+  Error: new PrimitiveType("error", "error"),
+  Type: new PrimitiveType("type", "type"),
+  Any: new PrimitiveType("any", "any"),
+} as const;
 
 // ---------------------------------------------------------------------------
 // Concrete Type Implementations
 // ---------------------------------------------------------------------------
 
+/**
+ * CEL list type with element type parameter.
+ */
 export class ListType extends Type {
   constructor(elemType: Type) {
-    super(TypeKind.List, "list", [elemType]);
+    super("list", "list", [elemType]);
   }
 
   override toString(): string {
@@ -194,9 +200,12 @@ export class ListType extends Type {
   }
 }
 
+/**
+ * CEL map type with key and value type parameters.
+ */
 export class MapType extends Type {
   constructor(keyType: Type, valueType: Type) {
-    super(TypeKind.Map, "map", [keyType, valueType]);
+    super("map", "map", [keyType, valueType]);
   }
 
   override toString(): string {
@@ -206,9 +215,12 @@ export class MapType extends Type {
   }
 }
 
+/**
+ * CEL struct type representing a protobuf message or custom struct.
+ */
 export class StructType extends Type {
   constructor(typeName: string) {
-    super(TypeKind.Struct, typeName);
+    super("struct", typeName);
   }
 
   override toString(): string {
@@ -216,9 +228,12 @@ export class StructType extends Type {
   }
 }
 
+/**
+ * Type parameter placeholder used during type checking.
+ */
 export class TypeParamType extends Type {
   constructor(name: string) {
-    super(TypeKind.TypeParam, name);
+    super("type_param", name);
   }
 
   override toString(): string {
@@ -226,9 +241,12 @@ export class TypeParamType extends Type {
   }
 }
 
+/**
+ * Opaque type for extension types with optional type parameters.
+ */
 export class OpaqueType extends Type {
   constructor(name: string, ...params: Type[]) {
-    super(TypeKind.Opaque, name, params);
+    super("opaque", name, params);
   }
 
   override toString(): string {
@@ -240,9 +258,12 @@ export class OpaqueType extends Type {
   }
 }
 
+/**
+ * CEL optional type wrapping an inner type.
+ */
 export class OptionalType extends Type {
   constructor(innerType: Type) {
-    super(TypeKind.Opaque, "optional_type", [innerType]);
+    super("opaque", "optional_type", [innerType]);
   }
 
   override toString(): string {
@@ -251,9 +272,12 @@ export class OptionalType extends Type {
   }
 }
 
+/**
+ * Polymorphic type representing type(T) where T is a type parameter.
+ */
 export class PolymorphicTypeType extends Type {
   constructor(param: Type) {
-    super(TypeKind.Type, "type", [param]);
+    super("type", "type", [param]);
   }
 
   override toString(): string {
@@ -262,8 +286,11 @@ export class PolymorphicTypeType extends Type {
   }
 }
 
-export const DynListType = new ListType(DynType);
-export const DynMapType = new MapType(DynType, DynType);
+/** List type with dyn element type. */
+export const DynListType = new ListType(PrimitiveTypes.Dyn);
+
+/** Map type with dyn key and value types. */
+export const DynMapType = new MapType(PrimitiveTypes.Dyn, PrimitiveTypes.Dyn);
 
 /**
  * Join two types to find their common type
@@ -276,37 +303,37 @@ export function joinTypes(typ1: Type, typ2: Type): Type {
     return joinTypes(normalized1, normalized2);
   }
 
-  if (typ1.isOptionalType() && typ2.kind === TypeKind.Null) {
+  if (typ1.isOptionalType() && typ2.kind === "null_type") {
     return typ1;
   }
-  if (typ2.isOptionalType() && typ1.kind === TypeKind.Null) {
+  if (typ2.isOptionalType() && typ1.kind === "null_type") {
     return typ2;
   }
   if (typ1.isOptionalType() || typ2.isOptionalType()) {
-    const inner1 = typ1.isOptionalType() ? (typ1.parameters[0] ?? DynType) : typ1;
-    const inner2 = typ2.isOptionalType() ? (typ2.parameters[0] ?? DynType) : typ2;
+    const inner1 = typ1.isOptionalType() ? (typ1.parameters[0] ?? PrimitiveTypes.Dyn) : typ1;
+    const inner2 = typ2.isOptionalType() ? (typ2.parameters[0] ?? PrimitiveTypes.Dyn) : typ2;
     return new OptionalType(joinTypes(inner1, inner2));
   }
 
   // If either is Dyn or Error, result is Dyn
-  if (typ1.kind === TypeKind.Dyn || typ1.kind === TypeKind.Error) {
-    return DynType;
+  if (typ1.kind === "dyn" || typ1.kind === "error") {
+    return PrimitiveTypes.Dyn;
   }
-  if (typ2.kind === TypeKind.Dyn || typ2.kind === TypeKind.Error) {
-    return DynType;
+  if (typ2.kind === "dyn" || typ2.kind === "error") {
+    return PrimitiveTypes.Dyn;
   }
 
-  if (typ1.kind === TypeKind.Null && isLegacyNullableTarget(typ2)) {
+  if (typ1.kind === "null_type" && isLegacyNullableTarget(typ2)) {
     return typ2;
   }
-  if (typ2.kind === TypeKind.Null && isLegacyNullableTarget(typ1)) {
+  if (typ2.kind === "null_type" && isLegacyNullableTarget(typ1)) {
     return typ1;
   }
 
-  if (typ1.kind === TypeKind.TypeParam) {
+  if (typ1.kind === "type_param") {
     return typ2;
   }
-  if (typ2.kind === TypeKind.TypeParam) {
+  if (typ2.kind === "type_param") {
     return typ1;
   }
 
@@ -315,7 +342,7 @@ export function joinTypes(typ1: Type, typ2: Type): Type {
   if (wrapper1 || wrapper2) {
     const base1 = wrapper1 ?? typ1;
     const base2 = wrapper2 ?? typ2;
-    if (base1.kind === TypeKind.Null || base2.kind === TypeKind.Null) {
+    if (base1.kind === "null_type" || base2.kind === "null_type") {
       return wrapper1 ? typ1 : typ2;
     }
     if (base1.isEquivalentType(base2)) {
@@ -323,32 +350,32 @@ export function joinTypes(typ1: Type, typ2: Type): Type {
     }
   }
 
-  if (typ1.kind === TypeKind.List && typ2.kind === TypeKind.List) {
-    const elem1 = typ1.parameters[0] ?? DynType;
-    const elem2 = typ2.parameters[0] ?? DynType;
+  if (typ1.kind === "list" && typ2.kind === "list") {
+    const elem1 = typ1.parameters[0] ?? PrimitiveTypes.Dyn;
+    const elem2 = typ2.parameters[0] ?? PrimitiveTypes.Dyn;
     return new ListType(joinTypes(elem1, elem2));
   }
 
-  if (typ1.kind === TypeKind.Map && typ2.kind === TypeKind.Map) {
-    const key1 = typ1.parameters[0] ?? DynType;
-    const key2 = typ2.parameters[0] ?? DynType;
-    const val1 = typ1.parameters[1] ?? DynType;
-    const val2 = typ2.parameters[1] ?? DynType;
+  if (typ1.kind === "map" && typ2.kind === "map") {
+    const key1 = typ1.parameters[0] ?? PrimitiveTypes.Dyn;
+    const key2 = typ2.parameters[0] ?? PrimitiveTypes.Dyn;
+    const val1 = typ1.parameters[1] ?? PrimitiveTypes.Dyn;
+    const val2 = typ2.parameters[1] ?? PrimitiveTypes.Dyn;
     return new MapType(joinTypes(key1, key2), joinTypes(val1, val2));
   }
 
-  if (typ1.kind === TypeKind.Opaque && typ2.kind === TypeKind.Opaque) {
+  if (typ1.kind === "opaque" && typ2.kind === "opaque") {
     if (typ1.runtimeTypeName !== typ2.runtimeTypeName) {
-      return DynType;
+      return PrimitiveTypes.Dyn;
     }
     if (typ1.parameters.length !== typ2.parameters.length) {
-      return DynType;
+      return PrimitiveTypes.Dyn;
     }
     if (typ1.parameters.length === 0) {
       return typ1;
     }
     const params = typ1.parameters.map((param, index) => {
-      const other = typ2.parameters[index] ?? DynType;
+      const other = typ2.parameters[index] ?? PrimitiveTypes.Dyn;
       return joinTypes(param, other);
     });
     return new OpaqueType(typ1.runtimeTypeName, ...params);
@@ -360,89 +387,198 @@ export function joinTypes(typ1: Type, typ2: Type): Type {
   }
 
   // Otherwise, fall back to Dyn
-  return DynType;
+  return PrimitiveTypes.Dyn;
 }
 
 function isLegacyNullableTarget(type: Type): boolean {
   switch (type.kind) {
-    case TypeKind.Struct:
-    case TypeKind.Opaque:
-    case TypeKind.Duration:
-    case TypeKind.Timestamp:
+    case "struct":
+    case "opaque":
+    case "duration":
+    case "timestamp":
       return true;
     default:
       return false;
   }
 }
 
-const wrapperTypeMap = new Map<string, Type>([
-  ["google.protobuf.BoolValue", BoolType],
-  ["google.protobuf.BytesValue", BytesType],
-  ["google.protobuf.DoubleValue", DoubleType],
-  ["google.protobuf.FloatValue", DoubleType],
-  ["google.protobuf.Int32Value", IntType],
-  ["google.protobuf.Int64Value", IntType],
-  ["google.protobuf.UInt32Value", UintType],
-  ["google.protobuf.UInt64Value", UintType],
-  ["google.protobuf.StringValue", StringType],
+// ---------------------------------------------------------------------------
+// Protobuf Wrapper and Well-Known Type Mappings
+// ---------------------------------------------------------------------------
+
+/**
+ * Protobuf wrapper type names.
+ */
+export type WrapperTypeName =
+  | "google.protobuf.BoolValue"
+  | "google.protobuf.BytesValue"
+  | "google.protobuf.DoubleValue"
+  | "google.protobuf.FloatValue"
+  | "google.protobuf.Int32Value"
+  | "google.protobuf.Int64Value"
+  | "google.protobuf.UInt32Value"
+  | "google.protobuf.UInt64Value"
+  | "google.protobuf.StringValue";
+
+/**
+ * Primitive type kinds for protobuf wrapper types.
+ */
+export type WrapperTypeKind = "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string";
+
+/**
+ * Maps protobuf wrapper type names to their CEL Type.
+ */
+const WrapperTypeToType = new Map<WrapperTypeName, Type>([
+  ["google.protobuf.BoolValue", PrimitiveTypes.Bool],
+  ["google.protobuf.BytesValue", PrimitiveTypes.Bytes],
+  ["google.protobuf.DoubleValue", PrimitiveTypes.Double],
+  ["google.protobuf.FloatValue", PrimitiveTypes.Double],
+  ["google.protobuf.Int32Value", PrimitiveTypes.Int],
+  ["google.protobuf.Int64Value", PrimitiveTypes.Int],
+  ["google.protobuf.UInt32Value", PrimitiveTypes.Uint],
+  ["google.protobuf.UInt64Value", PrimitiveTypes.Uint],
+  ["google.protobuf.StringValue", PrimitiveTypes.String],
 ]);
 
-const wellKnownTypeMap = new Map<string, Type>([
-  ["google.protobuf.Value", DynType],
-  ["google.protobuf.Any", DynType],
-  ["google.protobuf.Struct", new MapType(StringType, DynType)],
-  ["google.protobuf.ListValue", new ListType(DynType)],
+/**
+ * Maps protobuf wrapper type names to their primitive kind.
+ */
+const WrapperTypeToKind = new Map<WrapperTypeName, WrapperTypeKind>([
+  ["google.protobuf.BoolValue", "bool"],
+  ["google.protobuf.BytesValue", "bytes"],
+  ["google.protobuf.DoubleValue", "double"],
+  ["google.protobuf.FloatValue", "float"],
+  ["google.protobuf.Int32Value", "int"],
+  ["google.protobuf.Int64Value", "int"],
+  ["google.protobuf.UInt32Value", "uint"],
+  ["google.protobuf.UInt64Value", "uint"],
+  ["google.protobuf.StringValue", "string"],
 ]);
 
+/**
+ * Protobuf well-known type names.
+ */
+export type WellKnownTypeName =
+  | "google.protobuf.Value"
+  | "google.protobuf.Any"
+  | "google.protobuf.Struct"
+  | "google.protobuf.ListValue";
+
+/**
+ * Kind strings for protobuf well-known types.
+ */
+export type WellKnownTypeKind = "dyn" | "map" | "list";
+
+/**
+ * Maps protobuf well-known type names to their CEL Type.
+ */
+const WellKnownTypeToType = new Map<WellKnownTypeName, Type>([
+  ["google.protobuf.Value", PrimitiveTypes.Dyn],
+  ["google.protobuf.Any", PrimitiveTypes.Dyn],
+  ["google.protobuf.Struct", new MapType(PrimitiveTypes.String, PrimitiveTypes.Dyn)],
+  ["google.protobuf.ListValue", new ListType(PrimitiveTypes.Dyn)],
+]);
+
+/**
+ * Maps protobuf well-known type names to their kind.
+ */
+const WellKnownTypeToKind = new Map<WellKnownTypeName, WellKnownTypeKind>([
+  ["google.protobuf.Value", "dyn"],
+  ["google.protobuf.Any", "dyn"],
+  ["google.protobuf.Struct", "map"],
+  ["google.protobuf.ListValue", "list"],
+]);
+
+// ---------------------------------------------------------------------------
+// Builtin Type Name Mapping
+// ---------------------------------------------------------------------------
+
+/**
+ * Builtin CEL type names.
+ */
+export type BuiltinTypeName =
+  | "bool"
+  | "int"
+  | "uint"
+  | "double"
+  | "string"
+  | "bytes"
+  | "null_type"
+  | "list"
+  | "map"
+  | "type"
+  | "optional_type"
+  | "google.protobuf.Timestamp"
+  | "google.protobuf.Duration";
+
+/**
+ * Maps builtin type names to their CEL Type.
+ */
+const BuiltinNameToType = new Map<BuiltinTypeName, Type>([
+  ["bool", PrimitiveTypes.Bool],
+  ["int", PrimitiveTypes.Int],
+  ["uint", PrimitiveTypes.Uint],
+  ["double", PrimitiveTypes.Double],
+  ["string", PrimitiveTypes.String],
+  ["bytes", PrimitiveTypes.Bytes],
+  ["null_type", PrimitiveTypes.Null],
+  ["list", DynListType],
+  ["map", DynMapType],
+  ["type", PrimitiveTypes.Type],
+  ["optional_type", new OptionalType(PrimitiveTypes.Dyn)],
+  ["google.protobuf.Timestamp", PrimitiveTypes.Timestamp],
+  ["google.protobuf.Duration", PrimitiveTypes.Duration],
+]);
+
+// ---------------------------------------------------------------------------
+// Type Lookup Functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Get the primitive CEL type for a protobuf wrapper type.
+ */
 export function wrapperTypeToPrimitive(type: Type): Type | undefined {
-  if (type.kind !== TypeKind.Struct) {
+  if (type.kind !== "struct") {
     return undefined;
   }
   const name = type.runtimeTypeName.startsWith(".")
     ? type.runtimeTypeName.slice(1)
     : type.runtimeTypeName;
-  return wrapperTypeMap.get(name) ?? undefined;
+  return WrapperTypeToType.get(name as WrapperTypeName);
 }
 
+/**
+ * Get the primitive kind for a protobuf wrapper type name.
+ */
+export function wrapperTypeNameToKind(typeName: string): WrapperTypeKind | undefined {
+  const name = typeName.startsWith(".") ? typeName.slice(1) : typeName;
+  return WrapperTypeToKind.get(name as WrapperTypeName);
+}
+
+/**
+ * Get the native CEL type for a protobuf well-known type.
+ */
 export function wellKnownTypeToNative(type: Type): Type | undefined {
-  if (type.kind !== TypeKind.Struct) {
+  if (type.kind !== "struct") {
     return undefined;
   }
   const name = type.runtimeTypeName.startsWith(".")
     ? type.runtimeTypeName.slice(1)
     : type.runtimeTypeName;
-  return wellKnownTypeMap.get(name) ?? undefined;
+  return WellKnownTypeToType.get(name as WellKnownTypeName);
 }
 
-export function builtinTypeForName(name: string): Type | undefined {
-  switch (name) {
-    case "bool":
-      return BoolType;
-    case "int":
-      return IntType;
-    case "uint":
-      return UintType;
-    case "double":
-      return DoubleType;
-    case "string":
-      return StringType;
-    case "bytes":
-      return BytesType;
-    case "null_type":
-      return NullType;
-    case "list":
-      return DynListType;
-    case "map":
-      return DynMapType;
-    case "type":
-      return TypeType;
-    case "optional_type":
-      return new OptionalType(DynType);
-    case "google.protobuf.Timestamp":
-      return TimestampType;
-    case "google.protobuf.Duration":
-      return DurationType;
-    default:
-      return undefined;
-  }
+/**
+ * Get the kind for a protobuf well-known type name.
+ */
+export function wellKnownTypeNameToKind(typeName: string): WellKnownTypeKind | undefined {
+  const name = typeName.startsWith(".") ? typeName.slice(1) : typeName;
+  return WellKnownTypeToKind.get(name as WellKnownTypeName);
+}
+
+/**
+ * Get the CEL Type for a builtin type name.
+ */
+export function builtinTypeNameToType(name: string): Type | undefined {
+  return BuiltinNameToType.get(name as BuiltinTypeName);
 }

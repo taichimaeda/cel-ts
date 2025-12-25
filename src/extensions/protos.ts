@@ -6,6 +6,10 @@ import { macroTargetMatchesNamespace } from "./macros";
 
 const protoNamespace = "proto";
 
+/**
+ * Protos extension.
+ * Provides proto.getExt() and proto.hasExt() for accessing protobuf extension fields.
+ */
 export class ProtosExtension implements Extension {
   envOptions(): EnvOptions {
     const macros: Macro[] = [

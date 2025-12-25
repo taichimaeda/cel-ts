@@ -2,20 +2,12 @@ import type { Field, Type as ProtoType, Root } from "protobufjs";
 import { Field as ProtobufField, Type as ProtobufType } from "protobufjs";
 import type { StructDecl } from "./decls";
 import {
-  BoolType,
-  BytesType,
-  DoubleType,
-  DurationType,
-  DynType,
-  IntType,
   ListType,
   MapType,
   OpaqueType,
-  StringType,
+  PrimitiveTypes,
   StructType,
-  TimestampType,
   type Type,
-  UintType,
 } from "./types";
 
 type ProtobufRoot = Pick<Root, "lookupType" | "lookupEnum" | "lookup">;
@@ -387,28 +379,28 @@ export class ProtobufTypeProvider implements TypeProvider {
 
   private typeFromName(typeName: string): Type {
     const scalar = this.scalarType(typeName);
-    if (scalar !== DynType) {
+    if (scalar !== PrimitiveTypes.Dyn) {
       return scalar;
     }
 
     const normalized = this.normalizeTypeName(typeName);
     if (normalized === "google.protobuf.Timestamp") {
-      return TimestampType;
+      return PrimitiveTypes.Timestamp;
     }
     if (normalized === "google.protobuf.Duration") {
-      return DurationType;
+      return PrimitiveTypes.Duration;
     }
     if (normalized === "google.protobuf.Any") {
-      return DynType;
+      return PrimitiveTypes.Dyn;
     }
     if (normalized === "google.protobuf.Struct") {
-      return DynType;
+      return PrimitiveTypes.Dyn;
     }
     if (normalized === "google.protobuf.Value") {
-      return DynType;
+      return PrimitiveTypes.Dyn;
     }
     if (normalized === "google.protobuf.ListValue") {
-      return new ListType(DynType);
+      return new ListType(PrimitiveTypes.Dyn);
     }
 
     try {
@@ -431,22 +423,22 @@ export class ProtobufTypeProvider implements TypeProvider {
     if (resolved !== null && resolved !== undefined) {
       const fullName = this.normalizeTypeName(resolved.fullName ?? field.type);
       if (fullName === "google.protobuf.Timestamp") {
-        return TimestampType;
+        return PrimitiveTypes.Timestamp;
       }
       if (fullName === "google.protobuf.Duration") {
-        return DurationType;
+        return PrimitiveTypes.Duration;
       }
       if (fullName === "google.protobuf.Any") {
-        return DynType;
+        return PrimitiveTypes.Dyn;
       }
       if (fullName === "google.protobuf.Struct") {
-        return new MapType(StringType, DynType);
+        return new MapType(PrimitiveTypes.String, PrimitiveTypes.Dyn);
       }
       if (fullName === "google.protobuf.Value") {
-        return DynType;
+        return PrimitiveTypes.Dyn;
       }
       if (fullName === "google.protobuf.ListValue") {
-        return new ListType(DynType);
+        return new ListType(PrimitiveTypes.Dyn);
       }
       try {
         const enumType = this.root.lookupEnum(fullName);
@@ -461,28 +453,28 @@ export class ProtobufTypeProvider implements TypeProvider {
   private scalarType(typeName: string | undefined): Type {
     switch (typeName) {
       case "bool":
-        return BoolType;
+        return PrimitiveTypes.Bool;
       case "string":
-        return StringType;
+        return PrimitiveTypes.String;
       case "bytes":
-        return BytesType;
+        return PrimitiveTypes.Bytes;
       case "double":
       case "float":
-        return DoubleType;
+        return PrimitiveTypes.Double;
       case "int32":
       case "sint32":
       case "sfixed32":
       case "int64":
       case "sint64":
       case "sfixed64":
-        return IntType;
+        return PrimitiveTypes.Int;
       case "uint32":
       case "uint64":
       case "fixed32":
       case "fixed64":
-        return UintType;
+        return PrimitiveTypes.Uint;
       default:
-        return DynType;
+        return PrimitiveTypes.Dyn;
     }
   }
 }

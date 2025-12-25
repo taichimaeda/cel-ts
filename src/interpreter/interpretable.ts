@@ -3,7 +3,7 @@
 // Implemented with reference to cel-go's interpret/interpretable.go
 
 import type { TypeProvider } from "../checker/provider";
-import { type Type as CheckerType, TypeKind as CheckerTypeKind } from "../checker/types";
+import type { Type as CheckerType } from "../checker/types";
 import type { ExprId } from "../common/ast";
 import { type Activation, MutableActivation } from "./activation";
 import type { Attribute, Qualifier } from "./attributes";
@@ -23,8 +23,7 @@ import {
   DurationValue,
   EnumValue,
   ErrorValue,
-  INT64_MAX,
-  INT64_MIN,
+  IntLimits,
   IntValue,
   ListValue,
   type MapEntry,
@@ -34,7 +33,6 @@ import {
   StringValue,
   StructValue,
   TimestampValue,
-  UINT64_MAX,
   UintValue,
   type UnknownValue,
   type Value,
@@ -127,7 +125,7 @@ export class IdentValue {
   eval(activation: Activation): Value {
     const value = activation.resolve(this.name);
     if (value === undefined) {
-      return ErrorValue.create(`undeclared variable: ${this.name}`, this.exprId);
+      return ErrorValue.of(`undeclared variable: ${this.name}`, this.exprId);
     }
     return value;
   }
@@ -504,7 +502,7 @@ export class BinaryValue {
       case "in":
         return this.contains(rhs, lhs);
       default:
-        return ErrorValue.create(`unknown operator: ${this.operator}`, this.exprId);
+        return ErrorValue.of(`unknown operator: ${this.operator}`, this.exprId);
     }
   }
 
@@ -538,7 +536,7 @@ export class BinaryValue {
     if (lhs instanceof DurationValue && rhs instanceof TimestampValue) {
       return rhs.add(lhs);
     }
-    return ErrorValue.create(`cannot add ${lhs.type()} and ${rhs.type()}`, this.exprId);
+    return ErrorValue.of(`cannot add ${lhs.type()} and ${rhs.type()}`, this.exprId);
   }
 
   private subtract(lhs: Value, rhs: Value): Value {
@@ -562,7 +560,7 @@ export class BinaryValue {
     if (lhs instanceof TimestampValue && rhs instanceof TimestampValue) {
       return lhs.subtract(rhs);
     }
-    return ErrorValue.create(`cannot subtract ${rhs.type()} from ${lhs.type()}`, this.exprId);
+    return ErrorValue.of(`cannot subtract ${rhs.type()} from ${lhs.type()}`, this.exprId);
   }
 
   private multiply(lhs: Value, rhs: Value): Value {
@@ -577,7 +575,7 @@ export class BinaryValue {
     if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
       return lhs.multiply(rhs);
     }
-    return ErrorValue.create(`cannot multiply ${lhs.type()} and ${rhs.type()}`, this.exprId);
+    return ErrorValue.of(`cannot multiply ${lhs.type()} and ${rhs.type()}`, this.exprId);
   }
 
   private divide(lhs: Value, rhs: Value): Value {
@@ -592,7 +590,7 @@ export class BinaryValue {
     if (lhs instanceof DoubleValue && rhs instanceof DoubleValue) {
       return lhs.divide(rhs);
     }
-    return ErrorValue.create(`cannot divide ${lhs.type()} by ${rhs.type()}`, this.exprId);
+    return ErrorValue.of(`cannot divide ${lhs.type()} by ${rhs.type()}`, this.exprId);
   }
 
   private modulo(lhs: Value, rhs: Value): Value {
@@ -604,7 +602,7 @@ export class BinaryValue {
     if (lhs instanceof UintValue && rhs instanceof UintValue) {
       return lhs.modulo(rhs);
     }
-    return ErrorValue.create(`cannot modulo ${lhs.type()} by ${rhs.type()}`, this.exprId);
+    return ErrorValue.of(`cannot modulo ${lhs.type()} by ${rhs.type()}`, this.exprId);
   }
 
   private compare(lhs: Value, rhs: Value, predicate: (cmp: number) => boolean): Value {
@@ -665,7 +663,7 @@ export class BinaryValue {
       const cmp = lhsNum < rhsNum ? -1 : lhsNum > rhsNum ? 1 : 0;
       return BoolValue.of(predicate(cmp));
     }
-    return ErrorValue.create(`cannot compare ${lhs.type()} and ${rhs.type()}`, this.exprId);
+    return ErrorValue.of(`cannot compare ${lhs.type()} and ${rhs.type()}`, this.exprId);
   }
 
   private asIntValue(val: Value): IntValue | undefined {
@@ -701,7 +699,7 @@ export class BinaryValue {
     if (container instanceof StringValue && elem instanceof StringValue) {
       return container.contains(elem);
     }
-    return ErrorValue.create(
+    return ErrorValue.of(
       `type '${container.type()}' does not support 'in' operator`,
       this.exprId
     );
@@ -776,7 +774,7 @@ export class CallValue {
       if (byName !== undefined) {
         return byName.invoke(argValues);
       }
-      return ErrorValue.create(
+      return ErrorValue.of(
         `no such overload: ${this.functionName}/${this.overloadId}`,
         this.exprId
       );
@@ -913,7 +911,7 @@ export class CreateMapValue {
         return key;
       }
       if (!isSupportedMapKey(key)) {
-        return ErrorValue.create("unsupported key type", this.exprId);
+        return ErrorValue.of("unsupported key type", this.exprId);
       }
 
       const val = this.values[i]!.eval(activation);
@@ -938,7 +936,7 @@ export class CreateMapValue {
 
       const keyId = mapKeyId(key);
       if (seenKeys.has(keyId)) {
-        return ErrorValue.create("Failed with repeated key", this.exprId);
+        return ErrorValue.of("Failed with repeated key", this.exprId);
       }
       seenKeys.add(keyId);
       entries.push({ key, value: val });
@@ -997,16 +995,16 @@ export class CreateStructValue {
       if (val instanceof NullValue) {
         if (fieldType !== undefined) {
           if (!isNullAssignableField(fieldType, protoFieldType)) {
-            return ErrorValue.create("unsupported field type", this.exprId);
+            return ErrorValue.of("unsupported field type", this.exprId);
           }
           continue;
         }
         if (protoFieldType === "google.protobuf.ListValue" || protoFieldType === "google.protobuf.Struct") {
-          return ErrorValue.create("unsupported field type", this.exprId);
+          return ErrorValue.of("unsupported field type", this.exprId);
         }
         continue;
       }
-      if (fieldType?.kind === CheckerTypeKind.Struct) {
+      if (fieldType?.kind === "struct") {
         const wrapperKind = wrapperKindFromTypeName(fieldType.runtimeTypeName);
         if (wrapperKind !== undefined) {
           const coerced = coerceWrapperValue(wrapperKind, val);
@@ -1016,12 +1014,12 @@ export class CreateStructValue {
           val = coerced;
         }
       }
-      if (fieldType?.kind === CheckerTypeKind.Opaque && this.typeProvider) {
+      if (fieldType?.kind === "opaque" && this.typeProvider) {
         const enumType = this.typeProvider.findEnumType(fieldType.runtimeTypeName);
         if (enumType !== undefined) {
           const numeric = enumNumericValue(val);
           if (numeric !== undefined && !isEnumInt32Range(numeric)) {
-            return ErrorValue.create("range error", this.exprId);
+            return ErrorValue.of("range error", this.exprId);
           }
         }
       }
@@ -1030,11 +1028,11 @@ export class CreateStructValue {
         if (enumType !== undefined) {
           const numeric = enumNumericValue(val);
           if (numeric !== undefined && !isEnumInt32Range(numeric)) {
-            return ErrorValue.create("range error", this.exprId);
+            return ErrorValue.of("range error", this.exprId);
           }
         }
       }
-      if (fieldType?.kind === CheckerTypeKind.Double && protoFieldType === "float") {
+      if (fieldType?.kind === "double" && protoFieldType === "float") {
         val = coerceFloatValue(val);
       }
       if (protoFieldType === "google.protobuf.Value") {
@@ -1093,7 +1091,7 @@ export class CreateStructValue {
       if (anyValue !== undefined) {
         return anyValue;
       }
-      return ErrorValue.create("conversion error", this.exprId);
+      return ErrorValue.of("conversion error", this.exprId);
     }
 
     return StructValue.of(
@@ -1206,7 +1204,7 @@ function coerceWrapperValue(kind: WrapperScalarKind, value: Value): Value {
     const min = kind === "int32" ? -2147483648n : -(1n << 63n);
     const max = kind === "int32" ? 2147483647n : (1n << 63n) - 1n;
     if (numeric < min || numeric > max) {
-      return ErrorValue.create("range error");
+      return ErrorValue.of("range error");
     }
     return IntValue.of(numeric);
   }
@@ -1217,7 +1215,7 @@ function coerceWrapperValue(kind: WrapperScalarKind, value: Value): Value {
     }
     const max = kind === "uint32" ? 4294967295n : (1n << 64n) - 1n;
     if (numeric < 0n || numeric > max) {
-      return ErrorValue.create("range error");
+      return ErrorValue.of("range error");
     }
     return UintValue.of(numeric);
   }
@@ -1241,7 +1239,7 @@ function isNullAssignableField(fieldType: CheckerType, protoFieldType?: string):
   if (fieldType.isOptionalType()) {
     return true;
   }
-  if (fieldType.kind === CheckerTypeKind.Struct) {
+  if (fieldType.kind === "struct") {
     const runtimeName = fieldType.runtimeTypeName;
     if (runtimeName === "google.protobuf.Struct" || runtimeName === "google.protobuf.ListValue") {
       return false;
@@ -1254,10 +1252,10 @@ function isNullAssignableField(fieldType: CheckerType, protoFieldType?: string):
     return true;
   }
   switch (fieldType.kind) {
-    case CheckerTypeKind.Struct:
-    case CheckerTypeKind.Duration:
-    case CheckerTypeKind.Timestamp:
-    case CheckerTypeKind.Dyn:
+    case "struct":
+    case "duration":
+    case "timestamp":
+    case "dyn":
       return true;
     default:
       return false;
@@ -1266,23 +1264,23 @@ function isNullAssignableField(fieldType: CheckerType, protoFieldType?: string):
 
 function isDefaultFieldValue(fieldType: CheckerType, value: Value): boolean {
   switch (fieldType.kind) {
-    case CheckerTypeKind.Bool:
+    case "bool":
       return value instanceof BoolValue && !value.value();
-    case CheckerTypeKind.Int:
+    case "int":
       return value instanceof IntValue && value.value() === 0n;
-    case CheckerTypeKind.Uint:
+    case "uint":
       return value instanceof UintValue && value.value() === 0n;
-    case CheckerTypeKind.Double:
+    case "double":
       return value instanceof DoubleValue && value.value() === 0;
-    case CheckerTypeKind.String:
+    case "string":
       return value instanceof StringValue && value.value() === "";
-    case CheckerTypeKind.Bytes:
+    case "bytes":
       return value instanceof BytesValue && value.value().length === 0;
-    case CheckerTypeKind.List:
+    case "list":
       return value instanceof ListValue && value.value().length === 0;
-    case CheckerTypeKind.Map:
+    case "map":
       return value instanceof MapValue && value.value().length === 0;
-    case CheckerTypeKind.Opaque: {
+    case "opaque": {
       if (value instanceof EnumValue) {
         return value.value() === 0n;
       }
@@ -1539,7 +1537,7 @@ export class IndexValue {
       return obj.byteAt(normalized);
     }
 
-    return ErrorValue.create(`type '${obj.type()}' does not support indexing`, this.exprId);
+    return ErrorValue.of(`type '${obj.type()}' does not support indexing`, this.exprId);
   }
 
   cost(): number {
@@ -1559,7 +1557,7 @@ function normalizeIndexValue(value: Value): IntValue | ErrorValue {
     if (Number.isFinite(num) && Number.isInteger(num)) {
       return IntValue.of(num);
     }
-    return ErrorValue.create("invalid_argument");
+    return ErrorValue.of("invalid_argument");
   }
   return ErrorValue.typeMismatch("int or uint", value);
 }
@@ -1779,7 +1777,7 @@ export class ComprehensionValue {
         }
       }
     } else {
-      return ErrorValue.create(`cannot iterate over ${range.type()}`, this.exprId);
+      return ErrorValue.of(`cannot iterate over ${range.type()}`, this.exprId);
     }
 
     // Evaluate result
@@ -1854,47 +1852,47 @@ export class TypeConversionValue {
     }
     if (val instanceof EnumValue) {
       const raw = val.value();
-      if (raw < INT64_MIN || raw > INT64_MAX) {
-        return ErrorValue.create("range error", this.exprId);
+      if (raw < IntLimits.Int64Min || raw > IntLimits.Int64Max) {
+        return ErrorValue.of("range error", this.exprId);
       }
       return IntValue.of(raw);
     }
     if (val instanceof UintValue) {
       const raw = val.value();
-      if (raw > INT64_MAX) {
-        return ErrorValue.create("range error", this.exprId);
+      if (raw > IntLimits.Int64Max) {
+        return ErrorValue.of("range error", this.exprId);
       }
       return IntValue.of(raw);
     }
     if (val instanceof DoubleValue) {
       const d = val.value();
       if (!Number.isFinite(d)) {
-        return ErrorValue.create("cannot convert infinity or NaN to int", this.exprId);
+        return ErrorValue.of("cannot convert infinity or NaN to int", this.exprId);
       }
-      if (d <= Number(INT64_MIN) || d >= Number(INT64_MAX)) {
-        return ErrorValue.create("range error", this.exprId);
+      if (d <= Number(IntLimits.Int64Min) || d >= Number(IntLimits.Int64Max)) {
+        return ErrorValue.of("range error", this.exprId);
       }
       const truncated = BigInt(Math.trunc(d));
-      if (truncated < INT64_MIN || truncated > INT64_MAX) {
-        return ErrorValue.create("range error", this.exprId);
+      if (truncated < IntLimits.Int64Min || truncated > IntLimits.Int64Max) {
+        return ErrorValue.of("range error", this.exprId);
       }
       return IntValue.of(truncated);
     }
     if (val instanceof StringValue) {
       try {
         const n = BigInt(val.value());
-        if (n < INT64_MIN || n > INT64_MAX) {
-          return ErrorValue.create("range error", this.exprId);
+        if (n < IntLimits.Int64Min || n > IntLimits.Int64Max) {
+          return ErrorValue.of("range error", this.exprId);
         }
         return IntValue.of(n);
       } catch {
-        return ErrorValue.create(`cannot parse '${val.value()}' as int`, this.exprId);
+        return ErrorValue.of(`cannot parse '${val.value()}' as int`, this.exprId);
       }
     }
     if (val instanceof TimestampValue) {
       return IntValue.of(val.value() / 1_000_000_000n);
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to int`, this.exprId);
+    return ErrorValue.of(`cannot convert ${val.type()} to int`, this.exprId);
   }
 
   private toUint(val: Value): Value {
@@ -1904,31 +1902,31 @@ export class TypeConversionValue {
     if (val instanceof EnumValue) {
       const n = val.value();
       if (n < 0n) {
-        return ErrorValue.create("cannot convert negative enum to uint", this.exprId);
+        return ErrorValue.of("cannot convert negative enum to uint", this.exprId);
       }
-      if (n > UINT64_MAX) {
-        return ErrorValue.create("range error", this.exprId);
+      if (n > IntLimits.Uint64Max) {
+        return ErrorValue.of("range error", this.exprId);
       }
       return UintValue.of(n);
     }
     if (val instanceof IntValue) {
       const n = val.value();
       if (n < 0n) {
-        return ErrorValue.create("cannot convert negative int to uint", this.exprId);
+        return ErrorValue.of("cannot convert negative int to uint", this.exprId);
       }
-      if (n > UINT64_MAX) {
-        return ErrorValue.create("range error", this.exprId);
+      if (n > IntLimits.Uint64Max) {
+        return ErrorValue.of("range error", this.exprId);
       }
       return UintValue.of(n);
     }
     if (val instanceof DoubleValue) {
       const d = val.value();
       if (!Number.isFinite(d) || d < 0) {
-        return ErrorValue.create("cannot convert to uint", this.exprId);
+        return ErrorValue.of("cannot convert to uint", this.exprId);
       }
       const truncated = BigInt(Math.trunc(d));
-      if (truncated > UINT64_MAX) {
-        return ErrorValue.create("range error", this.exprId);
+      if (truncated > IntLimits.Uint64Max) {
+        return ErrorValue.of("range error", this.exprId);
       }
       return UintValue.of(truncated);
     }
@@ -1936,17 +1934,17 @@ export class TypeConversionValue {
       try {
         const n = BigInt(val.value());
         if (n < 0n) {
-          return ErrorValue.create("cannot parse negative number as uint", this.exprId);
+          return ErrorValue.of("cannot parse negative number as uint", this.exprId);
         }
-        if (n > UINT64_MAX) {
-          return ErrorValue.create("range error", this.exprId);
+        if (n > IntLimits.Uint64Max) {
+          return ErrorValue.of("range error", this.exprId);
         }
         return UintValue.of(n);
       } catch {
-        return ErrorValue.create(`cannot parse '${val.value()}' as uint`, this.exprId);
+        return ErrorValue.of(`cannot parse '${val.value()}' as uint`, this.exprId);
       }
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to uint`, this.exprId);
+    return ErrorValue.of(`cannot convert ${val.type()} to uint`, this.exprId);
   }
 
   private toDouble(val: Value): Value {
@@ -1966,11 +1964,11 @@ export class TypeConversionValue {
       const text = val.value();
       const d = Number.parseFloat(text);
       if (Number.isNaN(d) && text !== "NaN") {
-        return ErrorValue.create(`cannot parse '${text}' as double`, this.exprId);
+        return ErrorValue.of(`cannot parse '${text}' as double`, this.exprId);
       }
       return DoubleValue.of(d);
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to double`, this.exprId);
+    return ErrorValue.of(`cannot convert ${val.type()} to double`, this.exprId);
   }
 
   private toString(val: Value): Value {
@@ -1994,7 +1992,7 @@ export class TypeConversionValue {
       try {
         return StringValue.of(decoder.decode(val.value()));
       } catch {
-        return ErrorValue.create("invalid UTF-8 in bytes", this.exprId);
+        return ErrorValue.of("invalid UTF-8 in bytes", this.exprId);
       }
     }
     if (val instanceof BoolValue) {
@@ -2006,7 +2004,7 @@ export class TypeConversionValue {
     if (val instanceof DurationValue) {
       return StringValue.of(val.toString());
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to string`, this.exprId);
+    return ErrorValue.of(`cannot convert ${val.type()} to string`, this.exprId);
   }
 
   private toBytes(val: Value): Value {
@@ -2016,7 +2014,7 @@ export class TypeConversionValue {
     if (val instanceof StringValue) {
       return BytesValue.fromString(val.value());
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to bytes`, this.exprId);
+    return ErrorValue.of(`cannot convert ${val.type()} to bytes`, this.exprId);
   }
 
   private toBool(val: Value): Value {
@@ -2031,18 +2029,18 @@ export class TypeConversionValue {
       if (s === "false" || s === "FALSE" || s === "False" || s === "f" || s === "0") {
         return BoolValue.False;
       }
-      return ErrorValue.create(`cannot parse '${val.value()}' as bool`, this.exprId);
+      return ErrorValue.of(`cannot parse '${val.value()}' as bool`, this.exprId);
     }
-    return ErrorValue.create(`cannot convert ${val.type()} to bool`, this.exprId);
+    return ErrorValue.of(`cannot convert ${val.type()} to bool`, this.exprId);
   }
 
   private convertEnum(val: Value): Value {
     if (this.typeProvider === undefined) {
-      return ErrorValue.create(`unknown type conversion: ${this.targetType}`, this.exprId);
+      return ErrorValue.of(`unknown type conversion: ${this.targetType}`, this.exprId);
     }
     const enumType = this.typeProvider.findEnumType(this.targetType);
     if (enumType === undefined) {
-      return ErrorValue.create(`unknown type conversion: ${this.targetType}`, this.exprId);
+      return ErrorValue.of(`unknown type conversion: ${this.targetType}`, this.exprId);
     }
     if (val instanceof EnumValue && val.typeName() === enumType.runtimeTypeName) {
       return val;
@@ -2053,14 +2051,14 @@ export class TypeConversionValue {
         const name = val.value();
         const enumValue = this.typeProvider.findEnumValue(enumType.runtimeTypeName, name);
         if (enumValue === undefined) {
-          return ErrorValue.create("invalid enum value", this.exprId);
+          return ErrorValue.of("invalid enum value", this.exprId);
         }
         return EnumValue.of(enumType.runtimeTypeName, BigInt(enumValue));
       }
-      return ErrorValue.create("invalid enum value", this.exprId);
+      return ErrorValue.of("invalid enum value", this.exprId);
     }
     if (!isEnumInt32Range(numeric)) {
-      return ErrorValue.create("enum value out of range", this.exprId);
+      return ErrorValue.of("enum value out of range", this.exprId);
     }
     return EnumValue.of(enumType.runtimeTypeName, numeric);
   }

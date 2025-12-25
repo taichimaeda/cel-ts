@@ -26,28 +26,33 @@ export type { CheckerError, Location } from "./error";
 
 export { TypeMapping } from "./mapping";
 export {
-  AnyType,
-  BoolType,
-  BytesType,
-  DoubleType,
-  DurationType,
-  DynType,
-  ErrorType,
-  IntType,
+  DynListType,
+  DynMapType,
   joinTypes,
   ListType,
   MapType,
-  NullType,
   OpaqueType,
   OptionalType,
-  StringType,
-  TimestampType,
-  Type,
-  TypeKind,
-  TypeParamType,
-  TypeType,
   PolymorphicTypeType,
-  UintType
+  PrimitiveTypes,
+  StructType,
+  Type,
+  TypeParamType,
+  wellKnownTypeNameToKind,
+  wrapperTypeNameToKind,
+} from "./types";
+
+export type {
+  BuiltinTypeName,
+  ComplexTypeKind,
+  PrimitiveTypeKind,
+  SpecialTypeKind,
+  TemporalTypeKind,
+  TypeKind,
+  WellKnownTypeKind,
+  WellKnownTypeName,
+  WrapperTypeKind,
+  WrapperTypeName,
 } from "./types";
 
 export { StandardLibrary } from "./stdlib";

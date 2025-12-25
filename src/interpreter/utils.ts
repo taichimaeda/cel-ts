@@ -1,5 +1,9 @@
 import type { TypeProvider } from "../checker/provider";
-import { type Type as CheckerType, TypeKind as CheckerTypeKind } from "../checker/types";
+import type { Type as CheckerType } from "../checker/types";
+export { wrapperTypeNameToKind } from "../checker/types";
+export type { WrapperTypeKind } from "../checker/types";
+import type { SourceInfo } from "../common/source";
+import type { Activation } from "./activation";
 import type { MapEntry } from "./values";
 import {
   BoolValue,
@@ -22,6 +26,10 @@ import {
   resolveAnyValue,
 } from "./values";
 
+/**
+ * Convert a native JavaScript value to a CEL Value.
+ * Supports null, boolean, number, bigint, string, Uint8Array, Date, Array, Map, and objects.
+ */
 export function nativeToValue(value: unknown): Value {
   if (value === null || value === undefined) {
     return NullValue.Instance;
@@ -67,9 +75,13 @@ export function nativeToValue(value: unknown): Value {
     }));
     return MapValue.of(entries);
   }
-  return ErrorValue.create(`cannot convert value of type ${typeof value}`);
+  return ErrorValue.of(`cannot convert value of type ${typeof value}`);
 }
 
+/**
+ * Convert a google.protobuf.Value struct to a CEL Value.
+ * Handles null_value, number_value, string_value, bool_value, struct_value, and list_value.
+ */
 export function googleValueToValue(values: Map<string, Value>): Value {
   if (values.has("null_value")) {
     return NullValue.Instance;
@@ -103,6 +115,10 @@ export function googleValueToValue(values: Map<string, Value>): Value {
   return NullValue.Instance;
 }
 
+/**
+ * Convert a google.protobuf.Struct to a CEL Value (MapValue).
+ * Extracts the "fields" property and converts it to a map.
+ */
 export function googleStructToValue(values: Map<string, Value>): Value {
   const fieldsValue = unwrapOptional(values.get("fields"));
   if (fieldsValue === undefined || fieldsValue instanceof NullValue) {
@@ -117,6 +133,10 @@ export function googleStructToValue(values: Map<string, Value>): Value {
   return ErrorValue.typeMismatch("map", fieldsValue);
 }
 
+/**
+ * Convert a google.protobuf.ListValue to a CEL ListValue.
+ * Extracts the "values" property from the struct.
+ */
 export function googleListToValue(values: Map<string, Value>): Value {
   const valuesValue = unwrapOptional(values.get("values"));
   if (valuesValue === undefined || valuesValue instanceof NullValue) {
@@ -128,6 +148,11 @@ export function googleListToValue(values: Map<string, Value>): Value {
   return ErrorValue.typeMismatch("list", valuesValue);
 }
 
+/**
+ * Convert a google.protobuf.Any to a CEL Value.
+ * Extracts type_url and value fields, then resolves the Any type.
+ * Returns undefined if the conversion fails.
+ */
 export function googleAnyToValue(values: Map<string, Value>): Value | undefined {
   const typeUrl = unwrapOptional(values.get("type_url"));
   const bytesValue = unwrapOptional(values.get("value"));
@@ -137,6 +162,9 @@ export function googleAnyToValue(values: Map<string, Value>): Value | undefined 
   return resolveAnyValue(typeUrl.value(), bytesValue.value());
 }
 
+/**
+ * Convert a CEL StructValue to a MapValue with string keys.
+ */
 export function structValueToMapValue(structValue: StructValue): MapValue {
   const entries: MapEntry[] = [];
   for (const [key, value] of Object.entries(structValue.value())) {
@@ -145,10 +173,14 @@ export function structValueToMapValue(structValue: StructValue): MapValue {
   return MapValue.of(entries);
 }
 
+/**
+ * Convert a Value to a MapValue suitable for google.protobuf.Struct.
+ * Validates that all map keys are strings. Returns an error if validation fails.
+ */
 export function googleStructToMapValue(value: Value): MapValue | ErrorValue {
   if (value instanceof MapValue) {
     if (!mapKeysAreStrings(value)) {
-      return ErrorValue.create("bad key type");
+      return ErrorValue.of("bad key type");
     }
     return value;
   }
@@ -158,32 +190,26 @@ export function googleStructToMapValue(value: Value): MapValue | ErrorValue {
   return ErrorValue.typeMismatch("map", value);
 }
 
-export function getWrapperTypeKind(
-  typeName: string
-): "bool" | "bytes" | "double" | "float" | "int" | "uint" | "string" | undefined {
-  const normalized = typeName.startsWith(".") ? typeName.slice(1) : typeName;
-  switch (normalized) {
-    case "google.protobuf.BoolValue":
-      return "bool";
-    case "google.protobuf.BytesValue":
-      return "bytes";
-    case "google.protobuf.DoubleValue":
-      return "double";
-    case "google.protobuf.FloatValue":
-      return "float";
-    case "google.protobuf.Int32Value":
-    case "google.protobuf.Int64Value":
-      return "int";
-    case "google.protobuf.UInt32Value":
-    case "google.protobuf.UInt64Value":
-      return "uint";
-    case "google.protobuf.StringValue":
-      return "string";
-    default:
-      return undefined;
+/**
+ * Format a runtime error with source location information.
+ */
+export function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): string {
+  const exprId = error.exprId;
+  if (exprId === undefined) {
+    return error.getMessage();
   }
+  const position = sourceInfo.getPosition(exprId);
+  if (position === undefined) {
+    return error.getMessage();
+  }
+  const { line, column } = sourceInfo.getLocation(position.start);
+  return `${line}:${column}: ${error.getMessage()}`;
 }
 
+/**
+ * Format a timestamp (in nanoseconds since Unix epoch) as an RFC 3339 string.
+ * Example output: "2023-01-15T10:30:00.123456789Z"
+ */
 export function formatTimestamp(nanos: bigint): string {
   let seconds = nanos / 1_000_000_000n;
   let nanosRem = nanos % 1_000_000_000n;
@@ -207,6 +233,11 @@ export function formatTimestamp(nanos: bigint): string {
   return `${result}Z`;
 }
 
+/**
+ * Parse a timezone offset string and return the offset in minutes.
+ * Accepts "UTC", "Z", or "+HH:MM"/"-HH:MM" format.
+ * Returns undefined if the format is invalid.
+ */
 export function parseTimeZoneOffset(tz: string): number | undefined {
   const normalized = tz.trim();
   if (normalized === "UTC" || normalized === "Z") {
@@ -222,70 +253,77 @@ export function parseTimeZoneOffset(tz: string): number | undefined {
   return sign * (hours * 60 + minutes);
 }
 
+
+/**
+ * Convert a weekday name to a number (0=Sunday, 6=Saturday).
+ * Only the first 3 characters are checked (e.g., "Sun", "Mon").
+ */
 export function weekdayToNumber(weekday: string): number {
-  switch (weekday.slice(0, 3)) {
-    case "Sun":
-      return 0;
-    case "Mon":
-      return 1;
-    case "Tue":
-      return 2;
-    case "Wed":
-      return 3;
-    case "Thu":
-      return 4;
-    case "Fri":
-      return 5;
-    case "Sat":
-      return 6;
-    default:
-      return 0;
-  }
+  const WEEKDAY_MAP: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+
+  return WEEKDAY_MAP[weekday.slice(0, 3)] ?? 0;
 }
 
+/**
+ * Get the default (zero) value for a CEL type.
+ * Used for proto3 default field values.
+ */
 export function defaultValueForType(type: CheckerType): Value {
   if (type.isOptionalType()) {
     return OptionalValue.none();
   }
 
   switch (type.kind) {
-    case CheckerTypeKind.Bool:
+    case "bool":
       return BoolValue.False;
-    case CheckerTypeKind.Int:
+    case "int":
       return IntValue.of(0);
-    case CheckerTypeKind.Uint:
+    case "uint":
       return UintValue.of(0);
-    case CheckerTypeKind.Double:
+    case "double":
       return DoubleValue.of(0);
-    case CheckerTypeKind.String:
+    case "string":
       return StringValue.of("");
-    case CheckerTypeKind.Bytes:
+    case "bytes":
       return BytesValue.of(new Uint8Array());
-    case CheckerTypeKind.Duration:
+    case "duration":
       return DurationValue.Zero;
-    case CheckerTypeKind.Timestamp:
+    case "timestamp":
       return TimestampValue.of(0n);
-    case CheckerTypeKind.List:
+    case "list":
       return ListValue.of([]);
-    case CheckerTypeKind.Map:
+    case "map":
       return MapValue.of([]);
-    case CheckerTypeKind.Struct:
+    case "struct":
       return NullValue.Instance;
-    case CheckerTypeKind.Null:
+    case "null_type":
       return NullValue.Instance;
-    case CheckerTypeKind.Type:
+    case "type":
       return TypeValue.TypeType;
-    case CheckerTypeKind.Dyn:
-    case CheckerTypeKind.Error:
-    case CheckerTypeKind.TypeParam:
-    case CheckerTypeKind.Any:
-    case CheckerTypeKind.Opaque:
+    case "dyn":
+    case "error":
+    case "type_param":
+    case "any":
+    case "opaque":
       return NullValue.Instance;
     default:
       return NullValue.Instance;
   }
 }
 
+/**
+ * Convert a proto default value to a CEL Value based on the expected type.
+ * Handles primitive types and enum types.
+ * Returns undefined if conversion is not possible.
+ */
 export function protoDefaultToValue(
   type: CheckerType,
   raw: unknown,
@@ -295,17 +333,17 @@ export function protoDefaultToValue(
     return undefined;
   }
   switch (type.kind) {
-    case CheckerTypeKind.Bool:
+    case "bool":
       return BoolValue.of(Boolean(raw));
-    case CheckerTypeKind.Int:
+    case "int":
       return IntValue.of(defaultToBigInt(raw));
-    case CheckerTypeKind.Uint:
+    case "uint":
       return UintValue.of(defaultToBigInt(raw));
-    case CheckerTypeKind.Double:
+    case "double":
       return DoubleValue.of(Number(raw));
-    case CheckerTypeKind.String:
+    case "string":
       return StringValue.of(String(raw));
-    case CheckerTypeKind.Bytes:
+    case "bytes":
       if (raw instanceof Uint8Array || Array.isArray(raw)) {
         return BytesValue.of(raw as Uint8Array | number[]);
       }
@@ -313,7 +351,7 @@ export function protoDefaultToValue(
         return BytesValue.fromString(raw);
       }
       return undefined;
-    case CheckerTypeKind.Opaque: {
+    case "opaque": {
       const enumType = typeProvider.findEnumType(type.runtimeTypeName);
       if (enumType === undefined) {
         return undefined;
@@ -334,6 +372,9 @@ export function protoDefaultToValue(
   }
 }
 
+/**
+ * Unwrap an OptionalValue to its inner value, or return the value as-is.
+ */
 function unwrapOptional(value: Value | undefined): Value | undefined {
   if (value instanceof OptionalValue) {
     return value.hasValue() ? (value.value() ?? NullValue.Instance) : NullValue.Instance;
@@ -341,6 +382,9 @@ function unwrapOptional(value: Value | undefined): Value | undefined {
   return value;
 }
 
+/**
+ * Check if all keys in a MapValue are StringValues.
+ */
 function mapKeysAreStrings(value: MapValue): boolean {
   for (const entry of value.value()) {
     if (!(entry.key instanceof StringValue)) {
@@ -350,16 +394,26 @@ function mapKeysAreStrings(value: MapValue): boolean {
   return true;
 }
 
+/**
+ * Pad a number to 2 digits with leading zeros.
+ */
 function pad2(value: number): string {
   return String(value).padStart(2, "0");
 }
 
+/**
+ * Pad a number to 4 digits with leading zeros, preserving sign for negative values.
+ */
 function pad4(value: number): string {
   const sign = value < 0 ? "-" : "";
   const abs = Math.abs(value);
   return `${sign}${String(abs).padStart(4, "0")}`;
 }
 
+/**
+ * Convert a raw value to bigint for default value handling.
+ * Supports bigint, number, string, and objects with toString.
+ */
 function defaultToBigInt(raw: unknown): bigint {
   if (typeof raw === "bigint") {
     return raw;
@@ -375,3 +429,16 @@ function defaultToBigInt(raw: unknown): bigint {
   }
   return 0n;
 }
+
+/**
+ * Check if a value implements the Activation interface.
+ */
+export function isActivation(value: unknown): value is Activation {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "resolve" in (value as Record<string, unknown>) &&
+    typeof (value as Activation).resolve === "function"
+  );
+}
+

@@ -1,4 +1,4 @@
-import { DynType, type EnvOptions, Function, IntType, MemberOverload, Overload } from "../cel";
+import { type EnvOptions, Function, MemberOverload, Overload, PrimitiveTypes } from "../cel";
 import { ListType, type Type, TypeParamType } from "../checker/types";
 import { CallExpr, ComprehensionExpr, IdentExpr, ListExpr, SelectExpr } from "../common/ast";
 import {
@@ -14,8 +14,13 @@ import { makeMap } from "../parser/macros";
 import type { Extension } from "./extensions";
 import { compareValues, isComparableValue } from "./utils";
 
+/** Options for configuring the lists extension version. */
 export type ListsOptions = { version?: number };
 
+/**
+ * Lists extension.
+ * Provides list manipulation functions: slice, flatten, reverse, distinct, sort, sortBy, range.
+ */
 export class ListsExtension implements Extension {
   private readonly version: number;
 
@@ -32,7 +37,7 @@ export class ListsExtension implements Extension {
     const functions = [
       new Function(
         "slice",
-        new MemberOverload("list_slice", [listOfT, IntType, IntType], listOfT, (args: Value[]) =>
+        new MemberOverload("list_slice", [listOfT, PrimitiveTypes.Int, PrimitiveTypes.Int], listOfT, (args: Value[]) =>
           sliceList(args)
         )
       ),
@@ -40,14 +45,14 @@ export class ListsExtension implements Extension {
         "flatten",
         new MemberOverload(
           "list_flatten",
-          [new ListType(DynType)],
-          new ListType(DynType),
+          [new ListType(PrimitiveTypes.Dyn)],
+          new ListType(PrimitiveTypes.Dyn),
           (arg: Value) => flattenList(arg, 1)
         ),
         new MemberOverload(
           "list_flatten_int",
-          [new ListType(DynType), IntType],
-          new ListType(DynType),
+          [new ListType(PrimitiveTypes.Dyn), PrimitiveTypes.Int],
+          new ListType(PrimitiveTypes.Dyn),
           (args: Value[]) => {
             const list = args[0];
             const depth = args[1];
@@ -81,7 +86,7 @@ export class ListsExtension implements Extension {
       ),
       new Function(
         "lists.range",
-        new Overload("lists_range_int", [IntType], new ListType(IntType), (arg: Value) =>
+        new Overload("lists_range_int", [PrimitiveTypes.Int], new ListType(PrimitiveTypes.Int), (arg: Value) =>
           rangeList(arg)
         )
       ),
@@ -145,7 +150,7 @@ function sliceList(args: Value[]): Value {
     return ErrorValue.typeMismatch("list", list!);
   }
   if (!(start instanceof IntValue) || !(end instanceof IntValue)) {
-    return ErrorValue.create(`slice requires int start and end indexes`);
+    return ErrorValue.of(`slice requires int start and end indexes`);
   }
   const startNum = toSafeNumber(start);
   const endNum = toSafeNumber(end);
@@ -156,18 +161,18 @@ function sliceList(args: Value[]): Value {
     return endNum;
   }
   if (startNum < 0 || endNum < 0) {
-    return ErrorValue.create(
+    return ErrorValue.of(
       `cannot slice(${startNum}, ${endNum}), negative indexes not supported`
     );
   }
   if (startNum > endNum) {
-    return ErrorValue.create(
+    return ErrorValue.of(
       `cannot slice(${startNum}, ${endNum}), start index must be less than or equal to end index`
     );
   }
   const elements = list.value();
   if (endNum > elements.length) {
-    return ErrorValue.create(
+    return ErrorValue.of(
       `cannot slice(${startNum}, ${endNum}), list is length ${elements.length}`
     );
   }
@@ -179,7 +184,7 @@ function flattenList(value: Value, depth: number): Value {
     return ErrorValue.typeMismatch("list", value);
   }
   if (depth < 0) {
-    return ErrorValue.create("level must be non-negative");
+    return ErrorValue.of("level must be non-negative");
   }
   const flattened = flattenRecursive(value.value(), depth);
   if (flattened instanceof ErrorValue) {
@@ -256,12 +261,12 @@ function sortByAssociatedKeys(args: Value[]): Value {
   const list = args[0];
   const keys = args[1];
   if (!(list instanceof ListValue) || !(keys instanceof ListValue)) {
-    return ErrorValue.create("@sortByAssociatedKeys expects list arguments");
+    return ErrorValue.of("@sortByAssociatedKeys expects list arguments");
   }
   const elements = list.value();
   const keyList = keys.value();
   if (elements.length !== keyList.length) {
-    return ErrorValue.create(
+    return ErrorValue.of(
       `@sortByAssociatedKeys() expected a list of the same size as the associated keys list, but got ${elements.length} and ${keyList.length} elements respectively`
     );
   }
@@ -288,7 +293,7 @@ function rangeList(value: Value): Value {
     return count;
   }
   if (count < 0) {
-    return ErrorValue.create("lists.range() requires a non-negative argument");
+    return ErrorValue.of("lists.range() requires a non-negative argument");
   }
   const out: Value[] = [];
   for (let i = 0; i < count; i++) {
@@ -303,19 +308,19 @@ function buildComparator(values: readonly Value[]): ((a: Value, b: Value) => num
   }
   const first = values[0]!;
   if (!isComparableValue(first)) {
-    return ErrorValue.create("list elements are not comparable");
+    return ErrorValue.of("list elements are not comparable");
   }
   const allowMixedNumeric = isNumericValue(first);
   for (const value of values) {
     if (!isComparableValue(value)) {
-      return ErrorValue.create("list elements are not comparable");
+      return ErrorValue.of("list elements are not comparable");
     }
     if (allowMixedNumeric) {
       if (!isNumericValue(value)) {
-        return ErrorValue.create("list elements must be of a comparable numeric type");
+        return ErrorValue.of("list elements must be of a comparable numeric type");
       }
     } else if (value.constructor !== first.constructor) {
-      return ErrorValue.create("list elements must be the same comparable type");
+      return ErrorValue.of("list elements must be the same comparable type");
     }
   }
   return (left, right) => {
@@ -334,7 +339,7 @@ function isNumericValue(value: Value): boolean {
 function toSafeNumber(value: IntValue): number | ErrorValue {
   const asNumber = Number(value.value());
   if (!Number.isSafeInteger(asNumber)) {
-    return ErrorValue.create("integer value out of range");
+    return ErrorValue.of("integer value out of range");
   }
   return asNumber;
 }

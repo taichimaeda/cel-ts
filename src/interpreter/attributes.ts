@@ -210,7 +210,7 @@ export class IndexQualifier {
       return value;
     }
 
-    return ErrorValue.create(`type '${obj.type()}' does not support indexing`, this.exprId);
+    return ErrorValue.of(`type '${obj.type()}' does not support indexing`, this.exprId);
   }
 
   isConstant(): boolean {
@@ -230,7 +230,7 @@ function normalizeIndexValue(value: Value): IntValue | ErrorValue {
     if (Number.isFinite(num) && Number.isInteger(num)) {
       return IntValue.of(num);
     }
-    return ErrorValue.create("invalid_argument");
+    return ErrorValue.of("invalid_argument");
   }
   return ErrorValue.typeMismatch("int or uint", value);
 }
@@ -314,7 +314,7 @@ export class AbsoluteAttribute {
       const fullName = this.namePath.join(".");
       value = activation.resolve(fullName);
       if (value === undefined) {
-        return ErrorValue.create(`undeclared variable: ${rootName}`, this.exprId);
+        return ErrorValue.of(`undeclared variable: ${rootName}`, this.exprId);
       }
     } else {
       // Apply remaining path elements as qualifiers
@@ -494,6 +494,6 @@ export class MaybeAttribute {
       return this.candidates[this.candidates.length - 1]!.resolve(activation);
     }
 
-    return ErrorValue.create("no candidates for maybe attribute", this.exprId);
+    return ErrorValue.of("no candidates for maybe attribute", this.exprId);
   }
 }

@@ -1,6 +1,6 @@
 import type { AST } from "../common/ast";
 import type { SourceInfo } from "../common/source";
-import { ExprVisitor, VisitOrder } from "../common/visitor";
+import { ExprVisitor } from "../common/visitor";
 import { defaultRules } from "./rules";
 import type { LintContext, LintDiagnostic, LintLocation, LintRule } from "./types";
 
@@ -23,7 +23,7 @@ export class Linter {
         rule.apply(expr, ctx);
       }
     });
-    ast.expr.accept(visitor, VisitOrder.Pre);
+    ast.expr.accept(visitor, "pre");
 
     return diagnostics;
   }

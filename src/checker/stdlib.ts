@@ -5,26 +5,17 @@
 import { Operators } from "../common/ast";
 import { FunctionDecl, FunctionOverloadDecl } from "./decls";
 import {
-  BoolType,
-  BytesType,
-  DoubleType,
-  DurationType,
-  DynType,
-  IntType,
   ListType,
   MapType,
-  StringType,
-  TimestampType,
+  PrimitiveTypes,
   TypeParamType,
   PolymorphicTypeType,
-  UintType,
 } from "./types";
 
 /**
- * Get all standard library function declarations.
- * Retrieves all standard library function declarations
+ * Standard library declaration provider.
+ * Provides all built-in CEL function declarations for type checking.
  */
-
 export class StandardLibrary {
   static functions(): FunctionDecl[] {
     return [
@@ -65,14 +56,14 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("size");
 
     // size(string) -> int
-    funcDecl.addOverload(new FunctionOverloadDecl("size_string", [StringType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("size_string", [PrimitiveTypes.String], PrimitiveTypes.Int));
 
     // size(bytes) -> int
-    funcDecl.addOverload(new FunctionOverloadDecl("size_bytes", [BytesType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("size_bytes", [PrimitiveTypes.Bytes], PrimitiveTypes.Int));
 
     // size(list) -> int
     funcDecl.addOverload(
-      new FunctionOverloadDecl("size_list", [new ListType(new TypeParamType("T"))], IntType, ["T"])
+      new FunctionOverloadDecl("size_list", [new ListType(new TypeParamType("T"))], PrimitiveTypes.Int, ["T"])
     );
 
     // size(map) -> int
@@ -80,7 +71,7 @@ export class StandardLibrary {
       new FunctionOverloadDecl(
         "size_map",
         [new MapType(new TypeParamType("K"), new TypeParamType("V"))],
-        IntType,
+        PrimitiveTypes.Int,
         ["K", "V"]
       )
     );
@@ -89,19 +80,19 @@ export class StandardLibrary {
     funcDecl.addOverload(
       new FunctionOverloadDecl(
         "string_size",
-        [StringType],
-        IntType,
+        [PrimitiveTypes.String],
+        PrimitiveTypes.Int,
         [],
         true // member function
       )
     );
 
     // bytes.size() -> int (receiver style)
-    funcDecl.addOverload(new FunctionOverloadDecl("bytes_size", [BytesType], IntType, [], true));
+    funcDecl.addOverload(new FunctionOverloadDecl("bytes_size", [PrimitiveTypes.Bytes], PrimitiveTypes.Int, [], true));
 
     // list.size() -> int (receiver style)
     funcDecl.addOverload(
-      new FunctionOverloadDecl("list_size", [new ListType(new TypeParamType("T"))], IntType, ["T"], true)
+      new FunctionOverloadDecl("list_size", [new ListType(new TypeParamType("T"))], PrimitiveTypes.Int, ["T"], true)
     );
 
     // map.size() -> int (receiver style)
@@ -109,7 +100,7 @@ export class StandardLibrary {
       new FunctionOverloadDecl(
         "map_size",
         [new MapType(new TypeParamType("K"), new TypeParamType("V"))],
-        IntType,
+        PrimitiveTypes.Int,
         ["K", "V"],
         true
       )
@@ -125,15 +116,15 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("int");
 
     // int(int) -> int
-    funcDecl.addOverload(new FunctionOverloadDecl("int_int", [IntType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("int_int", [PrimitiveTypes.Int], PrimitiveTypes.Int));
     // int(uint) -> int
-    funcDecl.addOverload(new FunctionOverloadDecl("int_uint", [UintType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("int_uint", [PrimitiveTypes.Uint], PrimitiveTypes.Int));
     // int(double) -> int
-    funcDecl.addOverload(new FunctionOverloadDecl("int_double", [DoubleType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("int_double", [PrimitiveTypes.Double], PrimitiveTypes.Int));
     // int(string) -> int
-    funcDecl.addOverload(new FunctionOverloadDecl("int_string", [StringType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("int_string", [PrimitiveTypes.String], PrimitiveTypes.Int));
     // int(timestamp) -> int (seconds since epoch)
-    funcDecl.addOverload(new FunctionOverloadDecl("int_timestamp", [TimestampType], IntType));
+    funcDecl.addOverload(new FunctionOverloadDecl("int_timestamp", [PrimitiveTypes.Timestamp], PrimitiveTypes.Int));
 
     return funcDecl;
   }
@@ -145,13 +136,13 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("uint");
 
     // uint(int) -> uint
-    funcDecl.addOverload(new FunctionOverloadDecl("uint_int", [IntType], UintType));
+    funcDecl.addOverload(new FunctionOverloadDecl("uint_int", [PrimitiveTypes.Int], PrimitiveTypes.Uint));
     // uint(uint) -> uint
-    funcDecl.addOverload(new FunctionOverloadDecl("uint_uint", [UintType], UintType));
+    funcDecl.addOverload(new FunctionOverloadDecl("uint_uint", [PrimitiveTypes.Uint], PrimitiveTypes.Uint));
     // uint(double) -> uint
-    funcDecl.addOverload(new FunctionOverloadDecl("uint_double", [DoubleType], UintType));
+    funcDecl.addOverload(new FunctionOverloadDecl("uint_double", [PrimitiveTypes.Double], PrimitiveTypes.Uint));
     // uint(string) -> uint
-    funcDecl.addOverload(new FunctionOverloadDecl("uint_string", [StringType], UintType));
+    funcDecl.addOverload(new FunctionOverloadDecl("uint_string", [PrimitiveTypes.String], PrimitiveTypes.Uint));
 
     return funcDecl;
   }
@@ -163,13 +154,13 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("double");
 
     // double(int) -> double
-    funcDecl.addOverload(new FunctionOverloadDecl("double_int", [IntType], DoubleType));
+    funcDecl.addOverload(new FunctionOverloadDecl("double_int", [PrimitiveTypes.Int], PrimitiveTypes.Double));
     // double(uint) -> double
-    funcDecl.addOverload(new FunctionOverloadDecl("double_uint", [UintType], DoubleType));
+    funcDecl.addOverload(new FunctionOverloadDecl("double_uint", [PrimitiveTypes.Uint], PrimitiveTypes.Double));
     // double(double) -> double
-    funcDecl.addOverload(new FunctionOverloadDecl("double_double", [DoubleType], DoubleType));
+    funcDecl.addOverload(new FunctionOverloadDecl("double_double", [PrimitiveTypes.Double], PrimitiveTypes.Double));
     // double(string) -> double
-    funcDecl.addOverload(new FunctionOverloadDecl("double_string", [StringType], DoubleType));
+    funcDecl.addOverload(new FunctionOverloadDecl("double_string", [PrimitiveTypes.String], PrimitiveTypes.Double));
 
     return funcDecl;
   }
@@ -181,19 +172,19 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("string");
 
     // string(int) -> string
-    funcDecl.addOverload(new FunctionOverloadDecl("string_int", [IntType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_int", [PrimitiveTypes.Int], PrimitiveTypes.String));
     // string(uint) -> string
-    funcDecl.addOverload(new FunctionOverloadDecl("string_uint", [UintType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_uint", [PrimitiveTypes.Uint], PrimitiveTypes.String));
     // string(double) -> string
-    funcDecl.addOverload(new FunctionOverloadDecl("string_double", [DoubleType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_double", [PrimitiveTypes.Double], PrimitiveTypes.String));
     // string(string) -> string
-    funcDecl.addOverload(new FunctionOverloadDecl("string_string", [StringType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_string", [PrimitiveTypes.String], PrimitiveTypes.String));
     // string(bytes) -> string
-    funcDecl.addOverload(new FunctionOverloadDecl("string_bytes", [BytesType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_bytes", [PrimitiveTypes.Bytes], PrimitiveTypes.String));
     // string(timestamp) -> string
-    funcDecl.addOverload(new FunctionOverloadDecl("string_timestamp", [TimestampType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_timestamp", [PrimitiveTypes.Timestamp], PrimitiveTypes.String));
     // string(duration) -> string
-    funcDecl.addOverload(new FunctionOverloadDecl("string_duration", [DurationType], StringType));
+    funcDecl.addOverload(new FunctionOverloadDecl("string_duration", [PrimitiveTypes.Duration], PrimitiveTypes.String));
 
     return funcDecl;
   }
@@ -205,9 +196,9 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("bool");
 
     // bool(bool) -> bool
-    funcDecl.addOverload(new FunctionOverloadDecl("bool_bool", [BoolType], BoolType));
+    funcDecl.addOverload(new FunctionOverloadDecl("bool_bool", [PrimitiveTypes.Bool], PrimitiveTypes.Bool));
     // bool(string) -> bool
-    funcDecl.addOverload(new FunctionOverloadDecl("bool_string", [StringType], BoolType));
+    funcDecl.addOverload(new FunctionOverloadDecl("bool_string", [PrimitiveTypes.String], PrimitiveTypes.Bool));
 
     return funcDecl;
   }
@@ -219,9 +210,9 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("bytes");
 
     // bytes(string) -> bytes
-    funcDecl.addOverload(new FunctionOverloadDecl("bytes_string", [StringType], BytesType));
+    funcDecl.addOverload(new FunctionOverloadDecl("bytes_string", [PrimitiveTypes.String], PrimitiveTypes.Bytes));
     // bytes(bytes) -> bytes
-    funcDecl.addOverload(new FunctionOverloadDecl("bytes_bytes", [BytesType], BytesType));
+    funcDecl.addOverload(new FunctionOverloadDecl("bytes_bytes", [PrimitiveTypes.Bytes], PrimitiveTypes.Bytes));
 
     return funcDecl;
   }
@@ -233,7 +224,7 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("dyn");
 
     // dyn(dyn) -> dyn
-    funcDecl.addOverload(new FunctionOverloadDecl("dyn_dyn", [DynType], DynType));
+    funcDecl.addOverload(new FunctionOverloadDecl("dyn_dyn", [PrimitiveTypes.Dyn], PrimitiveTypes.Dyn));
 
     return funcDecl;
   }
@@ -245,7 +236,7 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("type");
 
     // type(dyn) -> type
-    funcDecl.addOverload(new FunctionOverloadDecl("type_dyn", [DynType], new PolymorphicTypeType(DynType), []));
+    funcDecl.addOverload(new FunctionOverloadDecl("type_dyn", [PrimitiveTypes.Dyn], new PolymorphicTypeType(PrimitiveTypes.Dyn), []));
 
     return funcDecl;
   }
@@ -257,9 +248,9 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("duration");
 
     // duration(string) -> duration
-    funcDecl.addOverload(new FunctionOverloadDecl("duration_string", [StringType], DurationType));
+    funcDecl.addOverload(new FunctionOverloadDecl("duration_string", [PrimitiveTypes.String], PrimitiveTypes.Duration));
     // duration(duration) -> duration
-    funcDecl.addOverload(new FunctionOverloadDecl("duration_duration", [DurationType], DurationType));
+    funcDecl.addOverload(new FunctionOverloadDecl("duration_duration", [PrimitiveTypes.Duration], PrimitiveTypes.Duration));
 
     return funcDecl;
   }
@@ -271,11 +262,11 @@ export class StandardLibrary {
     const funcDecl = new FunctionDecl("timestamp");
 
     // timestamp(string) -> timestamp
-    funcDecl.addOverload(new FunctionOverloadDecl("timestamp_string", [StringType], TimestampType));
+    funcDecl.addOverload(new FunctionOverloadDecl("timestamp_string", [PrimitiveTypes.String], PrimitiveTypes.Timestamp));
     // timestamp(int) -> timestamp (seconds since epoch)
-    funcDecl.addOverload(new FunctionOverloadDecl("timestamp_int", [IntType], TimestampType));
+    funcDecl.addOverload(new FunctionOverloadDecl("timestamp_int", [PrimitiveTypes.Int], PrimitiveTypes.Timestamp));
     // timestamp(timestamp) -> timestamp
-    funcDecl.addOverload(new FunctionOverloadDecl("timestamp_timestamp", [TimestampType], TimestampType));
+    funcDecl.addOverload(new FunctionOverloadDecl("timestamp_timestamp", [PrimitiveTypes.Timestamp], PrimitiveTypes.Timestamp));
 
     return funcDecl;
   }
@@ -290,8 +281,8 @@ export class StandardLibrary {
     funcDecl.addOverload(
       new FunctionOverloadDecl(
         "contains_string",
-        [StringType, StringType],
-        BoolType,
+        [PrimitiveTypes.String, PrimitiveTypes.String],
+        PrimitiveTypes.Bool,
         [],
         true // member function
       )
@@ -308,7 +299,7 @@ export class StandardLibrary {
 
     // string.startsWith(string) -> bool
     funcDecl.addOverload(
-      new FunctionOverloadDecl("startsWith_string", [StringType, StringType], BoolType, [], true)
+      new FunctionOverloadDecl("startsWith_string", [PrimitiveTypes.String, PrimitiveTypes.String], PrimitiveTypes.Bool, [], true)
     );
 
     return funcDecl;
@@ -322,7 +313,7 @@ export class StandardLibrary {
 
     // string.endsWith(string) -> bool
     funcDecl.addOverload(
-      new FunctionOverloadDecl("endsWith_string", [StringType, StringType], BoolType, [], true)
+      new FunctionOverloadDecl("endsWith_string", [PrimitiveTypes.String, PrimitiveTypes.String], PrimitiveTypes.Bool, [], true)
     );
 
     return funcDecl;
@@ -336,11 +327,11 @@ export class StandardLibrary {
 
     // string.matches(string) -> bool
     funcDecl.addOverload(
-      new FunctionOverloadDecl("matches_string", [StringType, StringType], BoolType, [], true)
+      new FunctionOverloadDecl("matches_string", [PrimitiveTypes.String, PrimitiveTypes.String], PrimitiveTypes.Bool, [], true)
     );
 
     // matches(string, string) -> bool (global function style)
-    funcDecl.addOverload(new FunctionOverloadDecl("matches_string_string", [StringType, StringType], BoolType));
+    funcDecl.addOverload(new FunctionOverloadDecl("matches_string_string", [PrimitiveTypes.String, PrimitiveTypes.String], PrimitiveTypes.Bool));
 
     return funcDecl;
   }
@@ -356,7 +347,7 @@ export class StandardLibrary {
       new FunctionOverloadDecl(
         "in_list",
         [new TypeParamType("T"), new ListType(new TypeParamType("T"))],
-        BoolType,
+        PrimitiveTypes.Bool,
         ["T"]
       )
     );
@@ -366,7 +357,7 @@ export class StandardLibrary {
       new FunctionOverloadDecl(
         "in_map",
         [new TypeParamType("K"), new MapType(new TypeParamType("K"), new TypeParamType("V"))],
-        BoolType,
+        PrimitiveTypes.Bool,
         ["K", "V"]
       )
     );
@@ -384,7 +375,7 @@ export class StandardLibrary {
     funcDecl.addOverload(
       new FunctionOverloadDecl(
         "index_list",
-        [new ListType(new TypeParamType("T")), IntType],
+        [new ListType(new TypeParamType("T")), PrimitiveTypes.Int],
         new TypeParamType("T"),
         ["T"]
       )
@@ -417,14 +408,14 @@ export class StandardLibrary {
     ];
 
     const types = [
-      IntType,
-      UintType,
-      DoubleType,
-      StringType,
-      BoolType,
-      BytesType,
-      TimestampType,
-      DurationType,
+      PrimitiveTypes.Int,
+      PrimitiveTypes.Uint,
+      PrimitiveTypes.Double,
+      PrimitiveTypes.String,
+      PrimitiveTypes.Bool,
+      PrimitiveTypes.Bytes,
+      PrimitiveTypes.Timestamp,
+      PrimitiveTypes.Duration,
     ];
 
     return operators.map((op) => {
@@ -433,11 +424,11 @@ export class StandardLibrary {
       // Comparison between same types
       for (const t of types) {
         const typeName = t.toString().toLowerCase();
-        funcDecl.addOverload(new FunctionOverloadDecl(`${op.id}_${typeName}`, [t, t], BoolType));
+        funcDecl.addOverload(new FunctionOverloadDecl(`${op.id}_${typeName}`, [t, t], PrimitiveTypes.Bool));
       }
 
       // Comparison of Dyn type (for dynamic typing)
-      funcDecl.addOverload(new FunctionOverloadDecl(`${op.id}_dyn`, [DynType, DynType], BoolType));
+      funcDecl.addOverload(new FunctionOverloadDecl(`${op.id}_dyn`, [PrimitiveTypes.Dyn, PrimitiveTypes.Dyn], PrimitiveTypes.Bool));
 
       return funcDecl;
     });
@@ -455,7 +446,7 @@ export class StandardLibrary {
       { name: Operators.Modulo, id: "modulo" },
     ];
 
-    const numericTypes = [IntType, UintType, DoubleType];
+    const numericTypes = [PrimitiveTypes.Int, PrimitiveTypes.Uint, PrimitiveTypes.Double];
 
     const funcDecls: FunctionDecl[] = [];
 
@@ -470,10 +461,10 @@ export class StandardLibrary {
 
       // String concatenation (+)
       if (op.name === Operators.Add) {
-        funcDecl.addOverload(new FunctionOverloadDecl("add_string", [StringType, StringType], StringType));
+        funcDecl.addOverload(new FunctionOverloadDecl("add_string", [PrimitiveTypes.String, PrimitiveTypes.String], PrimitiveTypes.String));
 
         // Bytes concatenation
-        funcDecl.addOverload(new FunctionOverloadDecl("add_bytes", [BytesType, BytesType], BytesType));
+        funcDecl.addOverload(new FunctionOverloadDecl("add_bytes", [PrimitiveTypes.Bytes, PrimitiveTypes.Bytes], PrimitiveTypes.Bytes));
 
         // List concatenation
         funcDecl.addOverload(
@@ -487,32 +478,32 @@ export class StandardLibrary {
 
         // duration + duration
         funcDecl.addOverload(
-          new FunctionOverloadDecl("add_duration_duration", [DurationType, DurationType], DurationType)
+          new FunctionOverloadDecl("add_duration_duration", [PrimitiveTypes.Duration, PrimitiveTypes.Duration], PrimitiveTypes.Duration)
         );
 
         // timestamp + duration
         funcDecl.addOverload(
-          new FunctionOverloadDecl("add_timestamp_duration", [TimestampType, DurationType], TimestampType)
+          new FunctionOverloadDecl("add_timestamp_duration", [PrimitiveTypes.Timestamp, PrimitiveTypes.Duration], PrimitiveTypes.Timestamp)
         );
 
         // duration + timestamp
         funcDecl.addOverload(
-          new FunctionOverloadDecl("add_duration_timestamp", [DurationType, TimestampType], TimestampType)
+          new FunctionOverloadDecl("add_duration_timestamp", [PrimitiveTypes.Duration, PrimitiveTypes.Timestamp], PrimitiveTypes.Timestamp)
         );
       }
 
       // duration - duration
       if (op.name === Operators.Subtract) {
         funcDecl.addOverload(
-          new FunctionOverloadDecl("subtract_duration_duration", [DurationType, DurationType], DurationType)
+          new FunctionOverloadDecl("subtract_duration_duration", [PrimitiveTypes.Duration, PrimitiveTypes.Duration], PrimitiveTypes.Duration)
         );
 
         // timestamp - duration
         funcDecl.addOverload(
           new FunctionOverloadDecl(
             "subtract_timestamp_duration",
-            [TimestampType, DurationType],
-            TimestampType
+            [PrimitiveTypes.Timestamp, PrimitiveTypes.Duration],
+            PrimitiveTypes.Timestamp
           )
         );
 
@@ -520,8 +511,8 @@ export class StandardLibrary {
         funcDecl.addOverload(
           new FunctionOverloadDecl(
             "subtract_timestamp_timestamp",
-            [TimestampType, TimestampType],
-            DurationType
+            [PrimitiveTypes.Timestamp, PrimitiveTypes.Timestamp],
+            PrimitiveTypes.Duration
           )
         );
       }
@@ -548,17 +539,17 @@ export class StandardLibrary {
 
     // Logical NOT
     const notFunc = new FunctionDecl(Operators.LogicalNot);
-    notFunc.addOverload(new FunctionOverloadDecl("logical_not", [BoolType], BoolType));
+    notFunc.addOverload(new FunctionOverloadDecl("logical_not", [PrimitiveTypes.Bool], PrimitiveTypes.Bool));
     funcDecls.push(notFunc);
 
     // Logical AND (short-circuit)
     const andFunc = new FunctionDecl(Operators.LogicalAnd);
-    andFunc.addOverload(new FunctionOverloadDecl("logical_and", [BoolType, BoolType], BoolType));
+    andFunc.addOverload(new FunctionOverloadDecl("logical_and", [PrimitiveTypes.Bool, PrimitiveTypes.Bool], PrimitiveTypes.Bool));
     funcDecls.push(andFunc);
 
     // Logical OR (short-circuit)
     const orFunc = new FunctionDecl(Operators.LogicalOr);
-    orFunc.addOverload(new FunctionOverloadDecl("logical_or", [BoolType, BoolType], BoolType));
+    orFunc.addOverload(new FunctionOverloadDecl("logical_or", [PrimitiveTypes.Bool, PrimitiveTypes.Bool], PrimitiveTypes.Bool));
     funcDecls.push(orFunc);
 
     // Conditional (ternary)
@@ -566,7 +557,7 @@ export class StandardLibrary {
     condFunc.addOverload(
       new FunctionOverloadDecl(
         "conditional",
-        [BoolType, new TypeParamType("T"), new TypeParamType("T")],
+        [PrimitiveTypes.Bool, new TypeParamType("T"), new TypeParamType("T")],
         new TypeParamType("T"),
         ["T"]
       )
@@ -577,7 +568,7 @@ export class StandardLibrary {
     // Accepts a bool and only returns false for strict false (errors count as true).
     const notStrictlyFalseFunc = new FunctionDecl(Operators.NotStrictlyFalse);
     notStrictlyFalseFunc.addOverload(
-      new FunctionOverloadDecl("not_strictly_false_bool", [BoolType], BoolType)
+      new FunctionOverloadDecl("not_strictly_false_bool", [PrimitiveTypes.Bool], PrimitiveTypes.Bool)
     );
     funcDecls.push(notStrictlyFalseFunc);
 

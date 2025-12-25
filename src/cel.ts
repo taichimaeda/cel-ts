@@ -15,24 +15,13 @@ import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
 import type { CheckerError } from "./checker/error";
 import { CompositeTypeProvider, StructTypeProvider, type TypeProvider } from "./checker/provider";
 import {
-  AnyType as CheckerAnyType,
-  BoolType as CheckerBoolType,
-  BytesType as CheckerBytesType,
-  DoubleType as CheckerDoubleType,
-  DurationType as CheckerDurationType,
-  DynType as CheckerDynType,
-  IntType as CheckerIntType,
-  NullType as CheckerNullType,
-  StringType as CheckerStringType,
-  TimestampType as CheckerTimestampType,
-  TypeType as CheckerTypeType,
-  UintType as CheckerUintType,
   ListType,
   MapType,
   OptionalType,
+  PolymorphicTypeType,
+  PrimitiveTypes,
   StructType,
   type Type,
-  PolymorphicTypeType,
 } from "./checker/types";
 import type { AST as CommonAST } from "./common/ast";
 import type { SourceInfo } from "./common/source";
@@ -50,6 +39,7 @@ import {
   NaryDispatcherOverload,
   UnaryDispatcherOverload,
 } from "./interpreter/dispatcher";
+import { formatRuntimeError, isActivation } from "./interpreter/utils";
 import { type ErrorValue, TypeValue, type Value, ValueUtil } from "./interpreter/values";
 import { AllMacros, type Macro, Parser, ParserHelper } from "./parser";
 import { Planner } from "./planner";
@@ -98,30 +88,8 @@ export class ParseError extends CELError {
 // Types - CEL Type Definitions
 // ============================================================================
 
-/** Bool type */
-export const BoolType = CheckerBoolType;
-/** Int type */
-export const IntType = CheckerIntType;
-/** Uint type */
-export const UintType = CheckerUintType;
-/** Double type */
-export const DoubleType = CheckerDoubleType;
-/** String type */
-export const StringType = CheckerStringType;
-/** Bytes type */
-export const BytesType = CheckerBytesType;
-/** Duration type */
-export const DurationType = CheckerDurationType;
-/** Timestamp type */
-export const TimestampType = CheckerTimestampType;
-/** Null type */
-export const NullType = CheckerNullType;
-/** Dynamic type (any type) */
-export const DynType = CheckerDynType;
-/** Any type */
-export const AnyType = CheckerAnyType;
-/** Type type */
-export const TypeType = CheckerTypeType;
+/** Re-export PrimitiveTypes for convenience */
+export { PrimitiveTypes } from "./checker/types";
 
 /**
  * TypeBuilder provides a fluent, class-based API for creating CEL types.
@@ -298,32 +266,10 @@ function typeValueBindings(): Map<string, Value> {
     ["list", TypeValue.ListType],
     ["map", TypeValue.MapType],
     ["type", TypeValue.TypeType],
-    ["optional_type", TypeValue.of(new OptionalType(DynType))],
+    ["optional_type", TypeValue.of(new OptionalType(PrimitiveTypes.Dyn))],
     ["google.protobuf.Timestamp", TypeValue.TimestampType],
     ["google.protobuf.Duration", TypeValue.DurationType],
   ]);
-}
-
-function isActivation(value: unknown): value is Activation {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "resolve" in (value as Record<string, unknown>) &&
-    typeof (value as Activation).resolve === "function"
-  );
-}
-
-function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): string {
-  const exprId = error.exprId;
-  if (exprId === undefined) {
-    return error.getMessage();
-  }
-  const position = sourceInfo.getPosition(exprId);
-  if (position === undefined) {
-    return error.getMessage();
-  }
-  const { line, column } = sourceInfo.getLocation(position.start);
-  return `${line}:${column}: ${error.getMessage()}`;
 }
 
 // ============================================================================
@@ -356,6 +302,9 @@ export interface EnvOptions {
   enumValuesAsInt?: boolean;
 }
 
+/**
+ * Merge multiple EnvOptions into a single combined options object.
+ */
 export function mergeEnvOptions(...options: EnvOptions[]): EnvOptions {
   const merged: EnvOptions = {};
   for (const option of options) {
@@ -487,11 +436,11 @@ export class EnvStructOption {
   }
 }
 
-/**
- * Function binding types.
- */
+/** Unary function binding type. */
 export type UnaryBinding = (arg: Value) => Value;
+/** Binary function binding type. */
 export type BinaryBinding = (lhs: Value, rhs: Value) => Value;
+/** N-ary function binding type. */
 export type FunctionBinding = (args: Value[]) => Value;
 
 class FunctionOverloadOption {

@@ -106,7 +106,7 @@ export class TryResolvedCall {
   invoke(args: Value[]): Value {
     const result = this.overload.invoke(args);
     if (result === undefined) {
-      return ErrorValue.create(
+      return ErrorValue.of(
         `no matching implementation for overload '${this.overload.id}' with ${args.length} arguments`
       );
     }
@@ -147,7 +147,7 @@ export class TryAllResolvedCall {
     // If all failed, return the last error
     return (
       lastError ??
-      ErrorValue.create(`no matching overload for function with ${args.length} arguments`)
+      ErrorValue.of(`no matching overload for function with ${args.length} arguments`)
     );
   }
 

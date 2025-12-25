@@ -1,5 +1,5 @@
 import { Function, type EnvOptions, Overload, Variable } from "../cel";
-import { DynType, ListType, TypeParamType } from "../checker/types";
+import { ListType, PrimitiveTypes, TypeParamType } from "../checker/types";
 import { type Expr, ListExpr, LiteralExpr } from "../common/ast";
 import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
@@ -15,6 +15,10 @@ const unusedIterVar = "#unused";
 const blockFunction = "cel.@block";
 const maxBlockIndices = 30;
 
+/**
+ * CEL bindings extension.
+ * Provides cel.bind(), cel.block(), and related variable binding macros.
+ */
 export class BindingsExtension implements Extension {
   envOptions(): EnvOptions {
     const macros: Macro[] = [
@@ -85,12 +89,12 @@ export class BindingsExtension implements Extension {
 
     const typeParam = new TypeParamType("T");
     const functions: Function[] = [
-      new Function(blockFunction, new Overload("cel_block_list", [new ListType(DynType), typeParam], typeParam)),
+      new Function(blockFunction, new Overload("cel_block_list", [new ListType(PrimitiveTypes.Dyn), typeParam], typeParam)),
     ];
 
     const variables: Variable[] = [];
     for (let i = 0; i < maxBlockIndices; i += 1) {
-      variables.push(new Variable(`@index${i}`, DynType));
+      variables.push(new Variable(`@index${i}`, PrimitiveTypes.Dyn));
     }
 
     return { macros, functions, variables };
