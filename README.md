@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/s26057/cel-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/s26057/cel-ts/actions/workflows/ci.yml)
 [![npm version](https://badge.fury.io/js/cel-ts.svg)](https://badge.fury.io/js/cel-ts)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Licence](https://img.shields.io/badge/Licence-Apache_2.0-blue.svg)](https://opensource.org/licences/Apache-2.0)
 
 Production-grade TypeScript implementation of the [Common Expression Language (CEL)](https://github.com/google/cel-spec).
 
@@ -19,13 +19,13 @@ Production-grade TypeScript implementation of the [Common Expression Language (C
 
 [ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) is a TypeScript CEL interpreter useful for experimentation, but it reads more like a proof-of-concept than a production-grade engine. It does not target full CEL feature parity and lacks the pipeline features (type checking, environments, conformance testing, and tooling) that official implementations treat as baseline.
 
-[marcbachmann/cel-js](https://github.com/marcbachmann/cel-js) is an alternative JavaScript CEL interpreter. It emphasizes fast evaluation and includes a type checker, but it does not cover conformance tests or [cel-go](https://github.com/google/cel-go) compatible interface, making it challenging for production adoption.
+[marcbachmann/cel-js](https://github.com/marcbachmann/cel-js) is an alternative JavaScript CEL interpreter. It emphasises fast evaluation and includes a type checker, but it does not cover conformance tests or [cel-go](https://github.com/google/cel-go) compatible interface, making it challenging for production adoption.
 
-Both [ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) and [marcbachmann/cel-js](https://github.com/marcbachmann/cel-js) are MIT licensed, yet they derive from official implementations and incorporate parts of [cel-spec](https://github.com/google/cel-spec) artifacts (e.g., `langdef.md`), which are Apache-2.0 licensed. This licensing mismatch can be a concern for business use.
+Both [ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) and [marcbachmann/cel-js](https://github.com/marcbachmann/cel-js) are MIT licensed, yet they derive from official implementations and incorporate parts of [cel-spec](https://github.com/google/cel-spec) artifacts (e.g., `langdef.md`), which are Apache-2.0 licensed. This licencing mismatch can be a concern for business use.
 
 [taichimaeda/cel-ts](https://github.com/taichimaeda/cel-ts) tracks official CEL implementations ([cel-go](https://github.com/google/cel-go), [cel-cpp](https://github.com/google/cel-cpp), [cel-java](https://github.com/google/cel-java)) and provides the complete workflow: parsing, type checking, optimisation, evaluation, conformance tests, and tooling. If you need a production-grade CEL engine in the JS/TS ecosystem, `cel-ts` is the practical choice.
 
-Please note that [taichimaeda/cel-ts](https://github.com/taichimaeda/cel-ts) prioritized completeness and a full CEL toolchain as the initial goal, with performance tuning planned next. The benchmarks are provided for transparency, not as a performance-first target today.
+Please note that [taichimaeda/cel-ts](https://github.com/taichimaeda/cel-ts) prioritised completeness and a full CEL toolchain as the initial goal, with performance tuning planned next. The benchmarks are provided for transparency, not as a performance-first target today.
 
 | Capability | taichimaeda/cel-ts | ChromeGG/cel-js | marcbachmann/cel-js |
 | --- | --- | --- | --- |
@@ -40,7 +40,7 @@ Please note that [taichimaeda/cel-ts](https://github.com/taichimaeda/cel-ts) pri
 | Formatter | Yes | No | No |
 | Linter | Yes | No | No |
 | Speed | Medium | Medium | Fast |
-| License (cel-spec is Apache-2.0) | Apache-2.0 | MIT | MIT |
+| Licence (cel-spec is Apache-2.0) | Apache-2.0 | MIT | MIT |
 
 ## Installation
 
@@ -135,12 +135,12 @@ The architecture follows cel-go's design:
 1. **Parse**: ANTLR parses expression into parse tree
 2. **AST**: Convert to canonical AST with macro expansion
 3. **Check**: Type check and annotate the AST
-4. **Plan**: Convert to optimized Interpretable tree
+4. **Plan**: Convert to optimised Interpretable tree
 5. **Eval**: Evaluate with runtime bindings
 
-## License
+## Licence
 
-Apache-2.0 License (same as [cel-go](https://github.com/google/cel-go))
+Apache-2.0 Licence (same as [cel-go](https://github.com/google/cel-go))
 
 ## Contributing
 
