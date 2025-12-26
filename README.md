@@ -31,19 +31,19 @@ Both [ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) and [marcbachmann/cel
 
 | Item | taichimaeda/cel-ts | ChromeGG/cel-js | marcbachmann/cel-js |
 | --- | --- | --- | --- |
-| Type checking | Yes | No | Yes (limited) |
+| Type checking | Yes | No | Yes (Basic) |
 | Conformance tests | Yes (100%) | No | No |
 | Benchmarking | Yes | No | Yes (basic) |
 | Profiling | Yes | No | No |
-| Raw string and byte literals | Yes | No | Partial |
+| Raw string and byte literals | Yes | No | Yes (Partial) |
 | cel-go compatible API | Yes | No | No |
-| Error reporting with source positions | Yes | No | Limited |
+| Error reporting with source positions | Yes | No | Yes (Limited) |
 | Macro support | Full (cel-go parity) | Limited | Partial |
 | Extension packs | Full (cel-go parity) | Limited | Limited |
 | Formatter | Yes | No | No |
 | Linter | Yes | No | No |
 | Speed | Fast | Slow | Fast |
-| Licence (cel-spec is Apache-2.0) | Apache-2.0 | MIT | MIT |
+| Licence | Apache-2.0 (same as cel-spec) | MIT | MIT |
 
 ### Performance
 

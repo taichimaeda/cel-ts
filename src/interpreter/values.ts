@@ -86,34 +86,6 @@ export type ValueKind =
 // Helper Functions
 // ---------------------------------------------------------------------------
 
-/**
- * Check if a value matches the given CEL type name.
- */
-export function isValueTypeName(value: Value, typeName: string): boolean {
-  switch (typeName) {
-    case "bool":
-      return value.kind === "bool";
-    case "int":
-      return value.kind === "int" || value.kind === "enum";
-    case "uint":
-      return value.kind === "uint";
-    case "double":
-      return value.kind === "double";
-    case "string":
-      return value.kind === "string";
-    case "bytes":
-      return value.kind === "bytes";
-    case "null":
-      return value.kind === "null";
-    case "type":
-      return value.kind === "type";
-    case "dyn":
-      return true;
-    default:
-      return false;
-  }
-}
-
 function isDurationInRange(nanos: bigint): boolean {
   return (
     nanos >= -DURATION_MAX_NANOS &&

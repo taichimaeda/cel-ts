@@ -24,7 +24,15 @@ import {
   OrValue,
   TypeConversionValue,
 } from "../../interpreter/interpretable";
-import { isValueTypeName } from "../../interpreter/values";
+import {
+  BoolValue,
+  BytesValue,
+  DoubleValue,
+  IntValue,
+  StringValue,
+  UintValue,
+  type Value,
+} from "../../interpreter/values";
 import type { PostOptimizerPass } from "../optimizer";
 
 export class NoOpConversionFoldPass implements PostOptimizerPass {
@@ -202,7 +210,7 @@ export class NoOpConversionFoldPass implements PostOptimizerPass {
 
       if (operand instanceof ConstValue) {
         const value = operand.value();
-        if (isValueTypeName(value, targetType)) {
+        if (this.isNoOpConversion(value, targetType)) {
           return operand;
         }
       }
@@ -213,6 +221,30 @@ export class NoOpConversionFoldPass implements PostOptimizerPass {
     }
 
     return node;
+  }
+
+  private isNoOpConversion(value: Value, targetType: string): boolean {
+    if (targetType === "type") {
+      return false;
+    }
+    switch (targetType) {
+      case "bool":
+        return value instanceof BoolValue;
+      case "int":
+        return value instanceof IntValue;
+      case "uint":
+        return value instanceof UintValue;
+      case "double":
+        return value instanceof DoubleValue;
+      case "string":
+        return value instanceof StringValue;
+      case "bytes":
+        return value instanceof BytesValue;
+      case "dyn":
+        return true;
+      default:
+        return false;
+    }
   }
 
   private rewriteList(nodes: Interpretable[]): Interpretable[] {
