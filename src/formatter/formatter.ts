@@ -624,7 +624,6 @@ export class Formatter {
     return `comprehension(${args.join(", ")})`;
   }
 
-
   private getPrecedence(expr: Expr): number | undefined {
     switch (expr.kind) {
       case "call": {

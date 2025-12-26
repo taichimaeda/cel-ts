@@ -8,24 +8,24 @@ import {
   BoolType,
   BytesType,
   DoubleType,
-  DynType,
   DurationType,
+  DynType,
   IntType,
   ListType,
   MapType,
+  PolymorphicTypeType,
   StringType,
   TimestampType,
   TypeParamType,
   UintType,
-  PolymorphicTypeType,
 } from "./types";
 
 /**
  * Standard library declaration provider.
  * Provides all built-in CEL function declarations for type checking.
  */
-export class StandardLibrary {
-  static functions(): FunctionDecl[] {
+class StandardLibraryImpl {
+  functions(): FunctionDecl[] {
     return [
       // Size functions
       this.sizeFunction(),
@@ -60,7 +60,7 @@ export class StandardLibrary {
   /**
    * size function - returns the size of strings, bytes, lists, and maps
    */
-  private static sizeFunction(): FunctionDecl {
+  private sizeFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("size");
 
     // size(string) -> int
@@ -100,7 +100,13 @@ export class StandardLibrary {
 
     // list.size() -> int (receiver style)
     funcDecl.addOverload(
-      new FunctionOverloadDecl("list_size", [new ListType(new TypeParamType("T"))], IntType, ["T"], true)
+      new FunctionOverloadDecl(
+        "list_size",
+        [new ListType(new TypeParamType("T"))],
+        IntType,
+        ["T"],
+        true
+      )
     );
 
     // map.size() -> int (receiver style)
@@ -120,7 +126,7 @@ export class StandardLibrary {
   /**
    * int() type conversion function
    */
-  private static intFunction(): FunctionDecl {
+  private intFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("int");
 
     // int(int) -> int
@@ -140,7 +146,7 @@ export class StandardLibrary {
   /**
    * uint() type conversion function
    */
-  private static uintFunction(): FunctionDecl {
+  private uintFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("uint");
 
     // uint(int) -> uint
@@ -158,7 +164,7 @@ export class StandardLibrary {
   /**
    * double() type conversion function
    */
-  private static doubleFunction(): FunctionDecl {
+  private doubleFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("double");
 
     // double(int) -> double
@@ -176,7 +182,7 @@ export class StandardLibrary {
   /**
    * string() type conversion function
    */
-  private static stringFunction(): FunctionDecl {
+  private stringFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("string");
 
     // string(int) -> string
@@ -200,7 +206,7 @@ export class StandardLibrary {
   /**
    * bool() type conversion function
    */
-  private static boolFunction(): FunctionDecl {
+  private boolFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("bool");
 
     // bool(bool) -> bool
@@ -214,7 +220,7 @@ export class StandardLibrary {
   /**
    * bytes() type conversion function
    */
-  private static bytesFunction(): FunctionDecl {
+  private bytesFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("bytes");
 
     // bytes(string) -> bytes
@@ -228,7 +234,7 @@ export class StandardLibrary {
   /**
    * dyn() type conversion function
    */
-  private static dynFunction(): FunctionDecl {
+  private dynFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("dyn");
 
     // dyn(dyn) -> dyn
@@ -240,11 +246,13 @@ export class StandardLibrary {
   /**
    * type() function - returns the type of a value
    */
-  private static typeFunction(): FunctionDecl {
+  private typeFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("type");
 
     // type(dyn) -> type
-    funcDecl.addOverload(new FunctionOverloadDecl("type_dyn", [DynType], new PolymorphicTypeType(DynType), []));
+    funcDecl.addOverload(
+      new FunctionOverloadDecl("type_dyn", [DynType], new PolymorphicTypeType(DynType), [])
+    );
 
     return funcDecl;
   }
@@ -252,13 +260,15 @@ export class StandardLibrary {
   /**
    * duration() function - creates duration from string
    */
-  private static durationFunction(): FunctionDecl {
+  private durationFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("duration");
 
     // duration(string) -> duration
     funcDecl.addOverload(new FunctionOverloadDecl("duration_string", [StringType], DurationType));
     // duration(duration) -> duration
-    funcDecl.addOverload(new FunctionOverloadDecl("duration_duration", [DurationType], DurationType));
+    funcDecl.addOverload(
+      new FunctionOverloadDecl("duration_duration", [DurationType], DurationType)
+    );
 
     return funcDecl;
   }
@@ -266,7 +276,7 @@ export class StandardLibrary {
   /**
    * timestamp() function - creates timestamp from string or int
    */
-  private static timestampFunction(): FunctionDecl {
+  private timestampFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("timestamp");
 
     // timestamp(string) -> timestamp
@@ -274,7 +284,9 @@ export class StandardLibrary {
     // timestamp(int) -> timestamp (seconds since epoch)
     funcDecl.addOverload(new FunctionOverloadDecl("timestamp_int", [IntType], TimestampType));
     // timestamp(timestamp) -> timestamp
-    funcDecl.addOverload(new FunctionOverloadDecl("timestamp_timestamp", [TimestampType], TimestampType));
+    funcDecl.addOverload(
+      new FunctionOverloadDecl("timestamp_timestamp", [TimestampType], TimestampType)
+    );
 
     return funcDecl;
   }
@@ -282,7 +294,7 @@ export class StandardLibrary {
   /**
    * contains() string method
    */
-  private static containsFunction(): FunctionDecl {
+  private containsFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("contains");
 
     // string.contains(string) -> bool
@@ -302,7 +314,7 @@ export class StandardLibrary {
   /**
    * startsWith() string method
    */
-  private static startsWithFunction(): FunctionDecl {
+  private startsWithFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("startsWith");
 
     // string.startsWith(string) -> bool
@@ -316,7 +328,7 @@ export class StandardLibrary {
   /**
    * endsWith() string method
    */
-  private static endsWithFunction(): FunctionDecl {
+  private endsWithFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("endsWith");
 
     // string.endsWith(string) -> bool
@@ -330,7 +342,7 @@ export class StandardLibrary {
   /**
    * matches() string method for regex matching
    */
-  private static matchesFunction(): FunctionDecl {
+  private matchesFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl("matches");
 
     // string.matches(string) -> bool
@@ -339,7 +351,9 @@ export class StandardLibrary {
     );
 
     // matches(string, string) -> bool (global function style)
-    funcDecl.addOverload(new FunctionOverloadDecl("matches_string_string", [StringType, StringType], BoolType));
+    funcDecl.addOverload(
+      new FunctionOverloadDecl("matches_string_string", [StringType, StringType], BoolType)
+    );
 
     return funcDecl;
   }
@@ -347,7 +361,7 @@ export class StandardLibrary {
   /**
    * in operator function
    */
-  private static inFunction(): FunctionDecl {
+  private inFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl(Operators.In);
 
     // T in list<T> -> bool
@@ -376,7 +390,7 @@ export class StandardLibrary {
   /**
    * Index access operator (`_[_]`) providing list and map indexing.
    */
-  private static indexFunction(): FunctionDecl {
+  private indexFunction(): FunctionDecl {
     const funcDecl = new FunctionDecl(Operators.Index);
 
     // list<T>[int] -> T
@@ -405,7 +419,7 @@ export class StandardLibrary {
   /**
    * Comparison operator functions
    */
-  private static comparisonFunctions(): FunctionDecl[] {
+  private comparisonFunctions(): FunctionDecl[] {
     const operators = [
       { name: Operators.Equals, id: "equals" },
       { name: Operators.NotEquals, id: "not_equals" },
@@ -447,7 +461,7 @@ export class StandardLibrary {
   /**
    * Arithmetic operator functions
    */
-  private static arithmeticFunctions(): FunctionDecl[] {
+  private arithmeticFunctions(): FunctionDecl[] {
     const operators = [
       { name: Operators.Add, id: "add" },
       { name: Operators.Subtract, id: "subtract" },
@@ -466,15 +480,21 @@ export class StandardLibrary {
       // Numeric operations
       for (const typeItem of numericTypes) {
         const typeName = typeItem.toString().toLowerCase();
-        funcDecl.addOverload(new FunctionOverloadDecl(`${op.id}_${typeName}`, [typeItem, typeItem], typeItem));
+        funcDecl.addOverload(
+          new FunctionOverloadDecl(`${op.id}_${typeName}`, [typeItem, typeItem], typeItem)
+        );
       }
 
       // String concatenation (+)
       if (op.name === Operators.Add) {
-        funcDecl.addOverload(new FunctionOverloadDecl("add_string", [StringType, StringType], StringType));
+        funcDecl.addOverload(
+          new FunctionOverloadDecl("add_string", [StringType, StringType], StringType)
+        );
 
         // Bytes concatenation
-        funcDecl.addOverload(new FunctionOverloadDecl("add_bytes", [BytesType, BytesType], BytesType));
+        funcDecl.addOverload(
+          new FunctionOverloadDecl("add_bytes", [BytesType, BytesType], BytesType)
+        );
 
         // List concatenation
         funcDecl.addOverload(
@@ -488,24 +508,40 @@ export class StandardLibrary {
 
         // duration + duration
         funcDecl.addOverload(
-          new FunctionOverloadDecl("add_duration_duration", [DurationType, DurationType], DurationType)
+          new FunctionOverloadDecl(
+            "add_duration_duration",
+            [DurationType, DurationType],
+            DurationType
+          )
         );
 
         // timestamp + duration
         funcDecl.addOverload(
-          new FunctionOverloadDecl("add_timestamp_duration", [TimestampType, DurationType], TimestampType)
+          new FunctionOverloadDecl(
+            "add_timestamp_duration",
+            [TimestampType, DurationType],
+            TimestampType
+          )
         );
 
         // duration + timestamp
         funcDecl.addOverload(
-          new FunctionOverloadDecl("add_duration_timestamp", [DurationType, TimestampType], TimestampType)
+          new FunctionOverloadDecl(
+            "add_duration_timestamp",
+            [DurationType, TimestampType],
+            TimestampType
+          )
         );
       }
 
       // duration - duration
       if (op.name === Operators.Subtract) {
         funcDecl.addOverload(
-          new FunctionOverloadDecl("subtract_duration_duration", [DurationType, DurationType], DurationType)
+          new FunctionOverloadDecl(
+            "subtract_duration_duration",
+            [DurationType, DurationType],
+            DurationType
+          )
         );
 
         // timestamp - duration
@@ -544,7 +580,7 @@ export class StandardLibrary {
   /**
    * Logical operator functions
    */
-  private static logicalFunctions(): FunctionDecl[] {
+  private logicalFunctions(): FunctionDecl[] {
     const funcDecls: FunctionDecl[] = [];
 
     // Logical NOT
@@ -585,3 +621,5 @@ export class StandardLibrary {
     return funcDecls;
   }
 }
+
+export const StandardLibrary = new StandardLibraryImpl();

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as protobuf from "protobufjs";
@@ -155,7 +155,13 @@ export class ProtoLoader {
       descriptorSetPath: path.join(conformanceRoot, "conformance.desc"),
     };
 
-    for (const p of [paths.testdataRoot, paths.protoRoot, paths.googleProtoRoot, paths.proto2Root, paths.proto3Root]) {
+    for (const p of [
+      paths.testdataRoot,
+      paths.protoRoot,
+      paths.googleProtoRoot,
+      paths.proto2Root,
+      paths.proto3Root,
+    ]) {
       if (!fileExists(p)) {
         throw new Error(`Missing conformance dependency: ${p}`);
       }
@@ -180,7 +186,9 @@ export class ProtoLoader {
   private resolveImportPath(target: string): string {
     const { googleProtoRoot, proto3Root, proto2Root, protoRoot } = this.paths;
     const normalized = target.replace(/^\.\//, "");
-    const fixture = normalized.startsWith("tests/") ? normalized.replace(/^tests\//, "test/") : normalized;
+    const fixture = normalized.startsWith("tests/")
+      ? normalized.replace(/^tests\//, "test/")
+      : normalized;
 
     if (path.isAbsolute(target)) return target;
     if (normalized.startsWith("google/protobuf/")) {
@@ -355,7 +363,9 @@ function extractHeader(text: string, key: string): string {
 function formatProtocError(result: ReturnType<typeof spawnSync>, action: string): string {
   if (result.error) {
     const msg = result.error instanceof Error ? result.error.message : String(result.error);
-    return msg.includes("ENOENT") ? `protoc ${action}: protoc not found` : `protoc ${action}: ${msg}`;
+    return msg.includes("ENOENT")
+      ? `protoc ${action}: protoc not found`
+      : `protoc ${action}: ${msg}`;
   }
   return `protoc ${action}: ${result.stderr?.toString() ?? "unknown error"}`;
 }

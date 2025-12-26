@@ -1,9 +1,19 @@
-import { BoolType, type EnvOptions, Function, IntType, MemberOverload, Overload } from "../cel";
+import {
+  BoolType,
+  Function as CelFunction,
+  type EnvOptions,
+  IntType,
+  MemberOverload,
+  Overload,
+} from "../cel";
 import { ListType, MapType, OptionalType, TypeParamType } from "../checker/types";
 import { Operators } from "../common/ast";
 import {
   BoolValue,
   ErrorValue,
+  NullValue,
+  OptionalValue,
+  type Value,
   isBoolValue,
   isBytesValue,
   isDoubleValue,
@@ -16,9 +26,6 @@ import {
   isStructValue,
   isTimestampValue,
   isUintValue,
-  NullValue,
-  OptionalValue,
-  type Value,
 } from "../interpreter/values";
 import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
@@ -86,8 +93,8 @@ export class OptionalTypesExtension implements Extension {
       }),
     ];
 
-    const functions: Function[] = [
-      new Function(
+    const functions: CelFunction[] = [
+      new CelFunction(
         "optional.of",
         new Overload(
           "optional_of",
@@ -97,7 +104,7 @@ export class OptionalTypesExtension implements Extension {
           { typeParams: ["V"] }
         )
       ),
-      new Function(
+      new CelFunction(
         "optional.ofNonZeroValue",
         new Overload(
           "optional_ofNonZeroValue",
@@ -107,13 +114,13 @@ export class OptionalTypesExtension implements Extension {
           { typeParams: ["V"] }
         )
       ),
-      new Function(
+      new CelFunction(
         "optional.none",
         new Overload("optional_none", [], optionalTypeV, () => OptionalValue.none(), {
           typeParams: ["V"],
         })
       ),
-      new Function(
+      new CelFunction(
         "hasValue",
         new MemberOverload(
           "optional_hasValue",
@@ -128,7 +135,7 @@ export class OptionalTypesExtension implements Extension {
           { typeParams: ["V"] }
         )
       ),
-      new Function(
+      new CelFunction(
         "value",
         new MemberOverload(
           "optional_value",
@@ -146,7 +153,7 @@ export class OptionalTypesExtension implements Extension {
           { typeParams: ["V"] }
         )
       ),
-      new Function(
+      new CelFunction(
         "or",
         new MemberOverload(
           "optional_or_optional",
@@ -161,7 +168,7 @@ export class OptionalTypesExtension implements Extension {
           { typeParams: ["V"] }
         )
       ),
-      new Function(
+      new CelFunction(
         "orValue",
         new MemberOverload(
           "optional_orValue_value",
@@ -176,7 +183,7 @@ export class OptionalTypesExtension implements Extension {
           { typeParams: ["V"] }
         )
       ),
-      new Function(
+      new CelFunction(
         Operators.OptIndex,
         new Overload("list_optindex_optional_int", [listTypeV, IntType], optionalTypeV, undefined, {
           typeParams: ["V"],
@@ -203,7 +210,7 @@ export class OptionalTypesExtension implements Extension {
           { typeParams: ["K", "V"] }
         )
       ),
-      new Function(
+      new CelFunction(
         Operators.Index,
         new Overload(
           "optional_list_index_int",

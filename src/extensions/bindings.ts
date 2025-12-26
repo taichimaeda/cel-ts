@@ -1,4 +1,4 @@
-import { Function, type EnvOptions, Overload, Variable } from "../cel";
+import { Function as CelFunction, type EnvOptions, Overload, Variable } from "../cel";
 import { DynType, ListType, TypeParamType } from "../checker/types";
 import { type Expr, ListExpr, LiteralExpr } from "../common/ast";
 import { type Macro, MacroError, ReceiverMacro } from "../parser";
@@ -12,7 +12,7 @@ const indexMacro = "index";
 const iterVarMacro = "iterVar";
 const accuVarMacro = "accuVar";
 const unusedIterVar = "#unused";
-const blockFunction = "cel.@block";
+const blockCelFunction = "cel.@block";
 const maxBlockIndices = 30;
 
 /**
@@ -26,21 +26,23 @@ export class BindingsExtension implements Extension {
         if (!macroTargetMatchesNamespace(celNamespace, target)) {
           return undefined;
         }
-        const varName = extractIdentName(args[0]);
+        const [nameArg, initArg, resultArg] = args;
+        const varName = extractIdentName(nameArg);
         if (varName === undefined) {
           throw new MacroError("cel.bind() variable names must be simple identifiers");
         }
-        const init = args[1]!;
-        const result = args[2]!;
+        if (!initArg || !resultArg) {
+          return undefined;
+        }
 
         return helper.createComprehension(
           helper.createList(),
           unusedIterVar,
           varName,
-          init,
+          initArg,
           helper.createLiteral(false),
           helper.createIdent(varName),
-          result
+          resultArg
         );
       }),
       new ReceiverMacro(blockMacro, 2, (helper, target, args) => {
@@ -51,7 +53,11 @@ export class BindingsExtension implements Extension {
         if (!(bindings instanceof ListExpr)) {
           throw new MacroError("cel.block requires the first arg to be a list literal");
         }
-        return helper.createCall(blockFunction, bindings, args[1]!);
+        const [, body] = args;
+        if (!body) {
+          return undefined;
+        }
+        return helper.createCall(blockCelFunction, bindings, body);
       }),
       new ReceiverMacro(indexMacro, 1, (helper, target, args) => {
         if (!macroTargetMatchesNamespace(celNamespace, target)) {
@@ -88,8 +94,11 @@ export class BindingsExtension implements Extension {
     ];
 
     const typeParam = new TypeParamType("T");
-    const functions: Function[] = [
-      new Function(blockFunction, new Overload("cel_block_list", [new ListType(DynType), typeParam], typeParam)),
+    const functions: CelFunction[] = [
+      new CelFunction(
+        blockCelFunction,
+        new Overload("cel_block_list", [new ListType(DynType), typeParam], typeParam)
+      ),
     ];
 
     const variables: Variable[] = [];

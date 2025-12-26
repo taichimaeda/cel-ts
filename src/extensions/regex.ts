@@ -1,13 +1,13 @@
-import { type EnvOptions, Function, IntType, Overload, StringType } from "../cel";
+import { Function as CelFunction, type EnvOptions, IntType, Overload, StringType } from "../cel";
 import { ListType, OptionalType } from "../checker/types";
 import {
   ErrorValue,
-  isIntValue,
-  isStringValue,
   ListValue,
   OptionalValue,
   StringValue,
   type Value,
+  isIntValue,
+  isStringValue,
 } from "../interpreter/values";
 import type { Extension } from "./extensions";
 
@@ -19,7 +19,7 @@ export class RegexExtension implements Extension {
   envOptions(): EnvOptions {
     return {
       functions: [
-        new Function(
+        new CelFunction(
           "regex.extract",
           new Overload(
             "regex_extract_string_string",
@@ -28,7 +28,7 @@ export class RegexExtension implements Extension {
             (lhs: Value, rhs: Value) => extractOne(lhs, rhs)
           )
         ),
-        new Function(
+        new CelFunction(
           "regex.extractAll",
           new Overload(
             "regex_extractAll_string_string",
@@ -37,7 +37,7 @@ export class RegexExtension implements Extension {
             (lhs: Value, rhs: Value) => extractAll(lhs, rhs)
           )
         ),
-        new Function(
+        new CelFunction(
           "regex.replace",
           new Overload(
             "regex_replace_string_string_string",
@@ -93,7 +93,11 @@ function extractAll(target: Value, pattern: Value): Value {
 
   const results: Value[] = [];
   let match: RegExpExecArray | null;
-  while ((match = regex.exec(target.value())) !== null) {
+  while (true) {
+    match = regex.exec(target.value());
+    if (match === null) {
+      break;
+    }
     if (match.length > 2) {
       return ErrorValue.of("multiple capture groups are not supported");
     }
@@ -151,7 +155,11 @@ function replaceRegex(args: Value[]): Value {
   let lastIndex = 0;
   let applied = 0;
   let match: RegExpExecArray | null;
-  while ((match = regex.exec(target.value())) !== null) {
+  while (true) {
+    match = regex.exec(target.value());
+    if (match === null) {
+      break;
+    }
     result += target.value().slice(lastIndex, match.index);
     result += match[0].replace(replacementRegex, replacementJs);
     lastIndex = match.index + match[0].length;

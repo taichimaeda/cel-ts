@@ -1,16 +1,16 @@
-import { Env, Function, MemberOverload, StringType, StringValue, Variable } from "../src/cel";
+import * as cel from "../src/cel";
 
-const env = new Env({
-  variables: [new Variable("i", StringType), new Variable("you", StringType)],
+const env = new cel.Env({
+  variables: [new cel.Variable("i", cel.StringType), new cel.Variable("you", cel.StringType)],
   functions: [
-    new Function(
+    new cel.Function(
       "greet",
-      new MemberOverload(
+      new cel.MemberOverload(
         "string_greet_string",
-        [StringType, StringType],
-        StringType,
+        [cel.StringType, cel.StringType],
+        cel.StringType,
         (lhs, rhs) =>
-          new StringValue(
+          cel.StringValue.of(
             `Hello ${String(rhs.value())}! Nice to meet you, I'm ${String(lhs.value())}.`
           )
       )
@@ -22,4 +22,4 @@ const ast = env.compile("i.greet(you)");
 const program = env.program(ast);
 const result = program.eval({ i: "CEL", you: "world" });
 
-console.log(String(result.value()));
+console.info(String(result.value()));

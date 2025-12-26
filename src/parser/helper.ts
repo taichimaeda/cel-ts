@@ -224,7 +224,12 @@ export class ParserHelper {
     if (questionMark !== null && questionMark !== undefined) {
       const trueExpr = ctx.conditionalOr(1);
       const falseExpr = ctx.expr();
-      if (trueExpr === null || trueExpr === undefined || falseExpr === null || falseExpr === undefined) {
+      if (
+        trueExpr === null ||
+        trueExpr === undefined ||
+        falseExpr === null ||
+        falseExpr === undefined
+      ) {
         return this.createError(ctx, "invalid ternary expression");
       }
 
@@ -456,7 +461,7 @@ export class ParserHelper {
       }
       let name = identToken.getText();
       if (leadingDot) {
-        name = "." + name;
+        name = `.${name}`;
       }
       const result = new IdentExpr(id, name);
       this.setPosition(id, ctx);
@@ -479,7 +484,7 @@ export class ParserHelper {
       }
       let functionName = identToken.getText();
       if (leadingDot) {
-        functionName = "." + functionName;
+        functionName = `.${functionName}`;
       }
 
       // Build arguments
@@ -595,7 +600,7 @@ export class ParserHelper {
     }
     let typeName = identParts.map((part: TerminalNode) => part.getText()).join(".");
     if (leadingDot) {
-      typeName = "." + typeName;
+      typeName = `.${typeName}`;
     }
 
     const fieldInit = ctx.fieldInitializerList();
@@ -764,7 +769,7 @@ export class ParserHelper {
       return sign === "-" ? -value : value;
     }
     if (literal.startsWith("0") && literal.length > 1 && !literal.includes(".")) {
-      const value = BigInt("0o" + literal.slice(1));
+      const value = BigInt(`0o${literal.slice(1)}`);
       return sign === "-" ? -value : value;
     }
     const value = BigInt(literal);
@@ -881,11 +886,11 @@ export class ParserHelper {
       /\\(u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8}|[xX][0-9a-fA-F]{2}|[0-7]{1,3}|[abfnrtv\\'\"?`])/g;
 
     let lastIndex = 0;
-    Array.from(str.matchAll(escapeRegex)).forEach(match => {
+    for (const match of str.matchAll(escapeRegex)) {
       const seq = match[1];
       const offset = match.index ?? 0;
       if (seq === undefined) {
-        return;
+        continue;
       }
       if (offset > lastIndex) {
         bytes.push(...encoder.encode(str.slice(lastIndex, offset)));
@@ -942,7 +947,7 @@ export class ParserHelper {
           break;
       }
       lastIndex = offset + match[0].length;
-    });
+    }
 
     if (lastIndex < str.length) {
       bytes.push(...encoder.encode(str.slice(lastIndex)));

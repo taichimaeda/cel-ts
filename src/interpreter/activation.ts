@@ -20,8 +20,6 @@ type ActivationInput = Activation | Map<string, Value> | Record<string, unknown>
  * Empty activation that resolves no variables
  */
 export class EmptyActivation {
-  constructor() { }
-
   resolve(_name: string): Value | undefined {
     return undefined;
   }
@@ -38,7 +36,7 @@ export class MapActivation {
   constructor(
     private readonly bindings: Map<string, Value>,
     private readonly parentActivation?: Activation
-  ) { }
+  ) {}
 
   resolve(name: string): Value | undefined {
     const value = this.bindings.get(name);
@@ -103,7 +101,7 @@ export class HierarchicalActivation {
   constructor(
     private readonly parentActivation: Activation,
     private readonly child: Activation
-  ) { }
+  ) {}
 
   resolve(name: string): Value | undefined {
     const value = this.child.resolve(name);
@@ -207,7 +205,7 @@ export class MutableActivation {
  * Activation that provides error values for undefined variables
  */
 export class StrictActivation {
-  constructor(private readonly delegate: Activation) { }
+  constructor(private readonly delegate: Activation) {}
 
   resolve(name: string): Value | undefined {
     const value = this.delegate.resolve(name);
@@ -226,7 +224,7 @@ export class ActivationCache {
   private readonly lazyCache = new WeakMap<object, LazyActivation>();
   private readonly mapCache = new WeakMap<Map<string, Value>, MapActivation>();
 
-  constructor(private readonly typeActivation: Activation) { }
+  constructor(private readonly typeActivation: Activation) {}
 
   getActivation(vars?: ActivationInput): Activation {
     if (vars === undefined) {

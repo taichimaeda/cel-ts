@@ -10,7 +10,7 @@ export class VariableDecl {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) { }
+  ) {}
 }
 
 /**
@@ -22,7 +22,7 @@ export class ConstantDecl {
     readonly name: string,
     readonly type: Type,
     readonly value: unknown
-  ) { }
+  ) {}
 }
 
 /**
@@ -32,7 +32,7 @@ export class StructFieldDecl {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) { }
+  ) {}
 }
 
 /**
@@ -102,7 +102,7 @@ export class FunctionDecl {
   private readonly overloadOrder: string[] = [];
   private disabledOverloads: Set<string> = new Set();
 
-  constructor(readonly name: string) { }
+  constructor(readonly name: string) {}
 
   /**
    * Add an overload to this function

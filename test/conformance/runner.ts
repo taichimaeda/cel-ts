@@ -1,5 +1,13 @@
 import type * as protobuf from "protobufjs";
-import { Env, Function, MemberOverload, Overload, Struct, Variable } from "../../src/cel";
+import {
+  Function as CelFunction,
+  Env,
+  type EnvOptions,
+  MemberOverload,
+  Overload,
+  Struct,
+  Variable,
+} from "../../src/cel";
 import { DynType, type Type } from "../../src/checker/types";
 import {
   BindingsExtension,
@@ -12,7 +20,13 @@ import {
   TwoVarComprehensionsExtension,
   applyExtensions,
 } from "../../src/extensions";
-import { BoolValue, type Value, isUnknownValue, setAnyResolver } from "../../src/interpreter/values";
+import {
+  BoolValue,
+  type Value,
+  isUnknownValue,
+  setAnyResolver,
+} from "../../src/interpreter/values";
+import { protoFieldToValue } from "./values";
 import {
   type ProtoLoader,
   type ProtoObject,
@@ -22,7 +36,7 @@ import {
   protoLoader,
   stripTypeUrl,
 } from "./protos";
-import { ConformanceReporter, type TestContext } from "./reporter";
+import type { ConformanceReporter, TestContext } from "./reporter";
 import { messageToValue, protoToType, protoToValue } from "./values";
 
 /**
@@ -109,7 +123,9 @@ export class TestRunner {
 
     // Check-only test: verify deduced type
     if (test.checkOnly) {
-      const deducedType = test.typedResult?.["deduced_type"] as ProtoObject | undefined;
+      const deducedType = test.typedResult
+        ? (protoFieldToValue(test.typedResult, "deduced_type") as ProtoObject | undefined)
+        : undefined;
       if (!deducedType) return false;
       const expectedType = protoToType(deducedType);
       if (!expectedType) return false;
@@ -141,7 +157,9 @@ export class TestRunner {
 
     // Check typed result type
     if (test.typedResult) {
-      const deducedType = test.typedResult["deduced_type"] as ProtoObject | undefined;
+      const deducedType = protoFieldToValue(test.typedResult, "deduced_type") as
+        | ProtoObject
+        | undefined;
       if (deducedType) {
         const expectedType = protoToType(deducedType);
         if (!expectedType?.isEquivalentType(ast.outputType ?? DynType)) {
@@ -164,13 +182,14 @@ export class TestRunner {
     test: SimpleTest,
     fileName: string,
     sectionName: string
-  ): ConstructorParameters<typeof Env>[0] {
+  ): EnvOptions {
     const variables: Variable[] = [];
     const structs: Struct[] = [];
     const functions = new Map<string, Overload[]>();
 
     for (const decl of test.typeEnv ?? []) {
-      if (decl["function"]) {
+      const functionDecl = protoFieldToValue(decl, "function");
+      if (functionDecl) {
         const func = convertFunctionDecl(decl);
         if (func) {
           const existing = functions.get(func.name) ?? [];
@@ -179,11 +198,11 @@ export class TestRunner {
         continue;
       }
 
-      const ident = decl["ident"] as ProtoObject | undefined;
+      const ident = protoFieldToValue(decl, "ident") as ProtoObject | undefined;
       if (!ident) continue;
 
-      const type = protoToType(ident["type"] as ProtoObject);
-      const name = decl["name"] as string;
+      const type = protoToType(protoFieldToValue(ident, "type") as ProtoObject);
+      const name = protoFieldToValue(decl, "name") as string;
       if (!type || !name) continue;
 
       if (type.kind === "struct") {
@@ -192,10 +211,10 @@ export class TestRunner {
       variables.push(new Variable(name, type));
     }
 
-    const base: ConstructorParameters<typeof Env>[0] = {
+    const base: EnvOptions = {
       variables,
       structs,
-      functions: [...functions].map(([name, overloads]) => new Function(name, ...overloads)),
+      functions: [...functions].map(([name, overloads]) => new CelFunction(name, ...overloads)),
       typeProvider: this.loader.typeProvider,
       disableTypeChecking: !!test.disableCheck,
       enumValuesAsInt: fileName === "enums.textproto" ? sectionName.startsWith("legacy_") : true,
@@ -237,7 +256,9 @@ function buildTestContext(fileName: string, sectionName: string, test: SimpleTes
     ...(test.checkOnly && { checkOnly: true }),
     ...(test.value !== undefined && { expectedValue: test.value }),
     ...(test.typedResult !== undefined && { expectedValue: test.typedResult }),
-    ...((test.evalError !== undefined || test.anyEvalErrors !== undefined) && { expectedError: true }),
+    ...((test.evalError !== undefined || test.anyEvalErrors !== undefined) && {
+      expectedError: true,
+    }),
   };
 }
 
@@ -262,8 +283,8 @@ function toBindingMap(bindings?: Record<string, unknown>): Map<string, Value> {
 
   for (const [name, expr] of Object.entries(bindings)) {
     const obj = expr as ProtoObject;
-    if (obj["kind"] === "value") {
-      const val = protoToValue(obj["value"] as ProtoObject);
+    if (protoFieldToValue(obj, "kind") === "value") {
+      const val = protoToValue(protoFieldToValue(obj, "value") as ProtoObject);
       if (val) result.set(name, val);
     }
   }
@@ -272,8 +293,8 @@ function toBindingMap(bindings?: Record<string, unknown>): Map<string, Value> {
 
 function extractExpectedValue(test: SimpleTest): Value | null {
   if (test.value) return protoToValue(test.value);
-  if (test.typedResult?.["result"]) {
-    return protoToValue(test.typedResult["result"] as ProtoObject);
+  if (test.typedResult && protoFieldToValue(test.typedResult, "result")) {
+    return protoToValue(protoFieldToValue(test.typedResult, "result") as ProtoObject);
   }
   return null;
 }
@@ -291,7 +312,7 @@ function evaluateProgram(
 }
 
 function extractUnknownIds(obj: ProtoObject | undefined): number[] {
-  const exprs = obj?.["exprs"];
+  const exprs = obj ? protoFieldToValue(obj, "exprs") : undefined;
   if (!Array.isArray(exprs)) return [];
   return exprs.map((id) => Number(id)).filter((n) => Number.isFinite(n));
 }
@@ -305,29 +326,37 @@ function checkUnknown(expected: ProtoObject | undefined, actual: Value | undefin
 }
 
 function checkAnyUnknowns(expected: ProtoObject | undefined, actual: Value | undefined): boolean {
-  const unknowns = (expected?.["unknowns"] ?? []) as ProtoObject[];
-  if (!unknowns.length) return checkUnknown(undefined, actual);
+  const unknowns = (expected ? protoFieldToValue(expected, "unknowns") : undefined) as
+    | ProtoObject[]
+    | undefined;
+  if (!unknowns?.length) return checkUnknown(undefined, actual);
   return unknowns.some((u) => checkUnknown(u, actual));
 }
 
 function convertFunctionDecl(decl: ProtoObject): { name: string; overloads: Overload[] } | null {
-  const name = decl["name"];
+  const name = protoFieldToValue(decl, "name");
   if (typeof name !== "string") return null;
 
-  const func = decl["function"] as ProtoObject | undefined;
-  const overloads = (func?.["overloads"] ?? func?.["overload"]) as ProtoObject[] | undefined;
+  const func = protoFieldToValue(decl, "function") as ProtoObject | undefined;
+  const overloads = (
+    func
+      ? (protoFieldToValue(func, "overloads", "overload") as ProtoObject[] | undefined)
+      : undefined
+  ) as ProtoObject[] | undefined;
   if (!overloads?.length) return null;
 
   const result: Overload[] = [];
   for (const overload of overloads) {
-    const id = (overload["overload_id"] ?? overload["overloadId"]) as string | undefined;
+    const id = protoFieldToValue(overload, "overload_id", "overloadId") as string | undefined;
     if (!id) continue;
 
-    const params = (overload["params"] ?? []) as ProtoObject[];
+    const params = (protoFieldToValue(overload, "params") ?? []) as ProtoObject[];
     const argTypes = params.map((p) => protoToType(p) ?? DynType);
-    const resultType = protoToType((overload["result_type"] ?? overload["resultType"]) as ProtoObject) ?? DynType;
+    const resultType =
+      protoToType(protoFieldToValue(overload, "result_type", "resultType") as ProtoObject) ??
+      DynType;
     const typeParams = extractTypeParams(overload, argTypes, resultType);
-    const isInstance = !!(overload["is_instance_function"] ?? overload["isInstanceFunction"]);
+    const isInstance = !!protoFieldToValue(overload, "is_instance_function", "isInstanceFunction");
 
     result.push(
       isInstance
@@ -340,7 +369,7 @@ function convertFunctionDecl(decl: ProtoObject): { name: string; overloads: Over
 }
 
 function extractTypeParams(overload: ProtoObject, argTypes: Type[], resultType: Type): string[] {
-  const declared = (overload["type_params"] ?? overload["typeParams"]) as string[] | undefined;
+  const declared = protoFieldToValue(overload, "type_params", "typeParams") as string[] | undefined;
   if (declared?.length) return declared;
 
   const params = new Set<string>();

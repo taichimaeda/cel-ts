@@ -66,7 +66,10 @@
       "src/parser/gen",
       "test/conformance/cel-spec",
       "test/conformance/fixtures",
-      "test/conformance/protobuf"
+      "test/conformance/protobuf",
+      "test/conformance/results",
+      "test/profile/*.js",
+      "test/profile/*.js.map"
     ]
   }
 }

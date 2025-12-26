@@ -5,6 +5,7 @@ import {
   AST,
   CallExpr,
   ComprehensionExpr,
+  type Expr,
   IdentExpr,
   ListExpr,
   LiteralExpr,
@@ -13,7 +14,6 @@ import {
   SelectExpr,
   StructExpr,
   StructField,
-  type Expr,
 } from "./ast";
 
 /**

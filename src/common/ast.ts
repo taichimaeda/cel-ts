@@ -132,12 +132,7 @@ export class UnspecifiedExpr extends BaseExpr {
     super();
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -163,12 +158,7 @@ export class LiteralExpr extends BaseExpr {
     super();
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -206,12 +196,7 @@ export class IdentExpr extends BaseExpr {
     super();
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -241,12 +226,7 @@ export class SelectExpr extends BaseExpr {
     super();
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -276,12 +256,7 @@ export class CallExpr extends BaseExpr {
     super();
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -315,12 +290,7 @@ export class ListExpr extends BaseExpr {
     super();
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -352,7 +322,7 @@ export interface EntryExpr {
  * Base class providing shared behavior for entries.
  */
 export abstract class BaseEntry implements EntryExpr {
-  constructor(readonly id: ExprId) { }
+  constructor(readonly id: ExprId) {}
 
   abstract accept(visitor: Visitor, order?: VisitOrder, depth?: number, maxDepth?: number): void;
 
@@ -379,12 +349,7 @@ export class MapEntry extends BaseEntry {
     super(id);
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -412,12 +377,7 @@ export class MapExpr extends BaseExpr {
     super();
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -447,12 +407,7 @@ export class StructField extends BaseEntry {
     super(id);
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -480,12 +435,7 @@ export class StructExpr extends BaseExpr {
     super();
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -559,12 +509,7 @@ export class ComprehensionExpr extends BaseExpr {
     this.result = result;
   }
 
-  override accept(
-    visitor: Visitor,
-    order: VisitOrder = "pre",
-    depth = 0,
-    maxDepth = 0
-  ): void {
+  override accept(visitor: Visitor, order: VisitOrder = "pre", depth = 0, maxDepth = 0): void {
     if (maxDepth > 0 && depth >= maxDepth) {
       return;
     }
@@ -611,7 +556,7 @@ export type ReferenceInfo = VariableReference | ConstantReference | FunctionRefe
  * Represents runtime variables resolved from the activation.
  */
 export class VariableReference {
-  constructor(readonly name: string) { }
+  constructor(readonly name: string) {}
 }
 
 /**
@@ -622,7 +567,7 @@ export class ConstantReference {
   constructor(
     readonly name: string,
     readonly value: unknown
-  ) { }
+  ) {}
 }
 
 /**
@@ -631,8 +576,8 @@ export class ConstantReference {
 export class FunctionReference {
   constructor(
     readonly overloadIds: string[],
-    readonly name?: string | undefined,
-  ) { }
+    readonly name?: string | undefined
+  ) {}
 }
 
 // ============================================================================
@@ -649,7 +594,7 @@ export class AST {
     readonly sourceInfo: SourceInfo,
     readonly typeMap: Map<ExprId, Type> = new Map(),
     readonly refMap: Map<ExprId, ReferenceInfo> = new Map()
-  ) { }
+  ) {}
 
   /**
    * Get the type for an expression ID.

@@ -5,8 +5,8 @@ import {
   BoolType,
   BytesType,
   DoubleType,
-  DynType,
   DurationType,
+  DynType,
   IntType,
   ListType,
   MapType,
@@ -76,7 +76,7 @@ export interface TypeProvider {
  * Type provider that merges multiple providers.
  */
 export class CompositeTypeProvider implements TypeProvider {
-  constructor(private readonly providers: readonly TypeProvider[]) { }
+  constructor(private readonly providers: readonly TypeProvider[]) {}
 
   findStructType(typeName: string): Type | undefined {
     for (const provider of this.providers) {
@@ -231,7 +231,7 @@ export class ProtobufTypeProvider implements TypeProvider {
   constructor(
     private readonly root: ProtobufRoot,
     private readonly options: { legacyProto2?: boolean } = {}
-  ) { }
+  ) {}
 
   findStructType(typeName: string): Type | undefined {
     const message = this.lookupMessage(typeName);
@@ -273,9 +273,7 @@ export class ProtobufTypeProvider implements TypeProvider {
     if (message === undefined) {
       return [];
     }
-    return message.fieldsArray.map((field) =>
-      stripLeadingDot(normalizeFieldName(field.name))
-    );
+    return message.fieldsArray.map((field) => stripLeadingDot(normalizeFieldName(field.name)));
   }
 
   fieldProtoType(typeName: string, fieldName: string): string | undefined {
@@ -363,8 +361,7 @@ export class ProtobufTypeProvider implements TypeProvider {
     if (edition === "proto2") {
       return true;
     }
-    const features = (message as ProtoType & { _features?: { field_presence?: string } })
-      ._features;
+    const features = (message as ProtoType & { _features?: { field_presence?: string } })._features;
     return features?.field_presence === "EXPLICIT";
   }
 
@@ -374,7 +371,7 @@ export class ProtobufTypeProvider implements TypeProvider {
 
   private fieldType(field: Field): Type {
     if (field.map) {
-      const keyType = this.scalarType((field as { keyType?: string })["keyType"]);
+      const keyType = this.scalarType((field as { keyType?: string }).keyType);
       const valueType = this.typeFromName(field.type);
       return new MapType(keyType, valueType);
     }

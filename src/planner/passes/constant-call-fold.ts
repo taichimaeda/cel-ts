@@ -4,11 +4,11 @@
 import type { AST } from "../../common/ast";
 import {
   CallExpr,
-  LiteralExpr,
-  Operators,
   type Expr,
   type ExprId,
+  LiteralExpr,
   type LiteralValue,
+  Operators,
 } from "../../common/ast";
 import { Rewriter } from "../../common/rewriter";
 import type { PreOptimizerPass } from "../optimizer";

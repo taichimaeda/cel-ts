@@ -27,11 +27,7 @@ import {
 import type { AST as CommonAST } from "./common/ast";
 import type { SourceInfo } from "./common/source";
 import { standardFunctions } from "./interpreter";
-import {
-  type Activation,
-  ActivationCache,
-  MapActivation,
-} from "./interpreter/activation";
+import { type Activation, ActivationCache, MapActivation } from "./interpreter/activation";
 import {
   BinaryDispatcherOverload,
   Dispatcher,
@@ -41,7 +37,7 @@ import {
 } from "./interpreter/dispatcher";
 import type { Interpretable } from "./interpreter/interpretable";
 import { formatRuntimeError } from "./interpreter/utils";
-import { isErrorValue, TypeValue, type Value } from "./interpreter/values";
+import { TypeValue, type Value, isErrorValue } from "./interpreter/values";
 import { AllMacros, type Macro, Parser, ParserHelper } from "./parser";
 import { Planner } from "./planner";
 
@@ -68,10 +64,6 @@ export class CELError extends Error {
  */
 export class CompileError extends CELError {
   override name = "CompileError";
-
-  constructor(message: string, issues: Issues) {
-    super(message, issues);
-  }
 }
 
 /**
@@ -79,10 +71,6 @@ export class CompileError extends CELError {
  */
 export class ParseError extends CELError {
   override name = "ParseError";
-
-  constructor(message: string) {
-    super(message);
-  }
 }
 
 // ============================================================================
@@ -94,13 +82,16 @@ export {
   AnyType,
   BoolType,
   BytesType,
-  DoubleType, DurationType, DynType, ErrorType,
+  DoubleType,
+  DurationType,
+  DynType,
+  ErrorType,
   IntType,
   NullType,
   StringType,
   TimestampType,
   TypeType,
-  UintType
+  UintType,
 } from "./checker/types";
 
 /**
@@ -159,7 +150,7 @@ export class Issues {
   constructor(
     readonly errors: Errors = new Errors(),
     _source = ""
-  ) { }
+  ) {}
 
   /**
    * Returns true if there are any errors.
@@ -179,7 +170,10 @@ export class Issues {
    * Format all errors as a string.
    */
   toString(): string {
-    return this.errors.getErrors().map((errorItem) => this.formatError(errorItem)).join("\n");
+    return this.errors
+      .getErrors()
+      .map((errorItem) => this.formatError(errorItem))
+      .join("\n");
   }
 
   private formatError(error: ReturnType<Errors["getErrors"]>[number]): string {
@@ -202,7 +196,7 @@ export class Ast {
     readonly ast: CommonAST,
     readonly source: string,
     private checked = false
-  ) { }
+  ) {}
 
   /**
    * Returns true if the AST has been type-checked.
@@ -240,7 +234,7 @@ export class Program {
   constructor(
     private readonly interpretable: Interpretable,
     private readonly sourceInfo: SourceInfo
-  ) { }
+  ) {}
 
   private static readonly typeValueBindings = typeValueBindings();
   private static readonly typeActivation = new MapActivation(Program.typeValueBindings);
@@ -280,7 +274,6 @@ function typeValueBindings(): Map<string, Value> {
     ["google.protobuf.Duration", TypeValue.DurationType],
   ]);
 }
-
 
 // ============================================================================
 // Env configuration helpers
@@ -359,7 +352,7 @@ export class EnvVariableOption {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) { }
+  ) {}
 
   register(config: EnvConfig): void {
     config.variables.push(new VariableDecl(this.name, this.type));
@@ -374,7 +367,7 @@ export class EnvConstantOption {
     readonly name: string,
     readonly type: Type,
     readonly value: Value
-  ) { }
+  ) {}
 
   register(config: EnvConfig): void {
     config.constants.push(new ConstantDecl(this.name, this.type, this.value));
@@ -417,7 +410,7 @@ export class EnvStructFieldOption {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) { }
+  ) {}
 }
 
 /**
@@ -555,7 +548,7 @@ export {
   GlobalFunctionOverloadOption as Overload,
   EnvStructOption as Struct,
   EnvStructFieldOption as StructField,
-  EnvVariableOption as Variable
+  EnvVariableOption as Variable,
 };
 export type { EnvOptions as Options };
 
@@ -583,11 +576,9 @@ export class Env {
     const provider = config.typeProvider
       ? new CompositeTypeProvider([config.structProvider, config.typeProvider])
       : config.structProvider;
-    this.checkerEnv = new CheckerEnv(
-      new CheckerContainer(config.container),
-      provider,
-      { coerceEnumToInt: config.enumValuesAsInt }
-    );
+    this.checkerEnv = new CheckerEnv(new CheckerContainer(config.container), provider, {
+      coerceEnumToInt: config.enumValuesAsInt,
+    });
     this.dispatcher = new Dispatcher();
     this.parser = new Parser();
 
@@ -806,7 +797,7 @@ export {
   MapActivation,
   MutableActivation,
   PartialActivation,
-  StrictActivation
+  StrictActivation,
 } from "./interpreter/activation";
 export type { Activation } from "./interpreter/activation";
 export {
@@ -816,13 +807,16 @@ export {
   DurationValue,
   EnumValue,
   ErrorValue,
-  IntValue, isErrorValue,
-  isUnknownValue, ListValue,
+  IntValue,
+  isErrorValue,
+  isUnknownValue,
+  ListValue,
   MapValue,
   NullValue,
   StringValue,
-  TimestampValue, toTypeValue, TypeValue,
-  UintValue
+  TimestampValue,
+  toTypeValue,
+  TypeValue,
+  UintValue,
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";
-

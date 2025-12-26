@@ -1,16 +1,11 @@
+import { writeFileSync } from "node:fs";
 import { parse as marcbachmannParse } from "@marcbachmann/cel-js";
 import { evaluate as chromeggEvaluate, parse as chromeggParse } from "cel-js";
 import type { CstNode } from "chevrotain";
 import { bench, do_not_optimize, run, summary } from "mitata";
-import { writeFileSync } from "node:fs";
-import {
-  DynType,
-  Env,
-  Program,
-  Type,
-  Variable
-} from "../../src/cel";
+import { DynType, Env, type EnvOptions, type Program, type Type, Variable } from "../../src/cel";
 import { ListType, MapType, builtinTypeNameToType } from "../../src/checker/types";
+import { StringsExtension, applyExtensions } from "../../src/extensions";
 import { type BenchmarkCase, type BenchmarkEngineId, cases } from "./cases";
 
 export type BenchmarkResult = {
@@ -61,13 +56,21 @@ class CelTsBenchmarakEngine {
     return (program as Program).eval(benchCase.activation);
   }
 
-  private buildEnvOptions(
-    benchCase: BenchmarkCase
-  ): ConstructorParameters<typeof Env>[0] {
+  private buildEnvOptions(benchCase: BenchmarkCase): EnvOptions {
     const variables = this.buildVarEnvOptions(benchCase);
-    return {
+    const base: EnvOptions = {
       ...(variables.length > 0 && { variables }),
     };
+    const extensionMap = {
+      strings: new StringsExtension(),
+    };
+    const extensions = (benchCase.extensions ?? [])
+      .map((name) => extensionMap[name as keyof typeof extensionMap])
+      .filter((extension) => extension !== undefined);
+    if (extensions.length > 0) {
+      return applyExtensions(base, ...extensions);
+    }
+    return base;
   }
 
   private buildVarEnvOptions(benchCase: BenchmarkCase): Variable[] {
@@ -81,15 +84,15 @@ class CelTsBenchmarakEngine {
 
   private typeSpecToType(spec: unknown): Type {
     if (this.isTypeSpecRecord(spec)) {
-      if ("list" in spec) {
-        return new ListType(this.typeSpecToType(spec["list"]));
+      const listSpec = (spec as { list?: unknown }).list;
+      if (listSpec !== undefined) {
+        return new ListType(this.typeSpecToType(listSpec));
       }
-      if ("map" in spec && this.isTypeSpecRecord(spec["map"])) {
-        const mapSpec = spec["map"];
-        return new MapType(
-          this.typeSpecToType(mapSpec["key"]),
-          this.typeSpecToType(mapSpec["value"])
-        );
+      const mapSpec = (spec as { map?: Record<string, unknown> }).map;
+      if (mapSpec && this.isTypeSpecRecord(mapSpec)) {
+        const mapSpecKey = (mapSpec as { key?: unknown }).key;
+        const mapSpecValue = (mapSpec as { value?: unknown }).value;
+        return new MapType(this.typeSpecToType(mapSpecKey), this.typeSpecToType(mapSpecValue));
       }
     }
     return builtinTypeNameToType(String(spec)) ?? DynType;
@@ -186,10 +189,10 @@ export class BenchmarkRunner {
       for (const benchRun of benchmark.runs) {
         if (!benchRun.stats) continue;
 
-        const NS_PER_SEC = 1e9;
+        const nsPerSec = 1e9;
         results.push({
           name: benchRun.name,
-          opsPerSec: NS_PER_SEC / benchRun.stats.avg,
+          opsPerSec: nsPerSec / benchRun.stats.avg,
           avgNs: benchRun.stats.avg,
           p25Ns: benchRun.stats.p25,
           p50Ns: benchRun.stats.p50,

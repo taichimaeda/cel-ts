@@ -1,7 +1,4 @@
-export type BenchmarkEngineId =
-  | "taichimaeda/cel-ts"
-  | "chromegg/cel-js"
-  | "marcbachmann/cel-js";
+export type BenchmarkEngineId = "taichimaeda/cel-ts" | "chromegg/cel-js" | "marcbachmann/cel-js";
 
 export type BenchmarkCase = {
   name: string;
@@ -9,6 +6,7 @@ export type BenchmarkCase = {
   environment?: Record<string, unknown>;
   activation: Record<string, unknown>;
   engineIds: BenchmarkEngineId[];
+  extensions?: string[];
 };
 
 export const cases: BenchmarkCase[] = [
@@ -95,5 +93,12 @@ export const cases: BenchmarkCase[] = [
     environment: { list_value: { list: "string" } },
     activation: { list_value: ["abc", "bcd", "cde", "def"] },
     engineIds: ["taichimaeda/cel-ts", "chromegg/cel-js", "marcbachmann/cel-js"],
+  },
+  {
+    name: "formatted_list_size",
+    expr: "'formatted list: %s, size: %d'.format([['abc', 'cde'], 2])",
+    activation: {},
+    engineIds: ["taichimaeda/cel-ts"],
+    extensions: ["strings"],
   },
 ];

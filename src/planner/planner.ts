@@ -60,20 +60,15 @@ import {
   EnumValue,
   ErrorValue,
   IntValue,
-  isStringValue,
-  isValue,
   NullValue,
   StringValue,
-  toTypeValue,
   UintValue,
   type Value,
+  isStringValue,
+  isValue,
+  toTypeValue,
 } from "../interpreter/values";
-import {
-  AllPostPasses,
-  AllPrePasses,
-  PostOptimizer,
-  PreOptimizer,
-} from "./optimizer";
+import { AllPostPasses, AllPrePasses, PostOptimizer, PreOptimizer } from "./optimizer";
 
 /**
  * Planner options for controlling interpretable generation.

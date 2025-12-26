@@ -1,9 +1,6 @@
 import { type Expr, IdentExpr, SelectExpr } from "../common/ast";
 
-export function macroTargetMatchesNamespace(
-  namespace: string,
-  target: Expr | undefined
-): boolean {
+export function macroTargetMatchesNamespace(namespace: string, target: Expr | undefined): boolean {
   if (target === undefined) return false;
   if (target instanceof IdentExpr) {
     return target.name === namespace;

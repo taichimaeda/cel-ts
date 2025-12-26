@@ -1,7 +1,7 @@
 import {
+  Function as CelFunction,
   DynType,
   type EnvOptions,
-  Function,
   IntType,
   MemberOverload,
   Overload,
@@ -10,6 +10,10 @@ import {
 import { ListType } from "../checker/types";
 import {
   ErrorValue,
+  IntValue,
+  ListValue,
+  StringValue,
+  type Value,
   isBoolValue,
   isBytesValue,
   isDoubleValue,
@@ -19,10 +23,6 @@ import {
   isStringValue,
   isTypeValue,
   isUintValue,
-  IntValue,
-  ListValue,
-  StringValue,
-  type Value,
 } from "../interpreter/values";
 import { type Macro, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
@@ -46,7 +46,7 @@ export class StringsExtension implements Extension {
     const macros: Macro[] = [];
 
     const functions = [
-      new Function(
+      new CelFunction(
         "charAt",
         new MemberOverload(
           "string_char_at_int",
@@ -55,7 +55,7 @@ export class StringsExtension implements Extension {
           (lhs: Value, rhs: Value) => stringCharAt(lhs, rhs)
         )
       ),
-      new Function(
+      new CelFunction(
         "indexOf",
         new MemberOverload(
           "string_index_of_string",
@@ -70,7 +70,7 @@ export class StringsExtension implements Extension {
           (args: Value[]) => stringIndexOfOffset(args)
         )
       ),
-      new Function(
+      new CelFunction(
         "lastIndexOf",
         new MemberOverload(
           "string_last_index_of_string",
@@ -85,14 +85,14 @@ export class StringsExtension implements Extension {
           (args: Value[]) => stringLastIndexOfOffset(args)
         )
       ),
-      new Function(
+      new CelFunction(
         "lowerAscii",
         new MemberOverload("string_lower_ascii", [StringType], StringType, (arg: Value) => {
           if (!isStringValue(arg)) return ErrorValue.typeMismatch("string", arg);
           return StringValue.of(toLowerAscii(arg.value()));
         })
       ),
-      new Function(
+      new CelFunction(
         "replace",
         new MemberOverload(
           "string_replace_string_string",
@@ -107,7 +107,7 @@ export class StringsExtension implements Extension {
           (args: Value[]) => stringReplace(args)
         )
       ),
-      new Function(
+      new CelFunction(
         "split",
         new MemberOverload(
           "string_split_string",
@@ -122,7 +122,7 @@ export class StringsExtension implements Extension {
           (args: Value[]) => stringSplitN(args)
         )
       ),
-      new Function(
+      new CelFunction(
         "substring",
         new MemberOverload(
           "string_substring_int",
@@ -137,14 +137,14 @@ export class StringsExtension implements Extension {
           (args: Value[]) => stringSubstringRange(args)
         )
       ),
-      new Function(
+      new CelFunction(
         "trim",
         new MemberOverload("string_trim", [StringType], StringType, (arg: Value) => {
           if (!isStringValue(arg)) return ErrorValue.typeMismatch("string", arg);
           return StringValue.of(trimUnicodeSpaces(arg.value()));
         })
       ),
-      new Function(
+      new CelFunction(
         "upperAscii",
         new MemberOverload("string_upper_ascii", [StringType], StringType, (arg: Value) => {
           if (!isStringValue(arg)) return ErrorValue.typeMismatch("string", arg);
@@ -163,7 +163,7 @@ export class StringsExtension implements Extension {
         })
       );
       functions.push(
-        new Function(
+        new CelFunction(
           "format",
           new MemberOverload(
             "string_format",
@@ -172,7 +172,7 @@ export class StringsExtension implements Extension {
             (lhs: Value, rhs: Value) => stringFormatPair(lhs, rhs)
           )
         ),
-        new Function(
+        new CelFunction(
           "strings.quote",
           new Overload("strings_quote", [StringType], StringType, (arg: Value) => {
             if (!isStringValue(arg)) return ErrorValue.typeMismatch("string", arg);
@@ -184,7 +184,7 @@ export class StringsExtension implements Extension {
 
     if (this.version >= 2) {
       functions.push(
-        new Function(
+        new CelFunction(
           "join",
           new MemberOverload("list_join", [new ListType(StringType)], StringType, (arg: Value) =>
             listJoin(arg, "")
@@ -196,7 +196,7 @@ export class StringsExtension implements Extension {
             (lhs: Value, rhs: Value) => listJoin(lhs, rhs)
           )
         ),
-        new Function(
+        new CelFunction(
           "reverse",
           new MemberOverload("string_reverse", [StringType], StringType, (arg: Value) => {
             if (!isStringValue(arg)) return ErrorValue.typeMismatch("string", arg);
@@ -310,17 +310,11 @@ function stringReplace(args: Value[]): Value {
       return target;
     }
     if (count < 0) {
-      return StringValue.of(
-        target.value().split(oldValue.value()).join(newValue.value())
-      );
+      return StringValue.of(target.value().split(oldValue.value()).join(newValue.value()));
     }
-    return StringValue.of(
-      replaceN(target.value(), oldValue.value(), newValue.value(), count)
-    );
+    return StringValue.of(replaceN(target.value(), oldValue.value(), newValue.value(), count));
   }
-  return StringValue.of(
-    target.value().split(oldValue.value()).join(newValue.value())
-  );
+  return StringValue.of(target.value().split(oldValue.value()).join(newValue.value()));
 }
 
 function replaceN(source: string, search: string, replacement: string, count: number): string {
@@ -479,9 +473,7 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
       continue;
     }
     if (next === undefined) {
-      return ErrorValue.of(
-        'could not parse formatting clause: unrecognized formatting clause "%"'
-      );
+      return ErrorValue.of('could not parse formatting clause: unrecognized formatting clause "%"');
     }
 
     let precision: number | undefined = undefined;
@@ -503,9 +495,7 @@ function formatString(format: string, args: readonly Value[]): string | ErrorVal
 
     const code = format[cursor];
     if (code === undefined) {
-      return ErrorValue.of(
-        'could not parse formatting clause: unrecognized formatting clause "%"'
-      );
+      return ErrorValue.of('could not parse formatting clause: unrecognized formatting clause "%"');
     }
     if (argIndex >= args.length) {
       return ErrorValue.of(`index ${argIndex} out of range`);
@@ -576,7 +566,7 @@ function formatStringValue(value: Value): string | ErrorValue {
       return isTypeValue(value) ? value.value() : "";
     case "list": {
       const parts: string[] = [];
-      for (const elem of (isListValue(value) ? value.value() : [])) {
+      for (const elem of isListValue(value) ? value.value() : []) {
         const formatted = formatStringValue(elem);
         if (typeof formatted !== "string") {
           return formatted;
@@ -598,7 +588,11 @@ function formatStringValue(value: Value): string | ErrorValue {
         return { key, val };
       });
       for (const entry of entries) {
-        if (typeof entry !== "object" || entry === null || ("kind" in entry && entry.kind === "error")) {
+        if (
+          typeof entry !== "object" ||
+          entry === null ||
+          ("kind" in entry && entry.kind === "error")
+        ) {
           return entry;
         }
       }
@@ -625,9 +619,7 @@ function formatDecimal(value: Value): string | ErrorValue {
     if (num === Number.NEGATIVE_INFINITY) return "-Infinity";
     return ErrorValue.of("decimal clause can only be used on integers, was given double");
   }
-  return ErrorValue.of(
-    `decimal clause can only be used on integers, was given ${value.type()}`
-  );
+  return ErrorValue.of(`decimal clause can only be used on integers, was given ${value.type()}`);
 }
 
 function formatFixed(value: Value, precision: number): string | ErrorValue {
@@ -640,9 +632,7 @@ function formatFixed(value: Value, precision: number): string | ErrorValue {
   if (isDoubleValue(value)) {
     return formatFixedNumber(value.value(), precision);
   }
-  return ErrorValue.of(
-    `fixed-point clause can only be used on doubles, was given ${value.type()}`
-  );
+  return ErrorValue.of(`fixed-point clause can only be used on doubles, was given ${value.type()}`);
 }
 
 function formatScientific(value: Value, precision: number): string | ErrorValue {

@@ -65,9 +65,7 @@ export class NoOpConversionFoldPass implements PostOptimizerPass {
     }
     if (node instanceof NotStrictlyFalseValue) {
       const operand = this.rewrite(node.operandValue());
-      return operand === node.operandValue()
-        ? node
-        : new NotStrictlyFalseValue(node.id(), operand);
+      return operand === node.operandValue() ? node : new NotStrictlyFalseValue(node.id(), operand);
     }
     if (node instanceof NegValue) {
       const operand = this.rewrite(node.operandValue());
@@ -115,7 +113,13 @@ export class NoOpConversionFoldPass implements PostOptimizerPass {
       if (args === node.argList()) {
         return node;
       }
-      return new CallValue(node.id(), node.name(), node.overload(), args, node.overloadDispatcher());
+      return new CallValue(
+        node.id(),
+        node.name(),
+        node.overload(),
+        args,
+        node.overloadDispatcher()
+      );
     }
     if (node instanceof BlockValue) {
       const slots = this.rewriteList(node.slotValues());

@@ -1,11 +1,11 @@
-import { BytesType, type EnvOptions, Function, Overload, StringType } from "../cel";
+import { BytesType, Function as CelFunction, type EnvOptions, Overload, StringType } from "../cel";
 import {
   BytesValue,
   ErrorValue,
-  isBytesValue,
-  isStringValue,
   StringValue,
   type Value,
+  isBytesValue,
+  isStringValue,
 } from "../interpreter/values";
 import { type Macro, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
@@ -22,20 +22,28 @@ export class EncodersExtension implements Extension {
         if (!macroTargetMatchesNamespace("base64", target)) {
           return undefined;
         }
-        return helper.createCall("base64.decode", args[0]!);
+        const [arg] = args;
+        if (!arg) {
+          return undefined;
+        }
+        return helper.createCall("base64.decode", arg);
       }),
       new ReceiverMacro("encode", 1, (helper, target, args) => {
         if (!macroTargetMatchesNamespace("base64", target)) {
           return undefined;
         }
-        return helper.createCall("base64.encode", args[0]!);
+        const [arg] = args;
+        if (!arg) {
+          return undefined;
+        }
+        return helper.createCall("base64.encode", arg);
       }),
     ];
 
     return {
       macros,
       functions: [
-        new Function(
+        new CelFunction(
           "base64.decode",
           new Overload("base64_decode_string", [StringType], BytesType, (arg: Value) => {
             if (!isStringValue(arg)) {
@@ -45,7 +53,7 @@ export class EncodersExtension implements Extension {
             return decoded;
           })
         ),
-        new Function(
+        new CelFunction(
           "base64.encode",
           new Overload("base64_encode_bytes", [BytesType], StringType, (arg: Value) => {
             if (!isBytesValue(arg)) {

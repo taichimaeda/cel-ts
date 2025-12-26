@@ -25,6 +25,5 @@ export {
   Macros as StandardMacros,
   // Macro types
   type Macro,
-  type MacroExpander
+  type MacroExpander,
 } from "./macros";
-

@@ -23,7 +23,7 @@ import { Dispatcher } from "./dispatcher";
 import { standardFunctions } from "./functions";
 import type { Interpretable } from "./interpretable";
 import { formatRuntimeError, isActivation } from "./utils";
-import { ErrorValue, isErrorValue, type Value } from "./values";
+import { ErrorValue, type Value, isErrorValue } from "./values";
 
 /**
  * Program input types for evaluation.
@@ -76,11 +76,9 @@ export class Env {
   constructor(options: EnvOptions = {}) {
     this.containerName = options.container ?? "";
     this.declarationsList = options.declarations ?? [];
-    this.checkerEnv = new CheckerEnv(
-      new Container(this.containerName),
-      undefined,
-      { coerceEnumToInt: options.enumValuesAsInt ?? false }
-    );
+    this.checkerEnv = new CheckerEnv(new Container(this.containerName), undefined, {
+      coerceEnumToInt: options.enumValuesAsInt ?? false,
+    });
 
     // Add standard library functions
     for (const funcDecl of StandardLibrary.functions()) {
@@ -249,7 +247,7 @@ export class Program {
     private readonly interpretable: Interpretable,
     private readonly checkResultValue: CheckResult | undefined,
     private readonly sourceInfo: SourceInfo
-  ) { }
+  ) {}
 
   eval(vars?: ProgramInput): EvalResult {
     // Prepare activation

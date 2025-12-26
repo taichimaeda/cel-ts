@@ -13,7 +13,7 @@ export {
   FunctionOverloadDecl as OverloadDecl,
   StructDecl,
   StructFieldDecl,
-  VariableDecl
+  VariableDecl,
 } from "./decls";
 
 export { CheckerEnv, Container } from "./env";
@@ -51,7 +51,7 @@ export {
   TypeType,
   UintType,
   wellKnownTypeNameToKind,
-  wrapperTypeNameToKind
+  wrapperTypeNameToKind,
 } from "./types";
 
 export type {
@@ -64,7 +64,7 @@ export type {
   WellKnownTypeKind,
   WellKnownTypeName,
   WrapperTypeKind,
-  WrapperTypeName
+  WrapperTypeName,
 } from "./types";
 
 export { StandardLibrary } from "./stdlib";

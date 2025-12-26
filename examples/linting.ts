@@ -1,7 +1,7 @@
-import { Env } from "../src/cel";
+import * as cel from "../src/cel";
 import { Linter } from "../src/linter";
 
-const env = new Env({ disableTypeChecking: true });
+const env = new cel.Env({ disableTypeChecking: true });
 const ast = env.parse("true || (x && false)");
 
 const linter = new Linter();
@@ -13,5 +13,5 @@ for (const diagnostic of diagnostics) {
   const fix = diagnostic.fix
     ? ` fix: ${diagnostic.fix.title} -> ${diagnostic.fix.replacement}`
     : "";
-  console.log(`[${diagnostic.severity}] ${location} ${diagnostic.message}${fix}`);
+  console.info(`[${diagnostic.severity}] ${location} ${diagnostic.message}${fix}`);
 }

@@ -8,6 +8,9 @@ import type { Interpretable } from "./interpretable";
 import { nativeToValue, normalizeIndexValue } from "./utils";
 import {
   ErrorValue,
+  OptionalValue,
+  StringValue,
+  type Value,
   isBoolValue,
   isBytesValue,
   isErrorValue,
@@ -17,12 +20,13 @@ import {
   isStringValue,
   isStructValue,
   isUnknownValue,
-  OptionalValue,
-  StringValue,
-  type Value,
 } from "./values";
 
-export type Attribute = AbsoluteAttribute | RelativeAttribute | ConditionalAttribute | MaybeAttribute;
+export type Attribute =
+  | AbsoluteAttribute
+  | RelativeAttribute
+  | ConditionalAttribute
+  | MaybeAttribute;
 
 export type Qualifier = StringQualifier | IndexQualifier | ComputedQualifier;
 
@@ -40,7 +44,7 @@ export class StringQualifier {
     private readonly exprId: ExprId,
     private readonly field: string,
     private readonly optional = false
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -52,20 +56,21 @@ export class StringQualifier {
       return obj;
     }
 
-    const optionalSelection = this.optional || isOptionalValue(obj);
-    if (isOptionalValue(obj)) {
-      if (!obj.hasValue()) {
+    let current = obj;
+    const optionalSelection = this.optional || isOptionalValue(current);
+    if (isOptionalValue(current)) {
+      if (!current.hasValue()) {
         return OptionalValue.none();
       }
-      obj = obj.value()!;
+      current = current.value()!;
     }
 
     // Struct access
-    if (isStructValue(obj)) {
-      if (optionalSelection && !obj.hasField(this.field)) {
+    if (isStructValue(current)) {
+      if (optionalSelection && !current.hasField(this.field)) {
         return OptionalValue.none();
       }
-      const value = obj.getField(this.field);
+      const value = current.getField(this.field);
       if (optionalSelection && !(isErrorValue(value) || isUnknownValue(value))) {
         return OptionalValue.of(value);
       }
@@ -73,11 +78,11 @@ export class StringQualifier {
     }
 
     // Map access
-    if (isMapValue(obj)) {
+    if (isMapValue(current)) {
       const key = StringValue.of(this.field);
-      const hasKey = obj.contains(key);
+      const hasKey = current.contains(key);
       if (hasKey.value()) {
-        const value = obj.get(key);
+        const value = current.get(key);
         if (optionalSelection && !(isErrorValue(value) || isUnknownValue(value))) {
           return OptionalValue.of(value);
         }
@@ -123,7 +128,7 @@ export class IndexQualifier {
     private readonly exprId: ExprId,
     private readonly index: Value,
     private readonly optional = false
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -138,21 +143,22 @@ export class IndexQualifier {
       return this.index;
     }
 
-    const optionalSelection = this.optional || isOptionalValue(obj);
-    if (isOptionalValue(obj)) {
-      if (!obj.hasValue()) {
+    let current = obj;
+    const optionalSelection = this.optional || isOptionalValue(current);
+    if (isOptionalValue(current)) {
+      if (!current.hasValue()) {
         return OptionalValue.none();
       }
-      obj = obj.value()!;
+      current = current.value()!;
     }
 
     // List access
-    if (isListValue(obj)) {
+    if (isListValue(current)) {
       const idx = normalizeIndexValue(this.index);
       if (isErrorValue(idx)) {
         return idx;
       }
-      const value = obj.get(idx);
+      const value = current.get(idx);
       if (optionalSelection && value.kind === "error") {
         return OptionalValue.none();
       }
@@ -163,10 +169,10 @@ export class IndexQualifier {
     }
 
     // Map access
-    if (isMapValue(obj)) {
-      const hasKey = obj.contains(this.index);
+    if (isMapValue(current)) {
+      const hasKey = current.contains(this.index);
       if (hasKey.value()) {
-        const value = obj.get(this.index);
+        const value = current.get(this.index);
         if (optionalSelection && !(isErrorValue(value) || isUnknownValue(value))) {
           return OptionalValue.of(value);
         }
@@ -227,7 +233,7 @@ export class ComputedQualifier {
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
     private readonly optional = false
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -382,7 +388,7 @@ export class ConditionalAttribute {
     private readonly condition: Interpretable,
     private readonly truthy: Attribute,
     private readonly falsy: Attribute
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -418,9 +424,7 @@ export class ConditionalAttribute {
     }
 
     if (isBoolValue(condValue)) {
-      return condValue.value()
-        ? this.truthy.resolve(activation)
-        : this.falsy.resolve(activation);
+      return condValue.value() ? this.truthy.resolve(activation) : this.falsy.resolve(activation);
     }
 
     return ErrorValue.typeMismatch("bool", condValue, this.exprId);

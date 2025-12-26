@@ -6,8 +6,8 @@ import {
   ListType,
   MapType,
   OpaqueType,
-  type Type,
   PolymorphicTypeType,
+  type Type,
   wellKnownTypeToNative,
   wrapperTypeToPrimitive,
 } from "./types";

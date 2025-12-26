@@ -15,16 +15,6 @@ import {
   DoubleValue,
   DurationValue,
   ErrorValue,
-  isBoolValue,
-  isBytesValue,
-  isDoubleValue,
-  isDurationValue,
-  isIntValue,
-  isListValue,
-  isMapValue,
-  isStringValue,
-  isTimestampValue,
-  isUintValue,
   IntLimits,
   IntValue,
   ListValue,
@@ -32,7 +22,17 @@ import {
   TimestampValue,
   UintValue,
   type Value,
+  isBoolValue,
+  isBytesValue,
+  isDoubleValue,
+  isDurationValue,
   isErrorValue,
+  isIntValue,
+  isListValue,
+  isMapValue,
+  isStringValue,
+  isTimestampValue,
+  isUintValue,
   toTypeValue,
 } from "./values";
 
@@ -166,10 +166,15 @@ export const stringFunctions: Overload[] = [
       return ErrorValue.of("replace requires 3 arguments");
     }
     const [str, from, to] = args;
-    if (str !== undefined && from !== undefined && to !== undefined && isStringValue(str) && isStringValue(from) && isStringValue(to)) {
-      return StringValue.of(
-        str.value().replaceAll(from.value(), to.value())
-      );
+    if (
+      str !== undefined &&
+      from !== undefined &&
+      to !== undefined &&
+      isStringValue(str) &&
+      isStringValue(from) &&
+      isStringValue(to)
+    ) {
+      return StringValue.of(str.value().replaceAll(from.value(), to.value()));
     }
     return ErrorValue.typeMismatch("string", str!);
   }),
@@ -193,10 +198,7 @@ export const typeConversionFunctions: Overload[] = [
       if (!Number.isFinite(doubleValue)) {
         return ErrorValue.of("cannot convert infinity or NaN to int");
       }
-      if (
-        doubleValue <= Number(IntLimits.Int64Min) ||
-        doubleValue >= Number(IntLimits.Int64Max)
-      ) {
+      if (doubleValue <= Number(IntLimits.Int64Min) || doubleValue >= Number(IntLimits.Int64Max)) {
         return ErrorValue.of("range error");
       }
       const truncated = BigInt(Math.trunc(doubleValue));
@@ -708,7 +710,11 @@ function parseDuration(s: string): DurationValue | ErrorValue {
   const regex = /^(\d+\.?\d*)(h|m|s|ms|us|µs|ns)/;
   let match: RegExpMatchArray | null;
 
-  while (remaining.length > 0 && (match = regex.exec(remaining))) {
+  while (remaining.length > 0) {
+    match = regex.exec(remaining);
+    if (!match) {
+      break;
+    }
     const valueStr = match[1]!;
     const unit = match[2]!;
     const value = Number.parseFloat(valueStr);

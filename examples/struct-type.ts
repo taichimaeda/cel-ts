@@ -1,17 +1,17 @@
-import { Env, EnvStructOption, IntType, StringType, Types, Variable } from "../src/cel";
+import * as cel from "../src/cel";
 
-const env = new Env({
+const env = new cel.Env({
   structs: [
-    new EnvStructOption("Person", {
-      name: StringType,
-      age: IntType,
+    new cel.EnvStructOption("Person", {
+      name: cel.StringType,
+      age: cel.IntType,
     }),
   ],
-  variables: [new Variable("person", Types.object("Person"))],
+  variables: [new cel.Variable("person", cel.Types.object("Person"))],
 });
 
 const ast = env.compile("person.age >= 21 && person.name != ''");
 const program = env.program(ast);
 
 const result = program.eval({ person: { name: "Ada", age: 36n } });
-console.log(result.value());
+console.info(result.value());

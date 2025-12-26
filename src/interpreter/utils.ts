@@ -12,6 +12,17 @@ import {
   DurationValue,
   EnumValue,
   ErrorValue,
+  IntValue,
+  ListValue,
+  MapValue,
+  NullValue,
+  OptionalValue,
+  StringValue,
+  type StructValue,
+  TimestampValue,
+  TypeValue,
+  UintValue,
+  type Value,
   isBoolValue,
   isBytesValue,
   isDoubleValue,
@@ -23,17 +34,6 @@ import {
   isStringValue,
   isStructValue,
   isUintValue,
-  IntValue,
-  ListValue,
-  MapValue,
-  NullValue,
-  OptionalValue,
-  StringValue,
-  StructValue,
-  TimestampValue,
-  TypeValue,
-  UintValue,
-  type Value,
   resolveAnyValue,
 } from "./values";
 
@@ -286,13 +286,12 @@ export function parseTimeZoneOffset(tz: string): number | undefined {
   return sign * (hours * 60 + minutes);
 }
 
-
 /**
  * Convert a weekday name to a number (0=Sunday, 6=Saturday).
  * Only the first 3 characters are checked (e.g., "Sun", "Mon").
  */
 export function weekdayToNumber(weekday: string): number {
-  const WEEKDAY_MAP: Record<string, number> = {
+  const weekdayMap: Record<string, number> = {
     Sun: 0,
     Mon: 1,
     Tue: 2,
@@ -302,7 +301,7 @@ export function weekdayToNumber(weekday: string): number {
     Sat: 6,
   };
 
-  return WEEKDAY_MAP[weekday.slice(0, 3)] ?? 0;
+  return weekdayMap[weekday.slice(0, 3)] ?? 0;
 }
 
 /**

@@ -4,12 +4,12 @@
 import type { ConstantDecl, FunctionDecl, VariableDecl } from "./decls";
 import type { TypeProvider } from "./provider";
 import {
-  builtinTypeNameToType,
   IntType,
   ListType,
   MapType,
-  type Type,
   PolymorphicTypeType,
+  type Type,
+  builtinTypeNameToType,
 } from "./types";
 
 /**
@@ -59,7 +59,7 @@ class Scope {
 class Scopes {
   private readonly scope: Scope = new Scope();
 
-  constructor(private readonly parent: Scopes | undefined = undefined) { }
+  constructor(private readonly parent: Scopes | undefined = undefined) {}
 
   /**
    * Add a variable declaration to the current scope
@@ -121,7 +121,7 @@ class Scopes {
 export class Container {
   private readonly aliases: Map<string, string> = new Map();
 
-  constructor(readonly name = "") { }
+  constructor(readonly name = "") {}
 
   /**
    * Add a type alias
@@ -211,8 +211,8 @@ export class CheckerEnv {
   constructor(
     readonly container: Container = new Container(),
     readonly provider?: TypeProvider | undefined,
-    private readonly options: CheckerEnvOptions = {},
-  ) { }
+    private readonly options: CheckerEnvOptions = {}
+  ) {}
 
   /**
    * Add variable declarations to the environment

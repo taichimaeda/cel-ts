@@ -5,19 +5,19 @@ import type { TypeProvider } from "../checker/provider";
 import {
   BoolType,
   BytesType,
+  OptionalType as CheckerOptionalType,
+  StructType as CheckerStructType,
+  type Type as CheckerType,
   DoubleType,
-  DynType,
   DurationType,
+  DynType,
   ErrorType,
   IntType,
   NullType,
-  OptionalType as CheckerOptionalType,
   OpaqueType,
   StringType,
-  StructType as CheckerStructType,
   TimestampType,
   TypeType,
-  type Type as CheckerType,
   UintType,
 } from "../checker/types";
 import type { ExprId } from "../common/ast";
@@ -25,8 +25,8 @@ import {
   GenericListType,
   GenericMapType,
   OptionalType as RuntimeOptionalType,
-  UnknownType,
   type RuntimeType,
+  UnknownType,
 } from "./types";
 import {
   defaultValueForType,
@@ -322,7 +322,7 @@ export class UintValue extends BaseValue {
   }
 
   toString(): string {
-    return String(this.val) + "u";
+    return `${this.val}u`;
   }
 
   equal(other: Value): Value {
@@ -421,8 +421,7 @@ export class EnumValue extends BaseValue {
   equal(other: Value): Value {
     if (isEnumValue(other)) {
       return BoolValue.of(
-        this.enumType.runtimeTypeName === other.enumType.runtimeTypeName &&
-        this.val === other.val
+        this.enumType.runtimeTypeName === other.enumType.runtimeTypeName && this.val === other.val
       );
     }
     if (isIntValue(other)) {

@@ -1,4 +1,11 @@
-import { DynType, type EnvOptions, Function, IntType, MemberOverload, Overload } from "../cel";
+import {
+  Function as CelFunction,
+  DynType,
+  type EnvOptions,
+  IntType,
+  MemberOverload,
+  Overload,
+} from "../cel";
 import { ListType, type Type, TypeParamType } from "../checker/types";
 import { CallExpr, ComprehensionExpr, IdentExpr, ListExpr, SelectExpr } from "../common/ast";
 import {
@@ -8,10 +15,10 @@ import {
   type Value,
   compareValues,
   isBoolValue,
+  isComparableValue,
   isErrorValue,
   isIntValue,
   isListValue,
-  isComparableValue,
 } from "../interpreter/values";
 import { type Macro, MacroError, ReceiverMacro } from "../parser";
 import { makeMap } from "../parser/macros";
@@ -38,13 +45,13 @@ export class ListsExtension implements Extension {
     const listOfK: Type = new ListType(keyParam);
 
     const functions = [
-      new Function(
+      new CelFunction(
         "slice",
         new MemberOverload("list_slice", [listOfT, IntType, IntType], listOfT, (args: Value[]) =>
           sliceList(args)
         )
       ),
-      new Function(
+      new CelFunction(
         "flatten",
         new MemberOverload(
           "list_flatten",
@@ -66,19 +73,19 @@ export class ListsExtension implements Extension {
           }
         )
       ),
-      new Function(
+      new CelFunction(
         "reverse",
         new MemberOverload("list_reverse", [listOfT], listOfT, (arg: Value) => reverseList(arg))
       ),
-      new Function(
+      new CelFunction(
         "distinct",
         new MemberOverload("list_distinct", [listOfT], listOfT, (arg: Value) => distinctList(arg))
       ),
-      new Function(
+      new CelFunction(
         "sort",
         new MemberOverload("list_sort", [listOfT], listOfT, (arg: Value) => sortList(arg))
       ),
-      new Function(
+      new CelFunction(
         "@sortByAssociatedKeys",
         new MemberOverload(
           "list_sortByAssociatedKeys",
@@ -87,7 +94,7 @@ export class ListsExtension implements Extension {
           (args: Value[]) => sortByAssociatedKeys(args)
         )
       ),
-      new Function(
+      new CelFunction(
         "lists.range",
         new Overload("lists_range_int", [IntType], new ListType(IntType), (arg: Value) =>
           rangeList(arg)
@@ -153,7 +160,7 @@ function sliceList(args: Value[]): Value {
     return ErrorValue.typeMismatch("list", list!);
   }
   if (!isIntValue(start!) || !isIntValue(end!)) {
-    return ErrorValue.of(`slice requires int start and end indexes`);
+    return ErrorValue.of("slice requires int start and end indexes");
   }
   const startNum = toSafeNumber(start);
   const endNum = toSafeNumber(end);
@@ -164,9 +171,7 @@ function sliceList(args: Value[]): Value {
     return endNum;
   }
   if (startNum < 0 || endNum < 0) {
-    return ErrorValue.of(
-      `cannot slice(${startNum}, ${endNum}), negative indexes not supported`
-    );
+    return ErrorValue.of(`cannot slice(${startNum}, ${endNum}), negative indexes not supported`);
   }
   if (startNum > endNum) {
     return ErrorValue.of(
@@ -175,9 +180,7 @@ function sliceList(args: Value[]): Value {
   }
   const elements = list.value();
   if (endNum > elements.length) {
-    return ErrorValue.of(
-      `cannot slice(${startNum}, ${endNum}), list is length ${elements.length}`
-    );
+    return ErrorValue.of(`cannot slice(${startNum}, ${endNum}), list is length ${elements.length}`);
   }
   return ListValue.of(elements.slice(startNum, endNum));
 }

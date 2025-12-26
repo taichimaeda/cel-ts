@@ -5,7 +5,7 @@ import { DynType, ListType, MapType, type Type as StaticType } from "../checker/
  * don't correspond to declared CEL types.
  */
 export class DynamicType {
-  constructor(private readonly name: string) { }
+  constructor(private readonly name: string) {}
 
   toString(): string {
     return this.name;

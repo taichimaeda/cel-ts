@@ -2,7 +2,7 @@
 // Function call dispatcher
 // Implementation based on cel-go's interpret/dispatcher.go
 
-import { ErrorValue, isErrorValue, type Value } from "./values";
+import { ErrorValue, type Value, isErrorValue } from "./values";
 
 export type Overload = UnaryDispatcherOverload | BinaryDispatcherOverload | NaryDispatcherOverload;
 
@@ -101,7 +101,7 @@ export type ResolvedCall = TryResolvedCall | TryAllResolvedCall;
  * Resolved function call implementation.
  */
 export class TryResolvedCall {
-  constructor(private readonly overload: Overload) { }
+  constructor(private readonly overload: Overload) {}
 
   invoke(args: Value[]): Value {
     const result = this.overload.invoke(args);
@@ -126,7 +126,7 @@ export class TryResolvedCall {
  * Try all overloads until one succeeds.
  */
 export class TryAllResolvedCall {
-  constructor(private readonly overloads: Overload[]) { }
+  constructor(private readonly overloads: Overload[]) {}
 
   invoke(args: Value[]): Value {
     let lastError: Value | undefined;
@@ -146,8 +146,7 @@ export class TryAllResolvedCall {
 
     // If all failed, return the last error
     return (
-      lastError ??
-      ErrorValue.of(`no matching overload for function with ${args.length} arguments`)
+      lastError ?? ErrorValue.of(`no matching overload for function with ${args.length} arguments`)
     );
   }
 

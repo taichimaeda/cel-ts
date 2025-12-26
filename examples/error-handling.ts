@@ -1,22 +1,22 @@
-import { CompileError, Env, IntType, ParseError, Variable } from "../src/cel";
+import * as cel from "../src/cel";
 
-const env = new Env({
-  variables: [new Variable("x", IntType)],
+const env = new cel.Env({
+  variables: [new cel.Variable("x", cel.IntType)],
 });
 
 try {
   env.compile("x +");
 } catch (err) {
-  if (err instanceof ParseError) {
-    console.log("Parse error:", err.message);
+  if (err instanceof cel.ParseError) {
+    console.info("Parse error:", err.message);
   }
 }
 
 try {
   env.compile("x + 'oops'");
 } catch (err) {
-  if (err instanceof CompileError) {
-    console.log("Type error:", err.message);
-    console.log("Issues:", err.issues.toString());
+  if (err instanceof cel.CompileError) {
+    console.info("Type error:", err.message);
+    console.info("Issues:", err.issues.toString());
   }
 }

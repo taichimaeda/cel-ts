@@ -1,13 +1,7 @@
-import { type EnvOptions, Function, Overload } from "../cel";
+import { Function as CelFunction, type EnvOptions, Overload } from "../cel";
 import { MapType, TypeParamType } from "../checker/types";
 import { AccumulatorName, Operators } from "../common/ast";
-import {
-  ErrorValue,
-  isMapValue,
-  type MapEntry,
-  MapValue,
-  type Value,
-} from "../interpreter/values";
+import { ErrorValue, type MapEntry, MapValue, type Value, isMapValue } from "../interpreter/values";
 import { type Macro, MacroError, type MacroExpander, ReceiverMacro } from "../parser";
 import type { Extension } from "./extensions";
 import { extractIdentName } from "./utils";
@@ -36,7 +30,7 @@ export class TwoVarComprehensionsExtension implements Extension {
     const mapKV = new MapType(kType, vType);
 
     const functions = [
-      new Function(
+      new CelFunction(
         "cel.@mapInsert",
         new Overload("@mapInsert_map_key_value", [mapKV, kType, vType], mapKV, (args: Value[]) =>
           mapInsertKeyValue(args)

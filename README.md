@@ -33,17 +33,17 @@ Both [ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) and [marcbachmann/cel
 | --- | --- | --- | --- |
 | Type checking | Yes | No | Yes (Basic) |
 | Conformance tests | Yes (100%) | No | No |
-| Benchmarking | Yes | No | Yes (basic) |
+| Benchmarking | Yes | No | Yes (Basic) |
 | Profiling | Yes | No | No |
 | Raw string and byte literals | Yes | No | Yes (Partial) |
 | cel-go compatible API | Yes | No | No |
 | Error reporting with source positions | Yes | No | Yes (Limited) |
-| Macro support | Full (cel-go parity) | Limited | Partial |
-| Extension packs | Full (cel-go parity) | Limited | Limited |
+| Macro support | Full (Same as cel-go) | Limited | Partial |
+| Extension packs | Full (Same as cel-go) | Limited | Limited |
 | Formatter | Yes | No | No |
 | Linter | Yes | No | No |
 | Speed | Fast | Slow | Fast |
-| Licence | Apache-2.0 (same as cel-spec) | MIT | MIT |
+| Licence | Apache-2.0 | MIT | MIT |
 
 ### Performance
 
@@ -74,11 +74,11 @@ pnpm add cel-ts
 ## Quick Start
 
 ```typescript
-import { Env, IntType, StringType, Variable } from "cel-ts";
+import * as cel from "cel-ts";
 
 // Create an environment with variable declarations
-const env = new Env({
-  variables: [new Variable("name", StringType), new Variable("age", IntType)],
+const env = new cel.Env({
+  variables: [new cel.Variable("name", cel.StringType), new cel.Variable("age", cel.IntType)],
 });
 
 // Compile an expression

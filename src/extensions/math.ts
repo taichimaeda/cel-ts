@@ -1,9 +1,9 @@
 import {
   BoolType,
+  Function as CelFunction,
   DoubleType,
   DynType,
   type EnvOptions,
-  Function,
   IntType,
   Overload,
   UintType,
@@ -13,15 +13,15 @@ import {
   BoolValue,
   DoubleValue,
   ErrorValue,
-  isDoubleValue,
-  isIntValue,
-  isListValue,
-  isUintValue,
   IntLimits,
   IntValue,
   UintValue,
   type Value,
   compareValues,
+  isDoubleValue,
+  isIntValue,
+  isListValue,
+  isUintValue,
 } from "../interpreter/values";
 import { type Macro, MacroError, ReceiverVarArgMacro } from "../parser";
 import type { Extension } from "./extensions";
@@ -80,7 +80,7 @@ export class MathExtension implements Extension {
     ];
 
     const functions = [
-      new Function(
+      new CelFunction(
         minFunc,
         new Overload("math_@min_double", [DoubleType], DoubleType, (arg: Value) => arg),
         new Overload("math_@min_int", [IntType], IntType, (arg: Value) => arg),
@@ -98,7 +98,7 @@ export class MathExtension implements Extension {
         new Overload("math_@min_list_int", [new ListType(IntType)], IntType, minList),
         new Overload("math_@min_list_uint", [new ListType(UintType)], UintType, minList)
       ),
-      new Function(
+      new CelFunction(
         maxFunc,
         new Overload("math_@max_double", [DoubleType], DoubleType, (arg: Value) => arg),
         new Overload("math_@max_int", [IntType], IntType, (arg: Value) => arg),
@@ -120,59 +120,58 @@ export class MathExtension implements Extension {
 
     if (this.version >= 1) {
       functions.push(
-        new Function(
+        new CelFunction(
           "math.ceil",
           new Overload("math_ceil_double", [DoubleType], DoubleType, (arg: Value) => {
             if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return DoubleValue.of(globalThis.Math.ceil(arg.value()));
           })
         ),
-        new Function(
+        new CelFunction(
           "math.floor",
           new Overload("math_floor_double", [DoubleType], DoubleType, (arg: Value) => {
             if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return DoubleValue.of(globalThis.Math.floor(arg.value()));
           })
         ),
-        new Function(
+        new CelFunction(
           "math.round",
           new Overload("math_round_double", [DoubleType], DoubleType, (arg: Value) => {
             if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return DoubleValue.of(roundHalfAwayFromZero(arg.value()));
           })
         ),
-        new Function(
+        new CelFunction(
           "math.trunc",
           new Overload("math_trunc_double", [DoubleType], DoubleType, (arg: Value) => {
             if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return DoubleValue.of(globalThis.Math.trunc(arg.value()));
           })
         ),
-        new Function(
+        new CelFunction(
           "math.isInf",
           new Overload("math_isInf_double", [DoubleType], BoolType, (arg: Value) => {
             if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return BoolValue.of(
-              arg.value() === Number.POSITIVE_INFINITY ||
-                arg.value() === Number.NEGATIVE_INFINITY
+              arg.value() === Number.POSITIVE_INFINITY || arg.value() === Number.NEGATIVE_INFINITY
             );
           })
         ),
-        new Function(
+        new CelFunction(
           "math.isNaN",
           new Overload("math_isNaN_double", [DoubleType], BoolType, (arg: Value) => {
             if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return BoolValue.of(Number.isNaN(arg.value()));
           })
         ),
-        new Function(
+        new CelFunction(
           "math.isFinite",
           new Overload("math_isFinite_double", [DoubleType], BoolType, (arg: Value) => {
             if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
             return BoolValue.of(Number.isFinite(arg.value()));
           })
         ),
-        new Function(
+        new CelFunction(
           "math.abs",
           new Overload("math_abs_double", [DoubleType], DoubleType, (arg: Value) => {
             if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
@@ -191,7 +190,7 @@ export class MathExtension implements Extension {
             return arg;
           })
         ),
-        new Function(
+        new CelFunction(
           "math.sign",
           new Overload("math_sign_double", [DoubleType], DoubleType, (arg: Value) => {
             if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
@@ -209,7 +208,7 @@ export class MathExtension implements Extension {
             return IntValue.of(arg.value() === 0n ? 0n : 1n);
           })
         ),
-        new Function(
+        new CelFunction(
           "math.sqrt",
           new Overload("math_sqrt_double", [DoubleType], DoubleType, (arg: Value) => {
             if (!isDoubleValue(arg)) return ErrorValue.typeMismatch("double", arg);
@@ -224,27 +223,27 @@ export class MathExtension implements Extension {
             return DoubleValue.of(globalThis.Math.sqrt(Number(arg.value())));
           })
         ),
-        new Function(
+        new CelFunction(
           "math.bitAnd",
           new Overload("math_bitAnd_int_int", [IntType, IntType], IntType, bitAndInt),
           new Overload("math_bitAnd_uint_uint", [UintType, UintType], UintType, bitAndUint)
         ),
-        new Function(
+        new CelFunction(
           "math.bitOr",
           new Overload("math_bitOr_int_int", [IntType, IntType], IntType, bitOrInt),
           new Overload("math_bitOr_uint_uint", [UintType, UintType], UintType, bitOrUint)
         ),
-        new Function(
+        new CelFunction(
           "math.bitXor",
           new Overload("math_bitXor_int_int", [IntType, IntType], IntType, bitXorInt),
           new Overload("math_bitXor_uint_uint", [UintType, UintType], UintType, bitXorUint)
         ),
-        new Function(
+        new CelFunction(
           "math.bitNot",
           new Overload("math_bitNot_int_int", [IntType], IntType, bitNotInt),
           new Overload("math_bitNot_uint_uint", [UintType], UintType, bitNotUint)
         ),
-        new Function(
+        new CelFunction(
           "math.bitShiftLeft",
           new Overload("math_bitShiftLeft_int_int", [IntType, IntType], IntType, bitShiftLeftInt),
           new Overload(
@@ -254,7 +253,7 @@ export class MathExtension implements Extension {
             bitShiftLeftUint
           )
         ),
-        new Function(
+        new CelFunction(
           "math.bitShiftRight",
           new Overload("math_bitShiftRight_int_int", [IntType, IntType], IntType, bitShiftRightInt),
           new Overload(
@@ -329,54 +328,42 @@ function bitAndInt(lhs: Value, rhs: Value): Value {
   if (!isIntValue(lhs) || !isIntValue(rhs)) {
     return ErrorValue.of("math.bitAnd expects int arguments");
   }
-  return IntValue.of(
-    BigInt.asIntN(64, lhs.value() & rhs.value())
-  );
+  return IntValue.of(BigInt.asIntN(64, lhs.value() & rhs.value()));
 }
 
 function bitAndUint(lhs: Value, rhs: Value): Value {
   if (!isUintValue(lhs) || !isUintValue(rhs)) {
     return ErrorValue.of("math.bitAnd expects uint arguments");
   }
-  return UintValue.of(
-    BigInt.asUintN(64, lhs.value() & rhs.value())
-  );
+  return UintValue.of(BigInt.asUintN(64, lhs.value() & rhs.value()));
 }
 
 function bitOrInt(lhs: Value, rhs: Value): Value {
   if (!isIntValue(lhs) || !isIntValue(rhs)) {
     return ErrorValue.of("math.bitOr expects int arguments");
   }
-  return IntValue.of(
-    BigInt.asIntN(64, lhs.value() | rhs.value())
-  );
+  return IntValue.of(BigInt.asIntN(64, lhs.value() | rhs.value()));
 }
 
 function bitOrUint(lhs: Value, rhs: Value): Value {
   if (!isUintValue(lhs) || !isUintValue(rhs)) {
     return ErrorValue.of("math.bitOr expects uint arguments");
   }
-  return UintValue.of(
-    BigInt.asUintN(64, lhs.value() | rhs.value())
-  );
+  return UintValue.of(BigInt.asUintN(64, lhs.value() | rhs.value()));
 }
 
 function bitXorInt(lhs: Value, rhs: Value): Value {
   if (!isIntValue(lhs) || !isIntValue(rhs)) {
     return ErrorValue.of("math.bitXor expects int arguments");
   }
-  return IntValue.of(
-    BigInt.asIntN(64, lhs.value() ^ rhs.value())
-  );
+  return IntValue.of(BigInt.asIntN(64, lhs.value() ^ rhs.value()));
 }
 
 function bitXorUint(lhs: Value, rhs: Value): Value {
   if (!isUintValue(lhs) || !isUintValue(rhs)) {
     return ErrorValue.of("math.bitXor expects uint arguments");
   }
-  return UintValue.of(
-    BigInt.asUintN(64, lhs.value() ^ rhs.value())
-  );
+  return UintValue.of(BigInt.asUintN(64, lhs.value() ^ rhs.value()));
 }
 
 function bitNotInt(arg: Value): Value {
@@ -404,9 +391,7 @@ function bitShiftLeftInt(lhs: Value, rhs: Value): Value {
   if (shift >= 64) {
     return IntValue.of(0n);
   }
-  return IntValue.of(
-    BigInt.asIntN(64, lhs.value() << BigInt(shift))
-  );
+  return IntValue.of(BigInt.asIntN(64, lhs.value() << BigInt(shift)));
 }
 
 function bitShiftLeftUint(lhs: Value, rhs: Value): Value {
@@ -420,9 +405,7 @@ function bitShiftLeftUint(lhs: Value, rhs: Value): Value {
   if (shift >= 64) {
     return UintValue.of(0n);
   }
-  return UintValue.of(
-    BigInt.asUintN(64, lhs.value() << BigInt(shift))
-  );
+  return UintValue.of(BigInt.asUintN(64, lhs.value() << BigInt(shift)));
 }
 
 function bitShiftRightInt(lhs: Value, rhs: Value): Value {

@@ -57,7 +57,7 @@ export {
   PartialActivation,
   StrictActivation,
   ActivationCache,
-  type Activation
+  type Activation,
 } from "./activation";
 
 // Attributes - Attributes/qualifiers
@@ -70,18 +70,21 @@ export {
   RelativeAttribute,
   StringQualifier,
   type Attribute,
-  type Qualifier
+  type Qualifier,
 } from "./attributes";
 
 // Dispatcher - Function dispatcher
 export {
   BinaryDispatcherOverload,
-  Dispatcher, NaryDispatcherOverload, TryResolvedCall as ResolvedCall,
-  UnaryDispatcherOverload, type BinaryOp,
+  Dispatcher,
+  NaryDispatcherOverload,
+  TryResolvedCall as ResolvedCall,
+  UnaryDispatcherOverload,
+  type BinaryOp,
   type ResolvedCall as FunctionCall,
   type FunctionOp,
   type Overload,
-  type UnaryOp
+  type UnaryOp,
 } from "./dispatcher";
 
 // Interpretable - Evaluatable expressions
@@ -103,13 +106,13 @@ export {
   NotValue,
   OrValue,
   TypeConversionValue,
-  type Interpretable
+  type Interpretable,
 } from "./interpretable";
 
 // Planner - AST transformation
 export {
   Planner,
-  type PlannerOptions
+  type PlannerOptions,
 } from "../planner";
 
 // Interpreter - Main API
@@ -119,7 +122,7 @@ export {
   type CompileResult,
   type Declaration,
   type EnvOptions,
-  type EvalResult
+  type EvalResult,
 } from "./interpreter";
 
 // Functions - Standard functions
@@ -134,5 +137,5 @@ export {
   standardFunctions,
   stringFunctions,
   timeFunctions,
-  typeConversionFunctions
+  typeConversionFunctions,
 } from "./functions";

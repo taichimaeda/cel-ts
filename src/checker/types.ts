@@ -1,7 +1,6 @@
 // CEL Type System
 // TypeScript-native implementation of CEL types
 
-
 // ---------------------------------------------------------------------------
 // Type Kind Constants and Union Types
 // ---------------------------------------------------------------------------
@@ -9,7 +8,14 @@
 /**
  * Primitive type kinds (bool, int, uint, double, string, bytes, null)
  */
-export type PrimitiveTypeKind = "bool" | "int" | "uint" | "double" | "string" | "bytes" | "null_type";
+export type PrimitiveTypeKind =
+  | "bool"
+  | "int"
+  | "uint"
+  | "double"
+  | "string"
+  | "bytes"
+  | "null_type";
 
 /**
  * Temporal type kinds (duration, timestamp)
@@ -154,10 +160,6 @@ export class Type {
  * Primitive singleton types exposed as global constants.
  */
 class PrimitiveType extends Type {
-  constructor(kind: TypeKind, runtimeTypeName: string) {
-    super(kind, runtimeTypeName);
-  }
-
   override toString(): string {
     return this.runtimeTypeName;
   }

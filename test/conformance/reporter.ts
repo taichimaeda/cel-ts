@@ -1,8 +1,8 @@
 import path from "node:path";
-import { consola } from "consola";
-import Table from "cli-table3";
 import { ContentType, LabelName, Stage, Status } from "allure-js-commons";
 import { FileSystemWriter, ReporterRuntime } from "allure-js-commons/sdk/reporter";
+import Table from "cli-table3";
+import { consola } from "consola";
 import type { RunStats } from "./protos";
 
 export type TestContext = {
@@ -43,9 +43,10 @@ export class ConformanceReporter {
   private readonly fileStats = new Map<string, FileStats>();
 
   constructor(options: ReporterOptions = {}) {
+    const env = process.env as { ALLURE_RESULTS_DIR?: string };
     const resultsDir =
       options.resultsDir ??
-      process.env["ALLURE_RESULTS_DIR"] ??
+      env.ALLURE_RESULTS_DIR ??
       path.resolve(process.cwd(), "test/conformance/results");
     this.resultsDir = resultsDir;
     this.allureRuntime = new ReporterRuntime({

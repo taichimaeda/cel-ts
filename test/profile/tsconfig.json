@@ -9,9 +9,5 @@
     "outDir": ".",
     "rootDir": "."
   },
-  "include": [
-    "./cases.ts",
-    "./runner.ts",
-    "./run.ts"
-  ]
+  "include": ["./cases.ts", "./runner.ts", "./run.ts"]
 }

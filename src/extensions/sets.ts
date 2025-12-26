@@ -1,13 +1,13 @@
-import { BoolType, type EnvOptions, Function, Overload } from "../cel";
+import { BoolType, Function as CelFunction, type EnvOptions, Overload } from "../cel";
 import { ListType, TypeParamType } from "../checker/types";
 import {
   BoolValue,
   ErrorValue,
+  type ListValue,
+  type Value,
   isBoolValue,
   isErrorValue,
   isListValue,
-  ListValue,
-  type Value,
 } from "../interpreter/values";
 import { ReceiverVarArgMacro } from "../parser";
 import type { Extension } from "./extensions";
@@ -42,15 +42,15 @@ export class SetsExtension implements Extension {
         }),
       ],
       functions: [
-        new Function(
+        new CelFunction(
           "sets.contains",
           new Overload("list_sets_contains_list", [listType, listType], BoolType, setsContains)
         ),
-        new Function(
+        new CelFunction(
           "sets.equivalent",
           new Overload("list_sets_equivalent_list", [listType, listType], BoolType, setsEquivalent)
         ),
-        new Function(
+        new CelFunction(
           "sets.intersects",
           new Overload("list_sets_intersects_list", [listType, listType], BoolType, setsIntersects)
         ),

@@ -109,6 +109,6 @@ describe("CEL Formatter", () => {
   test("keeps chain inline when configured", () => {
     const ast = parseAst("users.filter(u, u.active).map(u, u.name)");
     const formatter = new Formatter({ chainStyle: "inline", maxLineLength: 10 });
-    expect(formatter.format(ast)).toBe(`users.filter(u, u.active).map(u, u.name)`);
+    expect(formatter.format(ast)).toBe("users.filter(u, u.active).map(u, u.name)");
   });
 });

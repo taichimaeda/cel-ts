@@ -3,15 +3,15 @@ import {
   BoolType,
   BytesType,
   DoubleType,
-  DynType,
   DurationType,
+  DynType,
   ErrorType,
   IntType,
   ListType,
   MapType,
+  NullType,
   OpaqueType,
   PolymorphicTypeType,
-  NullType,
   StringType,
   StructType,
   TimestampType,
@@ -40,7 +40,7 @@ import {
 import { type ProtoObject, protoLoader, stripTypeUrl } from "./protos";
 
 export function protoToValue(value: ProtoObject): Value | null {
-  const kind = value["kind"] as string | undefined;
+  const kind = protoFieldToValue(value, "kind") as string | undefined;
   if (!kind) {
     return null;
   }
@@ -49,44 +49,44 @@ export function protoToValue(value: ProtoObject): Value | null {
     case "null_value":
       return NullValue.Instance;
     case "bool_value":
-      return BoolValue.of(Boolean(value["bool_value"]));
+      return BoolValue.of(Boolean(protoFieldToValue(value, "bool_value")));
     case "int64_value":
-      return IntValue.of(unknownToBigInt(value["int64_value"]));
+      return IntValue.of(unknownToBigInt(protoFieldToValue(value, "int64_value")));
     case "uint64_value":
-      return UintValue.of(unknownToBigInt(value["uint64_value"]));
+      return UintValue.of(unknownToBigInt(protoFieldToValue(value, "uint64_value")));
     case "double_value":
-      return DoubleValue.of(Number(value["double_value"]));
+      return DoubleValue.of(Number(protoFieldToValue(value, "double_value")));
     case "string_value":
-      return StringValue.of(String(value["string_value"] ?? ""));
+      return StringValue.of(String(protoFieldToValue(value, "string_value") ?? ""));
     case "bytes_value": {
-      const bytes = value["bytes_value"] as Uint8Array | number[] | undefined;
+      const bytes = protoFieldToValue(value, "bytes_value") as Uint8Array | number[] | undefined;
       return BytesValue.of(bytes ? new Uint8Array(bytes) : new Uint8Array());
     }
     case "list_value": {
-      const list = value["list_value"] as ProtoObject | undefined;
-      const values = (list?.["values"] ?? []) as ProtoObject[];
+      const list = protoFieldToValue(value, "list_value") as ProtoObject | undefined;
+      const values = (protoFieldToValue(list ?? {}, "values") ?? []) as ProtoObject[];
       return ListValue.of(values.map((entry) => protoToValue(entry) ?? NullValue.Instance));
     }
     case "map_value": {
-      const map = value["map_value"] as ProtoObject | undefined;
-      const entries = (map?.["entries"] ?? []) as ProtoObject[];
+      const map = protoFieldToValue(value, "map_value") as ProtoObject | undefined;
+      const entries = (protoFieldToValue(map ?? {}, "entries") ?? []) as ProtoObject[];
       const mapEntries: MapEntry[] = entries.map((entry) => ({
-        key: protoToValue(entry["key"] as ProtoObject) ?? NullValue.Instance,
-        value: protoToValue(entry["value"] as ProtoObject) ?? NullValue.Instance,
+        key: protoToValue(protoFieldToValue(entry, "key") as ProtoObject) ?? NullValue.Instance,
+        value: protoToValue(protoFieldToValue(entry, "value") as ProtoObject) ?? NullValue.Instance,
       }));
       return MapValue.of(mapEntries);
     }
     case "object_value": {
-      const objectValue = value["object_value"] as ProtoObject | undefined;
+      const objectValue = protoFieldToValue(value, "object_value") as ProtoObject | undefined;
       if (!objectValue) {
         return null;
       }
       return protoToObjectValue(objectValue);
     }
     case "enum_value": {
-      const enumValue = value["enum_value"] as ProtoObject | undefined;
-      const typeName = enumValue?.["type"];
-      const numeric = enumValue?.["value"];
+      const enumValue = protoFieldToValue(value, "enum_value") as ProtoObject | undefined;
+      const typeName = enumValue ? protoFieldToValue(enumValue, "type") : undefined;
+      const numeric = enumValue ? protoFieldToValue(enumValue, "value") : undefined;
       if (typeof typeName !== "string") {
         return null;
       }
@@ -94,7 +94,7 @@ export function protoToValue(value: ProtoObject): Value | null {
       return EnumValue.of(normalizeTypeName(typeName), numberValue);
     }
     case "type_value":
-      return typeNameToTypeValue(String(value["type_value"] ?? ""));
+      return typeNameToTypeValue(String(protoFieldToValue(value, "type_value") ?? ""));
     default:
       return null;
   }
@@ -104,8 +104,8 @@ export function protoToValue(value: ProtoObject): Value | null {
  * Convert a CEL Constant proto value into a runtime Value.
  */
 export function protoToObjectValue(anyValue: ProtoObject): Value | null {
-  const typeUrl = anyValue["type_url"] ?? anyValue["typeUrl"];
-  const bytes = anyValue["value"] as Uint8Array | number[] | undefined;
+  const typeUrl = protoFieldToValue(anyValue, "type_url", "typeUrl");
+  const bytes = protoFieldToValue(anyValue, "value") as Uint8Array | number[] | undefined;
   if (!typeUrl || !bytes) {
     if (!typeUrl) {
       return null;
@@ -139,7 +139,7 @@ export function normalizeProtoFieldName(name: string): string {
 }
 
 export function objectToGoogleValue(object: ProtoObject): Value {
-  const kind = object["kind"];
+  const kind = protoFieldToValue(object, "kind");
   const nullValue = protoFieldToValue(object, "null_value", "nullValue");
   if (kind === "null_value" || nullValue !== undefined) {
     return NullValue.Instance;
@@ -178,8 +178,8 @@ export function objectToGoogleStruct(object: ProtoObject): Value {
   if (Array.isArray(fieldsRaw)) {
     for (const entry of fieldsRaw) {
       if (!entry || typeof entry !== "object") continue;
-      const key = entry["key"];
-      const value = entry["value"];
+      const key = protoFieldToValue(entry as ProtoObject, "key");
+      const value = protoFieldToValue(entry as ProtoObject, "value");
       if (typeof key !== "string" || !value || typeof value !== "object") {
         continue;
       }
@@ -319,7 +319,7 @@ export function messageToWrapperValue(
   if (!kind) {
     return null;
   }
-  const raw = object["value"];
+  const raw = protoFieldToValue(object, "value");
   if (raw === undefined || raw === null) {
     return wrapperKindToDefaultValue(kind);
   }
@@ -464,7 +464,9 @@ export function fieldScalarOrMessageToValue(
     const object = decodedMessage
       ? (resolved.toObject(decodedMessage, protoLoader.options) as ProtoObject)
       : ((raw ?? {}) as ProtoObject);
-    const decoded = decodedMessage ? (decodedMessage as unknown as ProtoObject) : (raw as ProtoObject | undefined);
+    const decoded = decodedMessage
+      ? (decodedMessage as unknown as ProtoObject)
+      : (raw as ProtoObject | undefined);
     return messageToValue(resolved, object, decoded);
   }
   return null;
@@ -516,12 +518,12 @@ function stripLeadingDot(name: string): string {
   return name.startsWith(".") ? name.slice(1) : name;
 }
 
-function getDecodedMessage(raw: unknown): protobuf.Message<{}> | undefined {
+function getDecodedMessage(raw: unknown): protobuf.Message<Record<string, unknown>> | undefined {
   if (!raw || typeof raw !== "object") {
     return undefined;
   }
   if ("$type" in raw) {
-    return raw as protobuf.Message<{}>;
+    return raw as protobuf.Message<Record<string, unknown>>;
   }
   return undefined;
 }
@@ -569,14 +571,14 @@ export function enumToValue(enumType: protobuf.Enum, raw: unknown): Value | null
 }
 
 export function protoToTimestamp(object: ProtoObject): Value {
-  const seconds = unknownToBigInt(object["seconds"]);
-  const nanos = unknownToBigInt(object["nanos"]);
+  const seconds = unknownToBigInt(protoFieldToValue(object, "seconds"));
+  const nanos = unknownToBigInt(protoFieldToValue(object, "nanos"));
   return TimestampValue.of(seconds * 1_000_000_000n + nanos);
 }
 
 export function protoToDuration(object: ProtoObject): Value {
-  const seconds = unknownToBigInt(object["seconds"]);
-  const nanos = unknownToBigInt(object["nanos"]);
+  const seconds = unknownToBigInt(protoFieldToValue(object, "seconds"));
+  const nanos = unknownToBigInt(protoFieldToValue(object, "nanos"));
   return DurationValue.of(seconds * 1_000_000_000n + nanos);
 }
 
@@ -597,7 +599,7 @@ export function unknownToBigInt(value: unknown): bigint {
 }
 
 export function protoToType(type: ProtoObject): Type | null {
-  const typeKind = (type["type_kind"] ?? type["typeKind"]) as string | undefined;
+  const typeKind = protoFieldToValue(type, "type_kind", "typeKind") as string | undefined;
   if (!typeKind) {
     return null;
   }
@@ -610,41 +612,43 @@ export function protoToType(type: ProtoObject): Type | null {
     case "error":
       return ErrorType;
     case "primitive":
-      return protoPrimitiveToType(type["primitive"] as string);
+      return protoPrimitiveToType(protoFieldToValue(type, "primitive") as string);
     case "wrapper":
-      return protoWrapperToType(type["wrapper"] as string);
+      return protoWrapperToType(protoFieldToValue(type, "wrapper") as string);
     case "well_known":
-      return protoWellKnownToType(type["well_known"] as string);
+      return protoWellKnownToType(protoFieldToValue(type, "well_known") as string);
     case "list_type": {
-      const listType = type["list_type"] as ProtoObject | undefined;
-      const elemType = listType ? protoToType(listType["elem_type"] as ProtoObject) : null;
+      const listType = protoFieldToValue(type, "list_type") as ProtoObject | undefined;
+      const elemType = listType
+        ? protoToType(protoFieldToValue(listType, "elem_type") as ProtoObject)
+        : null;
       return new ListType(elemType ?? DynType);
     }
     case "map_type": {
-      const mapType = type["map_type"] as ProtoObject | undefined;
+      const mapType = protoFieldToValue(type, "map_type") as ProtoObject | undefined;
       if (!mapType) {
         return new MapType(DynType, DynType);
       }
-      const key = protoToType(mapType["key_type"] as ProtoObject);
-      const value = protoToType(mapType["value_type"] as ProtoObject);
+      const key = protoToType(protoFieldToValue(mapType, "key_type") as ProtoObject);
+      const value = protoToType(protoFieldToValue(mapType, "value_type") as ProtoObject);
       return new MapType(key ?? DynType, value ?? DynType);
     }
     case "message_type":
-      return protoMessageNameToType(String(type["message_type"] ?? ""));
+      return protoMessageNameToType(String(protoFieldToValue(type, "message_type") ?? ""));
     case "type_param":
-      return new TypeParamType(String(type["type_param"] ?? ""));
+      return new TypeParamType(String(protoFieldToValue(type, "type_param") ?? ""));
     case "type": {
-      const nested = protoToType(type["type"] as ProtoObject);
+      const nested = protoToType(protoFieldToValue(type, "type") as ProtoObject);
       return new PolymorphicTypeType(nested ?? DynType);
     }
     case "opaque":
     case "abstract_type": {
-      const opaque = type["abstract_type"] as ProtoObject | undefined;
-      const name = opaque?.["name"] as string | undefined;
+      const opaque = protoFieldToValue(type, "abstract_type") as ProtoObject | undefined;
+      const name = opaque ? (protoFieldToValue(opaque, "name") as string | undefined) : undefined;
       if (!name) {
         return new OpaqueType("unknown");
       }
-      const params = (opaque?.["parameter_types"] ?? []) as ProtoObject[];
+      const params = (protoFieldToValue(opaque, "parameter_types") ?? []) as ProtoObject[];
       return new OpaqueType(name, ...params.map((param) => protoToType(param) ?? DynType));
     }
     default:

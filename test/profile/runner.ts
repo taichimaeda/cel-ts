@@ -5,7 +5,7 @@ export class ProfileRunner {
   constructor(
     private readonly profileCases: ProfileCase[],
     private readonly iterations: number
-  ) { }
+  ) {}
 
   run(caseName?: string): void {
     const selectedCases = this.selectCases(caseName);

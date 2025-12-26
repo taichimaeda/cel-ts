@@ -5,19 +5,19 @@
 import type { ExprId } from "../common/ast";
 import {
   type AST,
-  CallExpr,
-  ComprehensionExpr,
+  type CallExpr,
+  type ComprehensionExpr,
   ConstantReference,
   type Expr,
   FunctionReference,
   IdentExpr,
-  ListExpr,
-  LiteralExpr,
-  MapExpr,
+  type ListExpr,
+  type LiteralExpr,
+  type MapExpr,
   Operators,
   type ReferenceInfo,
   SelectExpr,
-  StructExpr,
+  type StructExpr,
   VariableReference,
 } from "../common/ast";
 import type { SourceInfo } from "../common/source";
@@ -66,7 +66,7 @@ export class Checker {
     private env: CheckerEnv,
     private readonly typeMap: Map<ExprId, Type>,
     private readonly refMap: Map<ExprId, ReferenceInfo>
-  ) { }
+  ) {}
 
   /**
    * Check an AST expression
@@ -231,7 +231,7 @@ export class Checker {
         resultType = targetType.mapValueType() ?? DynType;
         break;
 
-      case "struct":
+      case "struct": {
         // Structs yield their field type
         const fieldType = this.env.lookupFieldType(targetType, field);
         if (fieldType !== undefined) {
@@ -240,6 +240,7 @@ export class Checker {
           this.errors.reportUndefinedField(id, field, this.getLocation(id));
         }
         break;
+      }
 
       case "type_param":
         // Type param gets treated as dyn

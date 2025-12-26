@@ -23,6 +23,17 @@ import {
   DoubleValue,
   EnumValue,
   ErrorValue,
+  IntLimits,
+  IntValue,
+  ListValue,
+  type MapEntry,
+  MapValue,
+  NullValue,
+  OptionalValue,
+  StringValue,
+  StructValue,
+  UintValue,
+  type Value,
   isBoolValue,
   isBytesValue,
   isDoubleValue,
@@ -39,17 +50,6 @@ import {
   isTimestampValue,
   isUintValue,
   isUnknownValue,
-  IntLimits,
-  IntValue,
-  ListValue,
-  type MapEntry,
-  MapValue,
-  NullValue,
-  OptionalValue,
-  StringValue,
-  StructValue,
-  UintValue,
-  type Value,
   toTypeValue,
 } from "./values";
 
@@ -106,7 +106,7 @@ export class ConstValue {
   constructor(
     private readonly exprId: ExprId,
     private readonly val: Value
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -134,7 +134,7 @@ export class IdentValue {
   constructor(
     private readonly exprId: ExprId,
     private readonly name: string
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -163,7 +163,7 @@ export class IdentValue {
 export class AttrValue {
   readonly kind: InterpretableKind = "attr";
 
-  constructor(private readonly attr: Attribute) { }
+  constructor(private readonly attr: Attribute) {}
 
   id(): ExprId {
     return this.attr.id();
@@ -199,7 +199,7 @@ export class NotValue {
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -236,7 +236,7 @@ export class NotStrictlyFalseValue {
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -274,7 +274,7 @@ export class NegValue {
   constructor(
     private readonly exprId: ExprId,
     private readonly operand: Interpretable
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -313,7 +313,7 @@ export class AndValue {
     private readonly exprId: ExprId,
     private readonly lhs: Interpretable,
     private readonly rhs: Interpretable
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -382,7 +382,7 @@ export class OrValue {
     private readonly exprId: ExprId,
     private readonly lhs: Interpretable,
     private readonly rhs: Interpretable
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -452,7 +452,7 @@ export class ConditionalValue {
     private readonly condition: Interpretable,
     private readonly truthy: Interpretable,
     private readonly falsy: Interpretable
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -512,7 +512,7 @@ export class BinaryValue {
     private readonly operator: string,
     private readonly lhs: Interpretable,
     private readonly rhs: Interpretable
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -779,10 +779,7 @@ export class BinaryValue {
     if (isStringValue(container) && isStringValue(elem)) {
       return container.contains(elem);
     }
-    return ErrorValue.of(
-      `type '${container.type()}' does not support 'in' operator`,
-      this.exprId
-    );
+    return ErrorValue.of(`type '${container.type()}' does not support 'in' operator`, this.exprId);
   }
 }
 
@@ -798,7 +795,7 @@ export class CallValue {
     private readonly overloadId: string,
     private readonly args: Interpretable[],
     private readonly dispatcher: Dispatcher
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -894,7 +891,7 @@ export class BlockValue {
     private readonly exprId: ExprId,
     private readonly slots: Interpretable[],
     private readonly result: Interpretable
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -1123,7 +1120,10 @@ export class CreateStructValue {
           }
           continue;
         }
-        if (protoFieldType === "google.protobuf.ListValue" || protoFieldType === "google.protobuf.Struct") {
+        if (
+          protoFieldType === "google.protobuf.ListValue" ||
+          protoFieldType === "google.protobuf.Struct"
+        ) {
           return ErrorValue.of("unsupported field type", this.exprId);
         }
         continue;
@@ -1590,9 +1590,7 @@ function isEnumInt32Range(value: bigint): boolean {
 }
 
 function isSupportedMapKey(key: Value): boolean {
-  return (
-    isBoolValue(key) || isIntValue(key) || isUintValue(key) || isStringValue(key)
-  );
+  return isBoolValue(key) || isIntValue(key) || isUintValue(key) || isStringValue(key);
 }
 
 function mapKeyId(key: Value): string {
@@ -1622,7 +1620,7 @@ export class IndexValue {
     private readonly operand: Interpretable,
     private readonly index: Interpretable,
     private readonly optional = false
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -1709,7 +1707,7 @@ export class FieldValue {
     private readonly operand: Interpretable,
     private readonly field: string,
     private readonly optional = false
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -1765,7 +1763,7 @@ export class HasFieldValue {
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
     private readonly field: string
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -1829,7 +1827,7 @@ export class ComprehensionValue {
     private readonly loopStep: Interpretable,
     private readonly result: Interpretable,
     private readonly iterVar2?: string
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -1996,7 +1994,7 @@ export class TypeConversionValue {
     private readonly operand: Interpretable,
     private readonly targetType: string,
     private readonly typeProvider?: TypeProvider
-  ) { }
+  ) {}
 
   id(): ExprId {
     return this.exprId;
@@ -2069,10 +2067,7 @@ export class TypeConversionValue {
       if (!Number.isFinite(doubleValue)) {
         return ErrorValue.of("cannot convert infinity or NaN to int", this.exprId);
       }
-      if (
-        doubleValue <= Number(IntLimits.Int64Min) ||
-        doubleValue >= Number(IntLimits.Int64Max)
-      ) {
+      if (doubleValue <= Number(IntLimits.Int64Min) || doubleValue >= Number(IntLimits.Int64Max)) {
         return ErrorValue.of("range error", this.exprId);
       }
       const truncated = BigInt(Math.trunc(doubleValue));

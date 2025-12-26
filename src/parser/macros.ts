@@ -14,10 +14,6 @@ export { AccumulatorName } from "../common/ast";
  */
 export class MacroError extends Error {
   override name = "MacroError";
-
-  constructor(message: string) {
-    super(message);
-  }
 }
 
 /**
@@ -36,11 +32,7 @@ export type MacroExpander = (
 /**
  * Union type for all macro variants.
  */
-export type Macro =
-  | GlobalMacro
-  | ReceiverMacro
-  | GlobalVarArgMacro
-  | ReceiverVarArgMacro;
+export type Macro = GlobalMacro | ReceiverMacro | GlobalVarArgMacro | ReceiverVarArgMacro;
 
 /**
  * Macro call style discriminator.
@@ -57,27 +49,25 @@ class BaseMacro {
     readonly expander: MacroExpander,
     readonly receiverStyle = false,
     readonly varArgStyle = false
-  ) { }
+  ) {}
 
   macroKey(): string {
     if (this.varArgStyle) {
-      return MacroKey.forVarArg(this.name, this.receiverStyle);
+      return macroKeyForVarArg(this.name, this.receiverStyle);
     }
-    return MacroKey.forArity(this.name, this.argCount, this.receiverStyle);
+    return macroKeyForArity(this.name, this.argCount, this.receiverStyle);
   }
 }
 
 /**
  * Macro key builder for lookup.
  */
-class MacroKey {
-  static forArity(name: string, args: number, receiverStyle: boolean): string {
-    return `${name}:${args}:${receiverStyle}`;
-  }
+function macroKeyForArity(name: string, args: number, receiverStyle: boolean): string {
+  return `${name}:${args}:${receiverStyle}`;
+}
 
-  static forVarArg(name: string, receiverStyle: boolean): string {
-    return `${name}:*:${receiverStyle}`;
-  }
+function macroKeyForVarArg(name: string, receiverStyle: boolean): string {
+  return `${name}:*:${receiverStyle}`;
 }
 
 /**

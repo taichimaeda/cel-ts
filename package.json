@@ -12,11 +12,7 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": [
-    "dist",
-    "LICENSE",
-    "README.md"
-  ],
+  "files": ["dist", "LICENSE", "README.md"],
   "sideEffects": false,
   "scripts": {
     "build": "tsup",
@@ -35,10 +31,11 @@
     "profile:serve": "pnpm run profile:build && pnpm exec clinic flame --dest test/profile/.clinic -- node test/profile/run.js",
     "version": "pnpm run build",
     "clean": "rm -rf dist coverage docs/api",
-    "docs": "pnpm run docs:serve",
+    "docs": "pnpm run docs:build",
     "docs:build": "pnpm exec typedoc",
     "docs:watch": "pnpm exec typedoc --watch",
-    "docs:view": "pnpm run docs:build && (open docs/api/index.html || xdg-open docs/api/index.html)"
+    "docs:view": "pnpm run docs:build && (open docs/api/index.html || xdg-open docs/api/index.html)",
+    "docs:serve": "pnpm run docs:view"
   },
   "keywords": [
     "cel",
