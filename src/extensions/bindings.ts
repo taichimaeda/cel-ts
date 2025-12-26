@@ -31,7 +31,7 @@ export class BindingsExtension implements Extension {
         if (varName === undefined) {
           throw new MacroError("cel.bind() variable names must be simple identifiers");
         }
-        if (!initArg || !resultArg) {
+        if (!(initArg && resultArg)) {
           return undefined;
         }
 

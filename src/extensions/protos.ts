@@ -21,7 +21,11 @@ export class ProtosExtension implements Extension {
         if (extensionField === undefined) {
           throw new MacroError("invalid extension field");
         }
-        return helper.createSelect(args[0]!, extensionField);
+        const [targetArg] = args;
+        if (!targetArg) {
+          return undefined;
+        }
+        return helper.createSelect(targetArg, extensionField);
       }),
       new ReceiverMacro("hasExt", 2, (helper, target, args) => {
         if (!macroTargetMatchesNamespace(protoNamespace, target)) {
@@ -31,7 +35,11 @@ export class ProtosExtension implements Extension {
         if (extensionField === undefined) {
           throw new MacroError("invalid extension field");
         }
-        return helper.createPresenceTest(args[0]!, extensionField);
+        const [targetArg] = args;
+        if (!targetArg) {
+          return undefined;
+        }
+        return helper.createPresenceTest(targetArg, extensionField);
       }),
     ];
 

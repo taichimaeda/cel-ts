@@ -33,7 +33,7 @@ jobs:
         run: pnpm lint
 
   typecheck:
-    name: Type Check
+    name: Typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -80,6 +80,9 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+
+      - name: Run conformance tests
+        run: pnpm conformance
 
   build:
     name: Build

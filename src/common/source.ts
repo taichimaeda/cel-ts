@@ -103,7 +103,11 @@ export class SourceInfo {
     if (line < 1 || line > this.lineOffsets.length + 1) {
       return -1;
     }
-    return this.lineOffsets[line - 2]! + column;
+    const lineOffset = this.lineOffsets[line - 2];
+    if (lineOffset === undefined) {
+      return -1;
+    }
+    return lineOffset + column;
   }
 
   /**

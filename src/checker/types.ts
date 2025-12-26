@@ -160,6 +160,11 @@ export class Type {
  * Primitive singleton types exposed as global constants.
  */
 class PrimitiveType extends Type {
+  // biome-ignore lint/complexity/noUselessConstructor: exposed for singleton instances
+  constructor(kind: TypeKind, runtimeTypeName: string) {
+    super(kind, runtimeTypeName);
+  }
+
   override toString(): string {
     return this.runtimeTypeName;
   }

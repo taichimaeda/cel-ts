@@ -44,7 +44,7 @@ export class StringQualifier {
     private readonly exprId: ExprId,
     private readonly field: string,
     private readonly optional = false
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -56,13 +56,18 @@ export class StringQualifier {
       return obj;
     }
 
-    let current = obj;
+    let current: Value = obj;
     const optionalSelection = this.optional || isOptionalValue(current);
-    if (isOptionalValue(current)) {
-      if (!current.hasValue()) {
+    const optionalValue = isOptionalValue(current) ? current : undefined;
+    if (optionalValue) {
+      if (!optionalValue.hasValue()) {
         return OptionalValue.none();
       }
-      current = current.value()!;
+      const inner = optionalValue.value();
+      if (!inner) {
+        return OptionalValue.none();
+      }
+      current = inner;
     }
 
     // Struct access
@@ -95,7 +100,7 @@ export class StringQualifier {
     }
 
     // Object access (when converted from native JS value)
-    const nativeVal = obj.value();
+    const nativeVal = current.value();
     if (typeof nativeVal === "object" && nativeVal !== null) {
       const record = nativeVal as unknown as Record<string, unknown>;
       if (this.field in record) {
@@ -112,10 +117,6 @@ export class StringQualifier {
 
     return ErrorValue.noSuchField(this.field, this.exprId);
   }
-
-  isConstant(): boolean {
-    return true;
-  }
 }
 
 /**
@@ -128,7 +129,7 @@ export class IndexQualifier {
     private readonly exprId: ExprId,
     private readonly index: Value,
     private readonly optional = false
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -143,13 +144,18 @@ export class IndexQualifier {
       return this.index;
     }
 
-    let current = obj;
+    let current: Value = obj;
     const optionalSelection = this.optional || isOptionalValue(current);
-    if (isOptionalValue(current)) {
-      if (!current.hasValue()) {
+    const optionalValue = isOptionalValue(current) ? current : undefined;
+    if (optionalValue) {
+      if (!optionalValue.hasValue()) {
         return OptionalValue.none();
       }
-      current = current.value()!;
+      const inner = optionalValue.value();
+      if (!inner) {
+        return OptionalValue.none();
+      }
+      current = inner;
     }
 
     // List access
@@ -217,10 +223,6 @@ export class IndexQualifier {
 
     return ErrorValue.of(`type '${obj.type()}' does not support indexing`, this.exprId);
   }
-
-  isConstant(): boolean {
-    return true;
-  }
 }
 
 /**
@@ -233,7 +235,7 @@ export class ComputedQualifier {
     private readonly exprId: ExprId,
     private readonly operand: Interpretable,
     private readonly optional = false
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
@@ -388,7 +390,7 @@ export class ConditionalAttribute {
     private readonly condition: Interpretable,
     private readonly truthy: Attribute,
     private readonly falsy: Attribute
-  ) {}
+  ) { }
 
   id(): ExprId {
     return this.exprId;
