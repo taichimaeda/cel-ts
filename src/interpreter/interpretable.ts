@@ -116,6 +116,10 @@ export class ConstValue {
     return this.val;
   }
 
+  value(): Value {
+    return this.val;
+  }
+
   cost(): number {
     return 1;
   }
@@ -147,6 +151,10 @@ export class IdentValue {
   cost(): number {
     return 1;
   }
+
+  variableName(): string {
+    return this.name;
+  }
 }
 
 /**
@@ -163,6 +171,10 @@ export class AttrValue {
 
   eval(activation: Activation): Value {
     return this.attr.resolve(activation);
+  }
+
+  attribute(): Attribute {
+    return this.attr;
   }
 
   cost(): number {
@@ -207,6 +219,10 @@ export class NotValue {
   cost(): number {
     return 1 + this.operand.cost();
   }
+
+  operandValue(): Interpretable {
+    return this.operand;
+  }
 }
 
 /**
@@ -243,6 +259,10 @@ export class NotStrictlyFalseValue {
   cost(): number {
     return 1 + this.operand.cost();
   }
+
+  operandValue(): Interpretable {
+    return this.operand;
+  }
 }
 
 /**
@@ -276,6 +296,10 @@ export class NegValue {
 
   cost(): number {
     return 1 + this.operand.cost();
+  }
+
+  operandValue(): Interpretable {
+    return this.operand;
   }
 }
 
@@ -338,6 +362,14 @@ export class AndValue {
   cost(): number {
     return 1 + this.lhs.cost() + this.rhs.cost();
   }
+
+  left(): Interpretable {
+    return this.lhs;
+  }
+
+  right(): Interpretable {
+    return this.rhs;
+  }
 }
 
 /**
@@ -399,6 +431,14 @@ export class OrValue {
   cost(): number {
     return 1 + this.lhs.cost() + this.rhs.cost();
   }
+
+  left(): Interpretable {
+    return this.lhs;
+  }
+
+  right(): Interpretable {
+    return this.rhs;
+  }
 }
 
 /**
@@ -447,6 +487,18 @@ export class ConditionalValue {
   cost(): number {
     return 1 + this.condition.cost() + this.truthy.cost() + this.falsy.cost();
   }
+
+  conditionValue(): Interpretable {
+    return this.condition;
+  }
+
+  truthyValue(): Interpretable {
+    return this.truthy;
+  }
+
+  falsyValue(): Interpretable {
+    return this.falsy;
+  }
 }
 
 /**
@@ -482,6 +534,18 @@ export class BinaryValue {
 
   cost(): number {
     return 1 + this.lhs.cost() + this.rhs.cost();
+  }
+
+  operatorName(): string {
+    return this.operator;
+  }
+
+  left(): Interpretable {
+    return this.lhs;
+  }
+
+  right(): Interpretable {
+    return this.rhs;
   }
 
   private applyOperator(lhs: Value, rhs: Value): Value {
@@ -802,6 +866,22 @@ export class CallValue {
   cost(): number {
     return 1 + this.args.reduce((sum, arg) => sum + arg.cost(), 0);
   }
+
+  name(): string {
+    return this.functionName;
+  }
+
+  overload(): string {
+    return this.overloadId;
+  }
+
+  argList(): Interpretable[] {
+    return this.args;
+  }
+
+  overloadDispatcher(): Dispatcher {
+    return this.dispatcher;
+  }
 }
 
 /**
@@ -837,6 +917,14 @@ export class BlockValue {
 
   cost(): number {
     return 1 + this.slots.reduce((sum, slot) => sum + slot.cost(), 0) + this.result.cost();
+  }
+
+  slotValues(): Interpretable[] {
+    return this.slots;
+  }
+
+  resultValue(): Interpretable {
+    return this.result;
   }
 }
 
@@ -893,6 +981,14 @@ export class CreateListValue {
 
   cost(): number {
     return 1 + this.elements.reduce((sum, elem) => sum + elem.cost(), 0);
+  }
+
+  elementValues(): Interpretable[] {
+    return this.elements;
+  }
+
+  optionalIndexList(): number[] {
+    return Array.from(this.optionalIndices);
   }
 }
 
@@ -967,6 +1063,18 @@ export class CreateMapValue {
       this.keys.reduce((sum, key) => sum + key.cost(), 0) +
       this.values.reduce((sum, val) => sum + val.cost(), 0)
     );
+  }
+
+  keyExpressions(): Interpretable[] {
+    return this.keys;
+  }
+
+  valueExpressions(): Interpretable[] {
+    return this.values;
+  }
+
+  optionalIndexList(): number[] {
+    return Array.from(this.optionalIndices);
   }
 }
 
@@ -1121,6 +1229,26 @@ export class CreateStructValue {
 
   cost(): number {
     return 1 + this.values.reduce((sum, val) => sum + val.cost(), 0);
+  }
+
+  fieldNames(): string[] {
+    return this.fields;
+  }
+
+  valueExpressions(): Interpretable[] {
+    return this.values;
+  }
+
+  fieldTypeMap(): Map<string, CheckerType> {
+    return this.fieldTypes;
+  }
+
+  optionalFieldIndices(): number[] {
+    return Array.from(this.optionalFields);
+  }
+
+  provider(): TypeProvider | undefined {
+    return this.typeProvider;
   }
 }
 
@@ -1556,6 +1684,18 @@ export class IndexValue {
   cost(): number {
     return 1 + this.operand.cost() + this.index.cost();
   }
+
+  operandValue(): Interpretable {
+    return this.operand;
+  }
+
+  indexValue(): Interpretable {
+    return this.index;
+  }
+
+  isOptional(): boolean {
+    return this.optional;
+  }
 }
 
 /**
@@ -1599,6 +1739,18 @@ export class FieldValue {
 
   cost(): number {
     return 1 + this.operand.cost();
+  }
+
+  operandValue(): Interpretable {
+    return this.operand;
+  }
+
+  fieldName(): string {
+    return this.field;
+  }
+
+  isOptional(): boolean {
+    return this.optional;
   }
 }
 
@@ -1650,6 +1802,14 @@ export class HasFieldValue {
 
   cost(): number {
     return 1 + this.operand.cost();
+  }
+
+  operandValue(): Interpretable {
+    return this.operand;
+  }
+
+  fieldName(): string {
+    return this.field;
   }
 }
 
@@ -1791,6 +1951,38 @@ export class ComprehensionValue {
       this.result.cost()
     );
   }
+
+  iterationVariable(): string {
+    return this.iterVar;
+  }
+
+  iterationVariable2(): string | undefined {
+    return this.iterVar2;
+  }
+
+  iterationRange(): Interpretable {
+    return this.iterRange;
+  }
+
+  accumulatorVariable(): string {
+    return this.accuVar;
+  }
+
+  accumulatorInit(): Interpretable {
+    return this.accuInit;
+  }
+
+  loopConditionValue(): Interpretable {
+    return this.loopCondition;
+  }
+
+  loopStepValue(): Interpretable {
+    return this.loopStep;
+  }
+
+  resultValue(): Interpretable {
+    return this.result;
+  }
 }
 
 /**
@@ -1840,6 +2032,18 @@ export class TypeConversionValue {
 
   cost(): number {
     return 1 + this.operand.cost();
+  }
+
+  operandValue(): Interpretable {
+    return this.operand;
+  }
+
+  targetTypeName(): string {
+    return this.targetType;
+  }
+
+  provider(): TypeProvider | undefined {
+    return this.typeProvider;
   }
 
   private toInt(val: Value): Value {

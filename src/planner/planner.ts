@@ -28,9 +28,9 @@ import {
   ComputedQualifier,
   IndexQualifier,
   MaybeAttribute,
+  type Qualifier,
   RelativeAttribute,
   StringQualifier,
-  type Qualifier,
 } from "../interpreter/attributes";
 import { Dispatcher } from "../interpreter/dispatcher";
 import {
@@ -68,19 +68,29 @@ import {
   UintValue,
   type Value,
 } from "../interpreter/values";
+import {
+  AllPostPasses,
+  AllPrePasses,
+  PostOptimizer,
+  PreOptimizer,
+} from "./optimizer";
 
 /**
  * Planner options for controlling interpretable generation.
  */
 export interface PlannerOptions {
+  /** AST optimizer */
+  preOptimizer?: PreOptimizer | undefined;
+  /** Interpretable optimizer */
+  postOptimizer?: PostOptimizer | undefined;
   /** Function dispatcher */
   dispatcher?: Dispatcher | undefined;
   /** Reference map from checker result */
   refMap?: Map<ExprId, ReferenceInfo> | undefined;
-  /** Type provider for struct defaults */
-  typeProvider?: TypeProvider | undefined;
   /** Type map from checker result */
   typeMap?: Map<ExprId, CheckerType> | undefined;
+  /** Type provider for struct defaults */
+  typeProvider?: TypeProvider | undefined;
   /** Container name for qualified resolution in unchecked mode */
   container?: string | undefined;
   /** Treat enum values as ints (legacy semantics) */
@@ -91,15 +101,19 @@ export interface PlannerOptions {
  * Planner converts parsed AST to interpretable expressions.
  */
 export class Planner {
-  private readonly refMap: Map<ExprId, ReferenceInfo>;
+  private readonly preOptimizer: PreOptimizer;
+  private readonly postOptimizer: PostOptimizer;
   private readonly dispatcher: Dispatcher;
-  private readonly typeProvider: TypeProvider | undefined;
+  private readonly refMap: Map<ExprId, ReferenceInfo>;
   private readonly typeMap: Map<ExprId, CheckerType> | undefined;
+  private readonly typeProvider: TypeProvider | undefined;
   private readonly containerName: string;
   private readonly hasRefMap: boolean;
   private readonly enumValuesAsInt: boolean;
 
   constructor(options: PlannerOptions = {}) {
+    this.preOptimizer = options.preOptimizer ?? new PreOptimizer(AllPrePasses);
+    this.postOptimizer = options.postOptimizer ?? new PostOptimizer(AllPostPasses);
     this.dispatcher = options.dispatcher ?? new Dispatcher();
     this.refMap = options.refMap ?? new Map();
     this.hasRefMap = options.refMap !== undefined;
@@ -113,7 +127,9 @@ export class Planner {
    * Plan an AST into an interpretable.
    */
   plan(ast: AST): Interpretable {
-    return this.planExpr(ast.expr);
+    const optimized = this.preOptimizer.optimize(ast);
+    const planned = this.planExpr(optimized.expr);
+    return this.postOptimizer.optimize(planned);
   }
 
   /**

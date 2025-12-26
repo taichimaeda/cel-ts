@@ -56,6 +56,7 @@ export {
   MutableActivation,
   PartialActivation,
   StrictActivation,
+  ActivationCache,
   type Activation
 } from "./activation";
 

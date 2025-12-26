@@ -31,13 +31,14 @@
     "conformance": "bun run test/conformance/run.ts",
     "conformance:serve": "bun run test/conformance/run.ts --serve",
     "benchmark": "bun run test/benchmark/run.ts",
-    "prepublishOnly": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build",
+    "profile:build": "pnpm run build && pnpm exec tsc -p test/profile/tsconfig.json",
+    "profile:serve": "pnpm run profile:build && pnpm exec clinic flame --dest test/profile/.clinic -- node test/profile/run.js",
     "version": "pnpm run build",
     "clean": "rm -rf dist coverage docs/api",
     "docs": "pnpm run docs:serve",
     "docs:build": "pnpm exec typedoc",
     "docs:watch": "pnpm exec typedoc --watch",
-    "docs:serve": "concurrently -k -s first \"pnpm run docs:watch\" \"python3 -m http.server --directory docs/api 8000\""
+    "docs:view": "pnpm run docs:build && (open docs/api/index.html || xdg-open docs/api/index.html)"
   },
   "keywords": [
     "cel",
@@ -74,7 +75,7 @@
     "cel-js": "0.8.1",
     "chevrotain": "11.0.3",
     "cli-table3": "0.6.5",
-    "concurrently": "9.1.2",
+    "clinic": "13.0.0",
     "consola": "3.2.3",
     "fast-check": "4.4.0",
     "mitata": "^1.0.34",

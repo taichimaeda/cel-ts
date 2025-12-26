@@ -25,13 +25,16 @@ Both [ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) and [marcbachmann/cel
 
 [taichimaeda/cel-ts](https://github.com/taichimaeda/cel-ts) tracks official CEL implementations ([cel-go](https://github.com/google/cel-go), [cel-cpp](https://github.com/google/cel-cpp), [cel-java](https://github.com/google/cel-java)) and provides the complete workflow: parsing, type checking, optimisation, evaluation, conformance tests, and tooling. If you need a production-grade CEL engine in the JS/TS ecosystem, `cel-ts` is the practical choice.
 
-Please note that [taichimaeda/cel-ts](https://github.com/taichimaeda/cel-ts) prioritised completeness and a full CEL toolchain as the initial goal, with performance tuning planned next. The benchmarks are provided for transparency, not as a performance-first target today.
+`cel-ts` is consistently faster than [ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) in the benchmark suite and generally close to [marcbachmann/cel-js](https://github.com/marcbachmann/cel-js) in throughput.
 
-| Capability | taichimaeda/cel-ts | ChromeGG/cel-js | marcbachmann/cel-js |
+### Checklist
+
+| Item | taichimaeda/cel-ts | ChromeGG/cel-js | marcbachmann/cel-js |
 | --- | --- | --- | --- |
-| Type checking and environments | Yes | No | Yes (limited) |
-| Conformance test suite | Yes (100%) | No | No |
-| Benchmark suite | Yes | No | Yes (basic) |
+| Type checking | Yes | No | Yes (limited) |
+| Conformance tests | Yes (100%) | No | No |
+| Benchmarking | Yes | No | Yes (basic) |
+| Profiling | Yes | No | No |
 | Raw string and byte literals | Yes | No | Partial |
 | cel-go compatible API | Yes | No | No |
 | Error reporting with source positions | Yes | No | Limited |
@@ -39,8 +42,26 @@ Please note that [taichimaeda/cel-ts](https://github.com/taichimaeda/cel-ts) pri
 | Extension packs | Full (cel-go parity) | Limited | Limited |
 | Formatter | Yes | No | No |
 | Linter | Yes | No | No |
-| Speed | Medium | Medium | Fast |
+| Speed | Fast | Slow | Fast |
 | Licence (cel-spec is Apache-2.0) | Apache-2.0 | MIT | MIT |
+
+### Performance
+
+| Case | taichimaeda/cel-ts (avg ns) | ChromeGG/cel-js (avg ns) | marcbachmann/cel-js (avg ns) |
+| --- | --- | --- | --- |
+| string_eq | 108.69 | 427.64 | 97.06 |
+| string_neq | 104.82 | 344.76 | 61.40 |
+| value_in_list_value | 162.88 | 349.15 | 91.34 |
+| value_not_in_list_value | 165.76 | 411.19 | 99.60 |
+| x_in_literal_list | 140.33 | 569.23 | 155.69 |
+| x_not_in_literal_list | 145.04 | 643.12 | 114.03 |
+| x_in_list_value | 224.05 | 369.86 | 111.11 |
+| x_not_in_list_value | 227.87 | 438.70 | 128.14 |
+| list_exists_contains | 484.24 | - | 384.23 |
+| list_exists_starts | 409.51 | - | 393.76 |
+| list_exists_matches | 299.50 | - | 209.14 |
+| list_filter_matches | 756.28 | - | 812.53 |
+
 
 ## Installation
 
@@ -97,7 +118,7 @@ pnpm conformance
 
 ### Benchmarking
 
-Run the lightweight benchmark suite and write results to `test/benchmark/results.json`:
+Run the lightweight benchmark suite and write results to `test/benchmark/results.json` (recent runs show `cel-ts` is often faster than ChromeGG/cel-js for the included cases):
 
 ```bash
 pnpm benchmark

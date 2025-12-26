@@ -118,8 +118,8 @@ export class TestRunner {
 
     // Evaluate
     const program = env.program(ast);
-    const bindings = convertBindings(test.bindings);
-    const { value, error } = tryEval(program, bindings);
+    const bindingMap = toBindingMap(test.bindings);
+    const { value, error } = evaluateProgram(program, bindingMap);
 
     // Check error expectations
     if (test.resultMatcher === "eval_error" || test.evalError) {
@@ -256,7 +256,7 @@ function extensionsForFile(fileName: string): Extension[] {
   return ext ? [...base, ext] : base;
 }
 
-function convertBindings(bindings?: Record<string, unknown>): Map<string, Value> {
+function toBindingMap(bindings?: Record<string, unknown>): Map<string, Value> {
   const result = new Map<string, Value>();
   if (!bindings) return result;
 
@@ -278,12 +278,13 @@ function extractExpectedValue(test: SimpleTest): Value | null {
   return null;
 }
 
-function tryEval(
+function evaluateProgram(
   program: ReturnType<Env["program"]>,
   bindings: Map<string, Value>
 ): { value?: Value; error?: string } {
   try {
-    return { value: program.eval(bindings) };
+    const value = program.eval(bindings);
+    return { value };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }

@@ -2,7 +2,7 @@
 // Activation interface for variable resolution
 // Implementation based on cel-go's interpret/activation.go
 
-import { nativeToValue } from "./utils";
+import { isActivation, nativeToValue } from "./utils";
 import { ErrorValue, UnknownValue, type Value } from "./values";
 
 export type Activation =
@@ -13,6 +13,8 @@ export type Activation =
   | PartialActivation
   | MutableActivation
   | StrictActivation;
+
+type ActivationInput = Activation | Map<string, Value> | Record<string, unknown> | undefined;
 
 /**
  * Empty activation that resolves no variables
@@ -217,5 +219,48 @@ export class StrictActivation {
 
   parent(): Activation | undefined {
     return this.delegate.parent();
+  }
+}
+
+export class ActivationCache {
+  private readonly lazyCache = new WeakMap<object, LazyActivation>();
+  private readonly mapCache = new WeakMap<Map<string, Value>, MapActivation>();
+
+  constructor(private readonly typeActivation: Activation) { }
+
+  getActivation(vars?: ActivationInput): Activation {
+    if (vars === undefined) {
+      return this.typeActivation;
+    }
+    if (isActivation(vars)) {
+      return new HierarchicalActivation(this.typeActivation, vars);
+    }
+    if (vars instanceof Map) {
+      return this.getCachedMapActivation(vars);
+    }
+    return this.getCachedLazyActivation(vars);
+  }
+
+  private getCachedLazyActivation(vars: Record<string, unknown>): Activation {
+    if (Object.isFrozen(vars)) {
+      const cached = this.lazyCache.get(vars);
+      if (cached) {
+        return cached;
+      }
+      const activation = new LazyActivation(vars, this.typeActivation);
+      this.lazyCache.set(vars, activation);
+      return activation;
+    }
+    return new LazyActivation(vars, this.typeActivation);
+  }
+
+  private getCachedMapActivation(vars: Map<string, Value>): Activation {
+    const cached = this.mapCache.get(vars);
+    if (cached) {
+      return cached;
+    }
+    const activation = new MapActivation(vars, this.typeActivation);
+    this.mapCache.set(vars, activation);
+    return activation;
   }
 }

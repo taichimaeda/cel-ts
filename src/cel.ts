@@ -16,12 +16,12 @@ import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
 import { Errors } from "./checker/errors";
 import { CompositeTypeProvider, StructTypeProvider, type TypeProvider } from "./checker/provider";
 import {
+  DynType,
   ListType,
   MapType,
   OptionalType,
   PolymorphicTypeType,
   StructType,
-  DynType,
   type Type,
 } from "./checker/types";
 import type { AST as CommonAST } from "./common/ast";
@@ -29,8 +29,7 @@ import type { SourceInfo } from "./common/source";
 import { standardFunctions } from "./interpreter";
 import {
   type Activation,
-  HierarchicalActivation,
-  LazyActivation,
+  ActivationCache,
   MapActivation,
 } from "./interpreter/activation";
 import {
@@ -40,7 +39,8 @@ import {
   NaryDispatcherOverload,
   UnaryDispatcherOverload,
 } from "./interpreter/dispatcher";
-import { formatRuntimeError, isActivation } from "./interpreter/utils";
+import type { Interpretable } from "./interpreter/interpretable";
+import { formatRuntimeError } from "./interpreter/utils";
 import { isErrorValue, TypeValue, type Value } from "./interpreter/values";
 import { AllMacros, type Macro, Parser, ParserHelper } from "./parser";
 import { Planner } from "./planner";
@@ -94,16 +94,13 @@ export {
   AnyType,
   BoolType,
   BytesType,
-  DoubleType,
-  DynType,
-  DurationType,
-  ErrorType,
+  DoubleType, DurationType, DynType, ErrorType,
   IntType,
   NullType,
   StringType,
   TimestampType,
   TypeType,
-  UintType,
+  UintType
 } from "./checker/types";
 
 /**
@@ -241,31 +238,28 @@ type ProgramInput = Activation | Map<string, Value> | Record<string, unknown>;
 
 export class Program {
   constructor(
-    private readonly interpretable: ReturnType<Planner["plan"]>,
+    private readonly interpretable: Interpretable,
     private readonly sourceInfo: SourceInfo
   ) { }
 
+  private static readonly typeValueBindings = typeValueBindings();
+  private static readonly typeActivation = new MapActivation(Program.typeValueBindings);
+  private readonly activationCache = new ActivationCache(Program.typeActivation);
+
   eval(vars?: ProgramInput): Value {
-    let activation: Activation;
-    const typeActivation = new MapActivation(typeValueBindings());
-    if (vars === undefined) {
-      activation = typeActivation;
-    } else if (isActivation(vars)) {
-      activation = new HierarchicalActivation(typeActivation, vars);
-    } else if (vars instanceof Map) {
-      activation = new MapActivation(vars, typeActivation);
-    } else {
-      activation = new LazyActivation(vars, typeActivation);
-    }
+    const activation = this.activationCache.getActivation(vars);
 
-    const value = this.interpretable.eval(activation);
-
-    if (isErrorValue(value)) {
-      const message = formatRuntimeError(value, this.sourceInfo);
+    try {
+      const value = this.interpretable.eval(activation);
+      if (isErrorValue(value)) {
+        const message = formatRuntimeError(value, this.sourceInfo);
+        throw new CELError(message);
+      }
+      return value;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       throw new CELError(message);
     }
-
-    return value;
   }
 }
 
@@ -286,6 +280,7 @@ function typeValueBindings(): Map<string, Value> {
     ["google.protobuf.Duration", TypeValue.DurationType],
   ]);
 }
+
 
 // ============================================================================
 // Env configuration helpers
@@ -830,3 +825,4 @@ export {
   UintValue
 } from "./interpreter/values";
 export type { Value } from "./interpreter/values";
+
