@@ -363,14 +363,14 @@ export class MacroRegistry {
    */
   findMacro(name: string, argCount: number, receiverStyle: boolean): Macro | undefined {
     // Try exact match first
-    const key = MacroKey.forArity(name, argCount, receiverStyle);
+    const key = macroKeyForArity(name, argCount, receiverStyle);
     let macro = this.macros.get(key);
     if (macro !== undefined) {
       return macro;
     }
 
     // Try vararg match
-    const varArgKey = MacroKey.forVarArg(name, receiverStyle);
+    const varArgKey = macroKeyForVarArg(name, receiverStyle);
     macro = this.macros.get(varArgKey);
     return macro;
   }

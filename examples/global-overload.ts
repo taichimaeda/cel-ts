@@ -10,9 +10,7 @@ const env = new cel.Env({
         [cel.StringType, cel.StringType],
         cel.StringType,
         (lhs, rhs) =>
-          cel.StringValue.of(
-            `${String(lhs.value())} and ${String(rhs.value())} are shaking hands.`
-          )
+          cel.StringValue.of(`${String(lhs.value())} and ${String(rhs.value())} are shaking hands.`)
       )
     ),
   ],

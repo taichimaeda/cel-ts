@@ -60,7 +60,7 @@ export class SetsExtension implements Extension {
 }
 
 function setsContains(lhs: Value, rhs: Value): Value {
-  if (!isListValue(lhs) || !isListValue(rhs)) {
+  if (!(isListValue(lhs) && isListValue(rhs))) {
     return ErrorValue.of("sets.contains expects list arguments");
   }
   for (const elem of rhs.value()) {
@@ -76,7 +76,7 @@ function setsContains(lhs: Value, rhs: Value): Value {
 }
 
 function setsEquivalent(lhs: Value, rhs: Value): Value {
-  if (!isListValue(lhs) || !isListValue(rhs)) {
+  if (!(isListValue(lhs) && isListValue(rhs))) {
     return ErrorValue.of("sets.equivalent expects list arguments");
   }
   const leftContains = setsContains(lhs, rhs);
@@ -93,7 +93,7 @@ function setsEquivalent(lhs: Value, rhs: Value): Value {
 }
 
 function setsIntersects(lhs: Value, rhs: Value): Value {
-  if (!isListValue(lhs) || !isListValue(rhs)) {
+  if (!(isListValue(lhs) && isListValue(rhs))) {
     return ErrorValue.of("sets.intersects expects list arguments");
   }
   for (const elem of rhs.value()) {

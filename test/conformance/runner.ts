@@ -26,7 +26,6 @@ import {
   isUnknownValue,
   setAnyResolver,
 } from "../../src/interpreter/values";
-import { protoFieldToValue } from "./values";
 import {
   type ProtoLoader,
   type ProtoObject,
@@ -37,6 +36,7 @@ import {
   stripTypeUrl,
 } from "./protos";
 import type { ConformanceReporter, TestContext } from "./reporter";
+import { protoFieldToValue } from "./values";
 import { messageToValue, protoToType, protoToValue } from "./values";
 
 /**
@@ -48,7 +48,7 @@ export class TestRunner {
   constructor(
     private readonly loader: ProtoLoader,
     private readonly reporter?: ConformanceReporter
-  ) { }
+  ) {}
 
   /**
    * Run all conformance tests.
@@ -178,11 +178,7 @@ export class TestRunner {
     return eq instanceof BoolValue && eq.value();
   }
 
-  private buildEnvOptions(
-    test: SimpleTest,
-    fileName: string,
-    sectionName: string
-  ): EnvOptions {
+  private buildEnvOptions(test: SimpleTest, fileName: string, sectionName: string): EnvOptions {
     const variables: Variable[] = [];
     const structs: Struct[] = [];
     const functions = new Map<string, Overload[]>();
