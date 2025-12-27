@@ -49,7 +49,7 @@ class BaseMacro {
     readonly expander: MacroExpander,
     readonly receiverStyle = false,
     readonly varArgStyle = false
-  ) {}
+  ) { }
 
   macroKey(): string {
     if (this.varArgStyle) {
@@ -200,7 +200,11 @@ export const makeExistsOne: MacroExpander = (helper, target, args) => {
   const step = helper.createCall(
     Operators.Conditional,
     args[1]!,
-    helper.createCall(Operators.Add, helper.createAccuIdent(), helper.createLiteral(1n)),
+    helper.createCall(
+      Operators.Add,
+      helper.createAccuIdent(),
+      helper.createLiteral(1n)
+    ),
     helper.createAccuIdent()
   );
   // increment count when predicate true

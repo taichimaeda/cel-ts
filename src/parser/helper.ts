@@ -256,6 +256,7 @@ export class ParserHelper {
       const id = this.nextId();
       const right = this.buildConditionalAnd(andExpr!);
       result = new CallExpr(id, Operators.LogicalOr, [result, right]);
+      this.setPosition(id, andExpr);
     }
 
     return result;
@@ -273,6 +274,7 @@ export class ParserHelper {
       const id = this.nextId();
       const right = this.buildRelation(relation!);
       result = new CallExpr(id, Operators.LogicalAnd, [result, right]);
+      this.setPosition(id, relation);
     }
 
     return result;
@@ -356,27 +358,27 @@ export class ParserHelper {
 
     if (ctx instanceof LogicalNotContext) {
       const inner = this.buildMember(ctx.member());
-      const id = this.nextId();
       // Handle multiple consecutive ! operators
       let result = inner;
       const notCount = ctx.EXCLAM_list().length;
       for (let i = 0; i < notCount; i++) {
-        result = new CallExpr(this.nextId(), Operators.LogicalNot, [result]);
+        const callId = this.nextId();
+        result = new CallExpr(callId, Operators.LogicalNot, [result]);
+        this.setPosition(callId, ctx);
       }
-      this.setPosition(id, ctx);
       return result;
     }
 
     if (ctx instanceof NegateContext) {
       const inner = this.buildMember(ctx.member());
-      const id = this.nextId();
       // Handle multiple consecutive - operators
       let result = inner;
       const negCount = ctx.MINUS_list().length;
       for (let i = 0; i < negCount; i++) {
-        result = new CallExpr(this.nextId(), Operators.Negate, [result]);
+        const callId = this.nextId();
+        result = new CallExpr(callId, Operators.Negate, [result]);
+        this.setPosition(callId, ctx);
       }
-      this.setPosition(id, ctx);
       return result;
     }
 
@@ -582,6 +584,7 @@ export class ParserHelper {
       const entryId = this.nextId();
 
       entries.push(new MapEntry(entryId, key, value, optional));
+      this.setPosition(entryId, keyOptExpr);
     }
 
     const result = new MapExpr(id, entries);
@@ -630,6 +633,7 @@ export class ParserHelper {
       const fieldId = this.nextId();
 
       fields.push(new StructField(fieldId, fieldName, fieldExpr, optional));
+      this.setPosition(fieldId, optField);
     }
 
     const result = new StructExpr(id, typeName, fields);
