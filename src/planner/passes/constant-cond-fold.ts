@@ -6,6 +6,9 @@ import { CallExpr, type Expr, LiteralExpr, type LiteralValue, Operators } from "
 import { Rewriter } from "../../common/rewriter";
 import type { PreOptimizerPass } from "../optimizer";
 
+/**
+ * Pre-plan pass that folds constant conditional expressions.
+ */
 export class ConstantCondFoldPass implements PreOptimizerPass {
   private readonly rewriter = new Rewriter();
 

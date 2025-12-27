@@ -35,6 +35,9 @@ import {
 } from "../../interpreter/values";
 import type { PostOptimizerPass } from "../optimizer";
 
+/**
+ * Post-plan pass that removes redundant type conversions.
+ */
 export class NoOpConversionFoldPass implements PostOptimizerPass {
   /**
    * Fold no-op type conversions when the operand is a constant of the target type.

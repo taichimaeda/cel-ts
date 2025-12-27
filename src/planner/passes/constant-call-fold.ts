@@ -13,6 +13,9 @@ import {
 import { Rewriter } from "../../common/rewriter";
 import type { PreOptimizerPass } from "../optimizer";
 
+/**
+ * Pre-plan pass that folds constant call expressions into literals.
+ */
 export class ConstantCallFoldPass implements PreOptimizerPass {
   private readonly rewriter = new Rewriter();
 

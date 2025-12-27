@@ -45,6 +45,9 @@ export {
   isUnknownValue,
   toTypeValue,
 } from "./values";
+/**
+ * Map entries and values used by interpreter outputs.
+ */
 export type { MapEntry, Value } from "./values";
 
 // Activation - Variable resolution
@@ -78,10 +81,8 @@ export {
   BinaryDispatcherOverload,
   Dispatcher,
   NaryDispatcherOverload,
-  TryResolvedCall as ResolvedCall,
   UnaryDispatcherOverload,
   type BinaryOp,
-  type ResolvedCall as FunctionCall,
   type FunctionOp,
   type Overload,
   type UnaryOp,

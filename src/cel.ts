@@ -230,6 +230,9 @@ export class Ast {
  */
 type ProgramInput = Activation | Map<string, Value> | Record<string, unknown>;
 
+/**
+ * Program evaluates a planned expression with runtime bindings.
+ */
 export class Program {
   constructor(
     private readonly interpretable: Interpretable,
@@ -550,6 +553,9 @@ export {
   EnvStructFieldOption as StructField,
   EnvVariableOption as Variable,
 };
+/**
+ * Alias for EnvOptions to match cel-go naming.
+ */
 export type { EnvOptions as Options };
 
 // ============================================================================
@@ -799,6 +805,9 @@ export {
   PartialActivation,
   StrictActivation,
 } from "./interpreter/activation";
+/**
+ * Activation interface for evaluation bindings.
+ */
 export type { Activation } from "./interpreter/activation";
 export {
   BoolValue,
@@ -819,4 +828,7 @@ export {
   TypeValue,
   UintValue,
 } from "./interpreter/values";
+/**
+ * Value union type for CEL runtime values.
+ */
 export type { Value } from "./interpreter/values";

@@ -22,17 +22,23 @@ import {
   isUnknownValue,
 } from "./values";
 
+/**
+ * Attribute variants used to resolve identifiers and field access.
+ */
 export type Attribute =
   | AbsoluteAttribute
   | RelativeAttribute
   | ConditionalAttribute
   | MaybeAttribute;
 
+/**
+ * Qualifier variants used when traversing map, list, or struct values.
+ */
 export type Qualifier = StringQualifier | IndexQualifier | ComputedQualifier;
 
-export type AttributeKind = "absolute" | "relative" | "conditional" | "maybe";
+type AttributeKind = "absolute" | "relative" | "conditional" | "maybe";
 
-export type QualifierKind = "string" | "index" | "computed";
+type QualifierKind = "string" | "index" | "computed";
 
 /**
  * String qualifier for field access like obj.field.

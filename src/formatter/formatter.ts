@@ -12,6 +12,9 @@ import {
   StructExpr,
 } from "../common/ast";
 
+/**
+ * Options controlling CEL formatting output.
+ */
 export interface FormatterOptions {
   /** Maximum line length before formatting switches to multiline. */
   maxLineLength?: number;
@@ -42,6 +45,9 @@ const defaultFormatterOptions: Required<FormatterOptions> = {
   printPresenceTestAsHas: true,
 };
 
+/**
+ * Formatter pretty-prints CEL expressions.
+ */
 export class Formatter {
   private readonly options: Required<FormatterOptions>;
 

@@ -46,8 +46,6 @@ export const Operators = {
   OptSelect: "_?._",
 } as const;
 
-/** Type for operator string values */
-export type OperatorName = (typeof Operators)[keyof typeof Operators];
 
 // ---------------------------------------------------------------------------
 // Expression Types
@@ -57,6 +55,7 @@ export type OperatorName = (typeof Operators)[keyof typeof Operators];
  * Expression identifiers and kinds.
  */
 export type ExprId = number;
+/** Expression kind discriminator. */
 export type ExprKind =
   | "unspecified"
   | "literal"
@@ -68,6 +67,7 @@ export type ExprKind =
   | "struct"
   | "comprehension";
 
+/** Union of all expression node types. */
 export type Expr =
   | UnspecifiedExpr
   | LiteralExpr
@@ -530,7 +530,6 @@ export class ComprehensionExpr extends BaseExpr {
 /**
  * Union type for all entry expression types.
  */
-export type AnyEntryExpr = MapEntry | StructField;
 
 // ============================================================================
 // Expression Factory

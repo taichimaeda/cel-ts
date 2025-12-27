@@ -5,6 +5,9 @@
 import { isActivation, nativeToValue } from "./utils";
 import { ErrorValue, UnknownValue, type Value } from "./values";
 
+/**
+ * Activation implementations resolve identifiers at evaluation time.
+ */
 export type Activation =
   | EmptyActivation
   | MapActivation
@@ -220,6 +223,9 @@ export class StrictActivation {
   }
 }
 
+/**
+ * Cache commonly constructed activation instances for reuse.
+ */
 export class ActivationCache {
   private readonly lazyCache = new WeakMap<object, LazyActivation>();
   private readonly mapCache = new WeakMap<Map<string, Value>, MapActivation>();

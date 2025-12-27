@@ -5,7 +5,7 @@ import type { Expr, ExprId } from "./ast";
 /**
  * Offset range in source.
  */
-export interface SourceRange {
+interface SourceRange {
   start: number;
   end: number;
 }

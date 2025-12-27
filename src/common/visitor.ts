@@ -28,18 +28,6 @@ export interface Visitor {
 // ---------------------------------------------------------------------------
 
 /**
- * Base visitor implementation that can be extended.
- */
-export class BaseVisitor implements Visitor {
-  visitExpr(_expr: Expr): void {
-    // Override in subclass
-  }
-  visitEntryExpr(_entry: EntryExpr): void {
-    // Override in subclass
-  }
-}
-
-/**
  * Visitor implementation that only handles expressions.
  */
 export class ExprVisitor implements Visitor {
@@ -51,38 +39,5 @@ export class ExprVisitor implements Visitor {
 
   visitEntryExpr(_entry: EntryExpr): void {
     // Ignore entries
-  }
-}
-
-/**
- * Visitor implementation that only handles entry nodes.
- */
-export class EntryVisitor implements Visitor {
-  constructor(private readonly entryFunc: (entry: EntryExpr) => void) {}
-
-  visitExpr(_expr: Expr): void {
-    // Ignore expressions
-  }
-
-  visitEntryExpr(entry: EntryExpr): void {
-    this.entryFunc(entry);
-  }
-}
-
-/**
- * Visitor implementation that handles both expressions and entries.
- */
-export class CompositeVisitor implements Visitor {
-  constructor(
-    private readonly exprFunc: (expr: Expr) => void,
-    private readonly entryFunc: (entry: EntryExpr) => void
-  ) {}
-
-  visitExpr(expr: Expr): void {
-    this.exprFunc(expr);
-  }
-
-  visitEntryExpr(entry: EntryExpr): void {
-    this.entryFunc(entry);
   }
 }

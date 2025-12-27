@@ -63,7 +63,7 @@ const TIMESTAMP_MAX_NANOS = TIMESTAMP_MAX_SECONDS * 1_000_000_000n + 999_999_999
 // Value Kind Type
 // ---------------------------------------------------------------------------
 
-export type ValueKind =
+type ValueKind =
   | "bool"
   | "int"
   | "uint"
@@ -124,14 +124,20 @@ export abstract class BaseValue {
 /**
  * Type adapter interface for converting native values to CEL values
  */
-export type AnyResolver = (typeUrl: string, bytes: Uint8Array) => Value | undefined;
+type AnyResolver = (typeUrl: string, bytes: Uint8Array) => Value | undefined;
 
 let anyResolver: AnyResolver | undefined;
 
+/**
+ * Register a resolver for google.protobuf.Any values.
+ */
 export function setAnyResolver(resolver?: AnyResolver): void {
   anyResolver = resolver;
 }
 
+/**
+ * Resolve a google.protobuf.Any value into a CEL value.
+ */
 export function resolveAnyValue(typeUrl: string, bytes: Uint8Array): Value | undefined {
   return anyResolver ? anyResolver(typeUrl, bytes) : undefined;
 }
@@ -1849,6 +1855,9 @@ export class OptionalValue extends BaseValue {
   }
 }
 
+/**
+ * Union of all CEL runtime values.
+ */
 export type Value =
   | BoolValue
   | IntValue

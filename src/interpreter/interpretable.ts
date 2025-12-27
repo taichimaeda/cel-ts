@@ -53,7 +53,7 @@ import {
   toTypeValue,
 } from "./values";
 
-export type InterpretableKind =
+type InterpretableKind =
   | "const"
   | "ident"
   | "attr"
@@ -75,6 +75,9 @@ export type InterpretableKind =
   | "comprehension"
   | "type_conversion";
 
+/**
+ * Interpretable nodes produced by the planner for evaluation.
+ */
 export type Interpretable =
   | ConstValue
   | IdentValue

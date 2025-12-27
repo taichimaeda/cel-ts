@@ -12,13 +12,16 @@ export class DynamicType {
   }
 }
 
+/** Runtime marker for unknown values. */
 export const UnknownType = new DynamicType("unknown");
+/** Runtime marker for optional values. */
 export const OptionalType = new DynamicType("optional");
 
 /**
  * Shared generic type aliases used by interpreter values.
  */
 export const GenericListType = new ListType(DynType);
+/** Generic map type with dynamic key and value. */
 export const GenericMapType = new MapType(DynType, DynType);
 
 /**

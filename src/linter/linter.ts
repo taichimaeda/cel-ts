@@ -4,8 +4,14 @@ import { ExprVisitor } from "../common/visitor";
 import { defaultRules } from "./rules";
 import type { LintContext, LintDiagnostic, LintLocation, LintRule } from "./types";
 
+/**
+ * Public linter type exports.
+ */
 export type { LintContext, LintDiagnostic, LintFix, LintRule, LintSeverity } from "./types";
 
+/**
+ * Linter runs CEL lint rules over an AST.
+ */
 export class Linter {
   constructor(private readonly rules: readonly LintRule[] = defaultRules) {}
 

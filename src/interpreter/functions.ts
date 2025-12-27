@@ -36,6 +36,9 @@ import {
   toTypeValue,
 } from "./values";
 
+/**
+ * Overloads for size() across strings, bytes, lists, and maps.
+ */
 export const sizeFunctions: Overload[] = [
   // size(string) -> int
   new UnaryDispatcherOverload("size_string", (val: Value): Value => {
@@ -70,6 +73,9 @@ export const sizeFunctions: Overload[] = [
   }),
 ];
 
+/**
+ * Overloads for string operations.
+ */
 export const stringFunctions: Overload[] = [
   // string.contains(string) -> bool
   new BinaryDispatcherOverload("contains_string", (lhs: Value, rhs: Value): Value => {
@@ -180,6 +186,9 @@ export const stringFunctions: Overload[] = [
   }),
 ];
 
+/**
+ * Overloads for CEL type conversion functions.
+ */
 export const typeConversionFunctions: Overload[] = [
   // int(value) -> int
   new UnaryDispatcherOverload("int", (val: Value): Value => {
@@ -372,18 +381,30 @@ export const typeConversionFunctions: Overload[] = [
   }),
 ];
 
+/**
+ * Overloads for comparison operators.
+ */
 export const comparisonFunctions: Overload[] = [
   // No additional comparison functions needed - handled by BinaryValue
 ];
 
+/**
+ * Overloads for arithmetic operators.
+ */
 export const arithmeticFunctions: Overload[] = [
   // No additional arithmetic functions needed - handled by BinaryValue
 ];
 
+/**
+ * Overloads for boolean logic operators.
+ */
 export const logicalFunctions: Overload[] = [
   // No additional logical functions needed - handled by AndValue/OrValue/NotValue
 ];
 
+/**
+ * Overloads for list operations.
+ */
 export const listFunctions: Overload[] = [
   // list.all(predicate) is handled by comprehensions
   // list.exists(predicate) is handled by comprehensions
@@ -393,6 +414,9 @@ export const listFunctions: Overload[] = [
   // list + list is handled by BinaryValue
 ];
 
+/**
+ * Overloads for map operations.
+ */
 export const mapFunctions: Overload[] = [
   // has(map.key) - existence test - handled specially during planning
   // map.all(predicate) is handled by comprehensions
@@ -401,6 +425,9 @@ export const mapFunctions: Overload[] = [
   // map.map(expr) is handled by comprehensions
 ];
 
+/**
+ * Overloads for timestamp and duration operations.
+ */
 export const timeFunctions: Overload[] = [
   // timestamp(string) -> timestamp
   new UnaryDispatcherOverload("timestamp_string", (val: Value): Value => {
@@ -599,12 +626,18 @@ export const timeFunctions: Overload[] = [
   }),
 ];
 
+/**
+ * Overloads for miscellaneous helper functions.
+ */
 export const miscFunctions: Overload[] = [
   // has(field) - field presence test
   // Note: This is typically handled during planning, not as a runtime function
   // Conditional ternary is handled by ConditionalValue
 ];
 
+/**
+ * Full set of standard CEL function overloads.
+ */
 export const standardFunctions: Overload[] = [
   ...sizeFunctions,
   ...stringFunctions,

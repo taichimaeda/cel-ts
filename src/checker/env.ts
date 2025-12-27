@@ -194,7 +194,7 @@ export class Container {
 /**
  * Options for configuring checker environment behavior.
  */
-export interface CheckerEnvOptions {
+interface CheckerEnvOptions {
   /** Coerce enum types to int during type checking. */
   coerceEnumToInt?: boolean;
 }

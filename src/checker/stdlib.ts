@@ -622,4 +622,7 @@ class StandardLibraryImpl {
   }
 }
 
+/**
+ * Shared instance for the standard CEL function declarations.
+ */
 export const StandardLibrary = new StandardLibraryImpl();

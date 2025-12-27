@@ -4,6 +4,9 @@
 
 import { ErrorValue, type Value, isErrorValue } from "./values";
 
+/**
+ * Dispatcher overload variants for unary, binary, or n-ary functions.
+ */
 export type Overload = UnaryDispatcherOverload | BinaryDispatcherOverload | NaryDispatcherOverload;
 
 /**
@@ -95,12 +98,12 @@ export class NaryDispatcherOverload {
   }
 }
 
-export type ResolvedCall = TryResolvedCall | TryAllResolvedCall;
+type ResolvedCall = TryResolvedCall | TryAllResolvedCall;
 
 /**
  * Resolved function call implementation.
  */
-export class TryResolvedCall {
+class TryResolvedCall {
   constructor(private readonly overload: Overload) {}
 
   invoke(args: Value[]): Value {
@@ -125,7 +128,7 @@ export class TryResolvedCall {
 /**
  * Try all overloads until one succeeds.
  */
-export class TryAllResolvedCall {
+class TryAllResolvedCall {
   constructor(private readonly overloads: Overload[]) {}
 
   invoke(args: Value[]): Value {

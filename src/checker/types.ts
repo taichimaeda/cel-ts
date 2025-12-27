@@ -173,18 +173,31 @@ class PrimitiveType extends Type {
 /**
  * Primitive CEL types as singleton instances.
  */
+/** Boolean type singleton. */
 export const BoolType = new PrimitiveType("bool", "bool");
+/** Signed integer type singleton. */
 export const IntType = new PrimitiveType("int", "int");
+/** Unsigned integer type singleton. */
 export const UintType = new PrimitiveType("uint", "uint");
+/** Double precision float type singleton. */
 export const DoubleType = new PrimitiveType("double", "double");
+/** String type singleton. */
 export const StringType = new PrimitiveType("string", "string");
+/** Bytes type singleton. */
 export const BytesType = new PrimitiveType("bytes", "bytes");
+/** Null type singleton. */
 export const NullType = new PrimitiveType("null_type", "null_type");
+/** Duration type singleton. */
 export const DurationType = new PrimitiveType("duration", "google.protobuf.Duration");
+/** Timestamp type singleton. */
 export const TimestampType = new PrimitiveType("timestamp", "google.protobuf.Timestamp");
+/** Dynamic type singleton. */
 export const DynType = new PrimitiveType("dyn", "dyn");
+/** Error type singleton. */
 export const ErrorType = new PrimitiveType("error", "error");
+/** Type-of-type singleton. */
 export const TypeType = new PrimitiveType("type", "type");
+/** Any type singleton. */
 export const AnyType = new PrimitiveType("any", "any");
 
 // ---------------------------------------------------------------------------

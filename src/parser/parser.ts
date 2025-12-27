@@ -3,6 +3,9 @@ import type { ErrorListener, Recognizer, Token } from "antlr4";
 import CELLexer from "./gen/CELLexer.js";
 import CELParser, { type StartContext } from "./gen/CELParser.js";
 
+/**
+ * Result of parsing a CEL expression.
+ */
 export interface ParseResult {
   tree?: StartContext;
   error?: string;

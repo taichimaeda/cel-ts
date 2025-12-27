@@ -4,6 +4,9 @@ import { ConstantCallFoldPass } from "./passes/constant-call-fold";
 import { ConstantCondFoldPass } from "./passes/constant-cond-fold";
 import { NoOpConversionFoldPass } from "./passes/noop-conversion-fold";
 
+/**
+ * Pre-plan optimizer pass that rewrites AST nodes.
+ */
 export interface PreOptimizerPass {
   /**
    * Apply this pass to the AST.
@@ -29,6 +32,9 @@ export class PreOptimizer {
   }
 }
 
+/**
+ * Post-plan optimizer pass that rewrites interpretable nodes.
+ */
 export interface PostOptimizerPass {
   /**
    * Apply this pass to the Interpretable tree.

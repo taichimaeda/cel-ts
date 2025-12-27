@@ -1,6 +1,9 @@
 import type { TypeProvider } from "../checker/provider";
 import type { Type as CheckerType } from "../checker/types";
 export { wrapperTypeNameToKind } from "../checker/types";
+/**
+ * Wrapper type names used by protobuf wrapper handling.
+ */
 export type { WrapperTypeKind } from "../checker/types";
 import type { SourceInfo } from "../common/source";
 import type { Activation } from "./activation";
@@ -222,6 +225,9 @@ export function formatRuntimeError(error: ErrorValue, sourceInfo: SourceInfo): s
   return `${line}:${column}: ${error.getMessage()}`;
 }
 
+/**
+ * Coerce list/map index values into int where possible.
+ */
 export function normalizeIndexValue(value: Value): IntValue | ErrorValue {
   if (isIntValue(value)) {
     return value;

@@ -60,6 +60,9 @@ function applyDoubleNegation(expr: Expr, ctx: LintContext): void {
   });
 }
 
+/**
+ * Default lint rule set for CEL expressions.
+ */
 export const defaultRules: LintRule[] = [
   {
     name: "bool-short-circuit",
