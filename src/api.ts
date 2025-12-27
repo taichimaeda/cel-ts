@@ -15,7 +15,7 @@ import {
 import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
 import { Errors } from "./checker/errors";
 import { CompositeTypeProvider, StructTypeProvider, type TypeProvider } from "./checker/provider";
-import { DynType, ListType, MapType, OptionalType, StructType, type Type } from "./checker/types";
+import { DynType, OptionalType, type Type } from "./checker/types";
 import type { AST as CommonAST } from "./common/ast";
 import type { SourceInfo } from "./common/source";
 import { standardFunctions } from "./interpreter";
@@ -89,7 +89,7 @@ export {
   TimestampType,
   Type,
   TypeType,
-  UintType
+  UintType,
 } from "./checker/types";
 
 // ============================================================================
@@ -103,7 +103,7 @@ export class Issues {
   constructor(
     readonly errors: Errors = new Errors(),
     _source = ""
-  ) { }
+  ) {}
 
   /**
    * Returns true if there are any errors.
@@ -149,7 +149,7 @@ export class Ast {
     readonly root: CommonAST,
     readonly source: string,
     private checked = false
-  ) { }
+  ) {}
 
   /**
    * Returns true if the AST has been type-checked.
@@ -190,7 +190,7 @@ export class Program {
   constructor(
     private readonly interpretable: Interpretable,
     private readonly sourceInfo: SourceInfo
-  ) { }
+  ) {}
 
   private static readonly typeValueBindings = typeValueBindings();
   private static readonly typeActivation = new MapActivation(Program.typeValueBindings);
@@ -308,7 +308,7 @@ export class EnvVariableOption {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) { }
+  ) {}
 
   register(config: EnvConfig): void {
     config.variables.push(new VariableDecl(this.name, this.type));
@@ -323,7 +323,7 @@ export class EnvConstantOption {
     readonly name: string,
     readonly type: Type,
     readonly value: Value
-  ) { }
+  ) {}
 
   register(config: EnvConfig): void {
     config.constants.push(new ConstantDecl(this.name, this.type, this.value));
@@ -366,7 +366,7 @@ export class EnvStructFieldOption {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) { }
+  ) {}
 }
 
 /**
@@ -504,7 +504,7 @@ export {
   GlobalFunctionOverloadOption as Overload,
   EnvStructOption as Struct,
   EnvStructFieldOption as StructField,
-  EnvVariableOption as Variable
+  EnvVariableOption as Variable,
 };
 /**
  * Alias for EnvOptions to match cel-go naming.
@@ -755,7 +755,7 @@ export {
   MapActivation,
   MutableActivation,
   PartialActivation,
-  StrictActivation
+  StrictActivation,
 } from "./interpreter/activation";
 /**
  * Activation interface for evaluation bindings.
@@ -768,13 +768,17 @@ export {
   DurationValue,
   EnumValue,
   ErrorValue,
-  IntValue, ListValue,
+  IntValue,
+  ListValue,
   MapValue,
   NullValue,
   StringValue,
-  TimestampValue, TypeValue,
-  UintValue, isErrorValue,
-  isUnknownValue, toTypeValue
+  TimestampValue,
+  TypeValue,
+  UintValue,
+  isErrorValue,
+  isUnknownValue,
+  toTypeValue,
 } from "./interpreter/values";
 /**
  * Value union type for CEL runtime values.

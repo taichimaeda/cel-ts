@@ -11,13 +11,13 @@ import {
   DoubleType,
   DurationType,
   DynType,
+  DynTypeType,
   ErrorType,
   IntType,
   NullType,
   OpaqueType,
   StringType,
   TimestampType,
-  DynTypeType,
   UintType,
 } from "../checker/types";
 import type { ExprId } from "../common/ast";

@@ -3,14 +3,7 @@
 
 import type { ConstantDecl, FunctionDecl, VariableDecl } from "./decls";
 import type { TypeProvider } from "./provider";
-import {
-  IntType,
-  ListType,
-  MapType,
-  TypeType,
-  type Type,
-  builtinTypeNameToType,
-} from "./types";
+import { IntType, ListType, MapType, type Type, TypeType, builtinTypeNameToType } from "./types";
 
 /**
  * A single scope level containing declarations

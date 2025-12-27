@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 import * as protobuf from "protobufjs";
 import {
   BoolType,
+  Function as CelFunction,
   CompileError,
   Constant,
   EmptyActivation,
   Env,
-  Function,
   IntType,
   IntValue,
   ListType,
@@ -99,10 +99,7 @@ describe("CEL API", () => {
 
   test("supports parse then check flow", () => {
     const env = new Env({
-      variables: [
-        new Variable("x", IntType),
-        new Variable("items", new ListType(IntType)),
-      ],
+      variables: [new Variable("x", IntType), new Variable("items", new ListType(IntType))],
     });
     const parsed = env.parse("x in items && x > 0");
     const checked = env.check(parsed);
@@ -130,7 +127,7 @@ describe("CEL API", () => {
     const env = new Env({
       variables: [new Variable("i", StringType), new Variable("you", StringType)],
       functions: [
-        new Function(
+        new CelFunction(
           "shake_hands",
           new Overload(
             "shake_hands_string_string",
@@ -154,7 +151,7 @@ describe("CEL API", () => {
     const env = new Env({
       variables: [new Variable("i", StringType), new Variable("you", StringType)],
       functions: [
-        new Function(
+        new CelFunction(
           "greet",
           new MemberOverload(
             "string_greet_string",

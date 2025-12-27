@@ -315,6 +315,7 @@ export const DynMapType = new MapType(DynType, DynType);
  * Join two types to find their common type
  * Used for inferring element types in collections
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: keeps CEL join semantics in one place.
 export function joinTypes(typ1: Type, typ2: Type): Type {
   const normalized1 = wellKnownTypeToNative(typ1) ?? typ1;
   const normalized2 = wellKnownTypeToNative(typ2) ?? typ2;

@@ -15,6 +15,7 @@ import type { VisitOrder, Visitor } from "./visitor";
  * Operator names for CEL (shared between parser, checker, and interpreter).
  * Maps human-readable operator names to internal CEL function names.
  */
+// biome-ignore lint/style/useNamingConvention: CEL operator identifiers follow the spec naming.
 export const Operators = {
   // Arithmetic
   Add: "_+_",
@@ -45,7 +46,6 @@ export const Operators = {
   OptIndex: "_[?_]",
   OptSelect: "_?._",
 } as const;
-
 
 // ---------------------------------------------------------------------------
 // Expression Types

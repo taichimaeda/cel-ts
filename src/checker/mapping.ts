@@ -70,6 +70,7 @@ export class TypeMapping {
   /**
    * Check if two types are assignable with this mapping context.
    */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: mirrors cel-go assignability rules.
   isAssignable(target: Type, source: Type): boolean {
     const typeParamResult = this.bindTypeParam(target, source);
     if (typeParamResult !== undefined) {

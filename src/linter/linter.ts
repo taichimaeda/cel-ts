@@ -13,7 +13,7 @@ export type { LintContext, LintDiagnostic, LintRule, LintSeverity } from "./type
  * Linter runs CEL lint rules over an AST.
  */
 export class Linter {
-  constructor(private readonly rules: readonly LintRule[] = defaultRules) { }
+  constructor(private readonly rules: readonly LintRule[] = defaultRules) {}
 
   /**
    * Parse and lint a CEL source expression.
