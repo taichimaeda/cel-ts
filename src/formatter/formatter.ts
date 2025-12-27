@@ -30,8 +30,6 @@ export interface FormatterOptions {
   multilineCallArgs?: "never" | "always" | "auto";
   /** Format list/map/struct literals inline, multiline, or auto. */
   multilineLiterals?: "never" | "always" | "auto";
-  /** Emit presence tests as has(operand.field). */
-  printPresenceTestAsHas?: boolean;
 }
 
 const defaultFormatterOptions: Required<FormatterOptions> = {
@@ -42,7 +40,6 @@ const defaultFormatterOptions: Required<FormatterOptions> = {
   chainStyle: "auto",
   multilineCallArgs: "auto",
   multilineLiterals: "auto",
-  printPresenceTestAsHas: true,
 };
 
 /**
@@ -526,7 +523,7 @@ export class Formatter {
   }
 
   private formatInlineSelect(expr: SelectExpr, sourceInfo?: AST["sourceInfo"]): string {
-    if (expr.testOnly && this.options.printPresenceTestAsHas) {
+    if (expr.testOnly) {
       const operator = expr.optional ? "?." : ".";
       return `has(${this.formatInlineExprInner(expr.operand, sourceInfo)}${operator}${this.escapeIdent(
         expr.field
