@@ -4,8 +4,9 @@ Thanks for your interest in contributing to cel-ts.
 
 ## Quick Guide
 
-- Use `pnpm install` to set up dependencies.
-- Run `pnpm typecheck`, `pnpm test`, and `pnpm lint` before opening a PR.
+- Install dependencies by running `pnpm install`.
+- Install `protoc` if you plan to run conformance tests.
+- Run `pnpm typecheck`, `pnpm test`, `pnpm lint`, and `pnpm conformance` before opening a PR.
 - Keep changes focused and include tests when behaviour changes.
 - Follow the existing code style and conventions.
 

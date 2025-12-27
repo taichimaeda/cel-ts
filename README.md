@@ -18,7 +18,7 @@ Production-grade TypeScript implementation of the [Common Expression Language (C
 
 ## Comparison
 
-[ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) is an alternative TypeScript CEL interpreter, but it feels closer to a proof of concept than a production-grade engine. It does not aim for full CEL feature coverage and is missing baseline capabilities like type checking, environments, conformance testing, and tooling that official implementations treat as standard.
+[ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) is an alternative TypeScript CEL interpreter. It is popular, but it does not support full CEL features and is missing baseline capabilities like type checking, environments, conformance testing, and tooling that official implementations treat as standard.
 
 [marcbachmann/cel-js](https://github.com/marcbachmann/cel-js) is another JavaScript CEL interpreter. It emphasises fast evaluation and includes a type checker, but it does not cover the full CEL feature set or the conformance test suite, which makes production adoption harder.
 
@@ -63,8 +63,9 @@ Both [ChromeGG/cel-js](https://github.com/ChromeGG/cel-js) and [marcbachmann/cel
 | list_exists_matches | 299.50 | - | 209.14 |
 | list_filter_matches | 756.28 | - | 812.53 |
 
-
 ## Installation
+
+This package is not published yet, but will be available soon.
 
 ```bash
 npm install cel-ts
@@ -104,7 +105,7 @@ are available under [`examples/README.md`](examples/README.md). Execute them wit
 preferred TS runner, e.g.:
 
 ```bash
-bun run examples/cel-eval.ts
+bun run examples/basic.ts
 ```
 
 Formatting and linting examples live in `examples/formatting.ts` and `examples/linting.ts`.
@@ -132,15 +133,25 @@ Run `pnpm docs` to build the TypeDoc output and launch a local HTTP server at `h
 ## Development
 
 ```bash
-pnpm install      # Install dependencies
-pnpm typecheck    # Run TypeScript type checks
-pnpm lint         # Run lint rules
-pnpm test         # Run unit tests
-pnpm test:watch   # Run tests in watch mode
-pnpm conformance  # Run CEL conformance suite
-pnpm benchmark    # Run benchmarks (writes results.json)
-pnpm build        # Build package artifacts
-pnpm docs         # Generate documentation
+pnpm install            # Install dependencies
+pnpm typecheck          # Run TypeScript type checks
+pnpm lint               # Run lint rules
+pnpm lint:fix           # Auto-fix lint + format issues
+pnpm format             # Format code with Biome
+pnpm test               # Run unit tests
+pnpm test:watch         # Run tests in watch mode
+pnpm test:coverage      # Run tests with coverage
+pnpm conformance        # Run CEL conformance suite
+pnpm conformance:serve  # Run conformance with HTML report
+pnpm benchmark          # Run benchmarks (writes results.json)
+pnpm profile:build      # Build profiling runner
+pnpm profile:serve      # Run clinic flamegraph profiling
+pnpm build              # Build package artifacts
+pnpm docs               # Generate docs (same as docs:build)
+pnpm docs:build         # Build TypeDoc output
+pnpm docs:watch         # Watch and rebuild docs
+pnpm docs:view          # Build and open docs in browser
+pnpm clean              # Remove build/test artefacts
 ```
 
 ## Architecture
@@ -178,5 +189,5 @@ This project began as a TypeScript port of [cel-go](https://github.com/google/ce
 
 ## Related Projects
 
-- [cel-go](https://github.com/google/cel-go) - Go implementation (reference)
+- [cel-go](https://github.com/google/cel-go) - Go implementation
 - [cel-spec](https://github.com/google/cel-spec) - CEL specification
