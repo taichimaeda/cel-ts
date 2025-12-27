@@ -1,11 +1,7 @@
-import * as cel from "../src/cel";
 import { Linter } from "../src/linter";
 
-const env = new cel.Env({ disableTypeChecking: true });
-const ast = env.parse("true || (x && false)");
-
 const linter = new Linter();
-const diagnostics = linter.lint(ast.ast);
+const diagnostics = linter.lint("true || (x && false)");
 for (const diagnostic of diagnostics) {
   const location = diagnostic.location
     ? `${diagnostic.location.line}:${diagnostic.location.column}`

@@ -1,4 +1,4 @@
-import type { AST } from "../common/ast";
+import { Env } from "../cel";
 import type { SourceInfo } from "../common/source";
 import { ExprVisitor } from "../common/visitor";
 import { defaultRules } from "./rules";
@@ -13,14 +13,19 @@ export type { LintContext, LintDiagnostic, LintFix, LintRule, LintSeverity } fro
  * Linter runs CEL lint rules over an AST.
  */
 export class Linter {
-  constructor(private readonly rules: readonly LintRule[] = defaultRules) {}
+  constructor(private readonly rules: readonly LintRule[] = defaultRules) { }
 
-  lint(ast: AST): LintDiagnostic[] {
+  /**
+   * Parse and lint a CEL source expression.
+   */
+  lint(source: string): LintDiagnostic[] {
+    const env = new Env({ disableTypeChecking: true });
+    const root = env.parse(source).root;
     const diagnostics: LintDiagnostic[] = [];
     const ctx: LintContext = {
-      sourceInfo: ast.sourceInfo,
+      sourceInfo: root.sourceInfo,
       report: (diagnostic) => {
-        diagnostics.push(this.decorateLocation(diagnostic, ast.sourceInfo));
+        diagnostics.push(this.decorateLocation(diagnostic, root.sourceInfo));
       },
     };
 
@@ -29,7 +34,7 @@ export class Linter {
         rule.apply(expr, ctx);
       }
     });
-    ast.expr.accept(visitor, "pre");
+    root.expr.accept(visitor, "pre");
 
     return diagnostics;
   }

@@ -1,3 +1,4 @@
+import { Env } from "../cel";
 import {
   type AST,
   CallExpr,
@@ -52,8 +53,13 @@ export class Formatter {
     this.options = { ...defaultFormatterOptions, ...options };
   }
 
-  format(ast: AST): string {
-    return this.formatExpr(ast.expr, ast.sourceInfo, 0);
+  /**
+   * Parse and format a CEL source expression.
+   */
+  format(source: string): string {
+    const env = new Env({ disableTypeChecking: true });
+    const root = env.parse(source).root;
+    return this.formatExpr(root.expr, root.sourceInfo, 0);
   }
 
   private formatExpr(

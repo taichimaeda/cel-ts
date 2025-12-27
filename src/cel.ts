@@ -91,7 +91,7 @@ export {
   StringType,
   TimestampType,
   TypeType,
-  UintType,
+  UintType
 } from "./checker/types";
 
 /**
@@ -150,7 +150,7 @@ export class Issues {
   constructor(
     readonly errors: Errors = new Errors(),
     _source = ""
-  ) {}
+  ) { }
 
   /**
    * Returns true if there are any errors.
@@ -193,10 +193,10 @@ export class Issues {
  */
 export class Ast {
   constructor(
-    readonly ast: CommonAST,
+    readonly root: CommonAST,
     readonly source: string,
     private checked = false
-  ) {}
+  ) { }
 
   /**
    * Returns true if the AST has been type-checked.
@@ -210,7 +210,7 @@ export class Ast {
    */
   get outputType(): Type | undefined {
     if (!this.checked) return undefined;
-    return this.ast.typeMap.get(this.ast.expr.id);
+    return this.root.typeMap.get(this.root.expr.id);
   }
 
   /**
@@ -237,7 +237,7 @@ export class Program {
   constructor(
     private readonly interpretable: Interpretable,
     private readonly sourceInfo: SourceInfo
-  ) {}
+  ) { }
 
   private static readonly typeValueBindings = typeValueBindings();
   private static readonly typeActivation = new MapActivation(Program.typeValueBindings);
@@ -355,7 +355,7 @@ export class EnvVariableOption {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) {}
+  ) { }
 
   register(config: EnvConfig): void {
     config.variables.push(new VariableDecl(this.name, this.type));
@@ -370,7 +370,7 @@ export class EnvConstantOption {
     readonly name: string,
     readonly type: Type,
     readonly value: Value
-  ) {}
+  ) { }
 
   register(config: EnvConfig): void {
     config.constants.push(new ConstantDecl(this.name, this.type, this.value));
@@ -413,7 +413,7 @@ export class EnvStructFieldOption {
   constructor(
     readonly name: string,
     readonly type: Type
-  ) {}
+  ) { }
 }
 
 /**
@@ -551,7 +551,7 @@ export {
   GlobalFunctionOverloadOption as Overload,
   EnvStructOption as Struct,
   EnvStructFieldOption as StructField,
-  EnvVariableOption as Variable,
+  EnvVariableOption as Variable
 };
 /**
  * Alias for EnvOptions to match cel-go naming.
@@ -667,8 +667,8 @@ export class Env {
       return celAst;
     }
 
-    const checkResult = new Checker(this.checkerEnv, celAst.ast.typeMap, celAst.ast.refMap).check(
-      celAst.ast
+    const checkResult = new Checker(this.checkerEnv, celAst.root.typeMap, celAst.root.refMap).check(
+      celAst.root
     );
 
     if (checkResult.errors.hasErrors()) {
@@ -689,15 +689,15 @@ export class Env {
       : this.config.structProvider;
     const planner = new Planner({
       dispatcher: this.dispatcher,
-      refMap: celAst.isChecked ? celAst.ast.refMap : undefined,
+      refMap: celAst.isChecked ? celAst.root.refMap : undefined,
       typeProvider: provider,
-      typeMap: celAst.isChecked ? celAst.ast.typeMap : undefined,
+      typeMap: celAst.isChecked ? celAst.root.typeMap : undefined,
       container: this.config.container,
       enumValuesAsInt: this.config.enumValuesAsInt,
     });
 
-    const interpretable = planner.plan(celAst.ast);
-    return new Program(interpretable, celAst.ast.sourceInfo);
+    const interpretable = planner.plan(celAst.root);
+    return new Program(interpretable, celAst.root.sourceInfo);
   }
 
   /**
@@ -803,7 +803,7 @@ export {
   MapActivation,
   MutableActivation,
   PartialActivation,
-  StrictActivation,
+  StrictActivation
 } from "./interpreter/activation";
 /**
  * Activation interface for evaluation bindings.
@@ -816,17 +816,13 @@ export {
   DurationValue,
   EnumValue,
   ErrorValue,
-  IntValue,
-  isErrorValue,
-  isUnknownValue,
-  ListValue,
+  IntValue, ListValue,
   MapValue,
   NullValue,
   StringValue,
-  TimestampValue,
-  toTypeValue,
-  TypeValue,
-  UintValue,
+  TimestampValue, TypeValue,
+  UintValue, isErrorValue,
+  isUnknownValue, toTypeValue
 } from "./interpreter/values";
 /**
  * Value union type for CEL runtime values.
