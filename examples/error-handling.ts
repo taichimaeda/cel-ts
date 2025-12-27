@@ -13,7 +13,7 @@ try {
 }
 
 try {
-  env.compile("x + 'oops'");
+  env.compile('x + "oops"');
 } catch (err) {
   if (err instanceof cel.CompileError) {
     console.info("Type error:", err.message);

@@ -14,3 +14,6 @@ Small, focused examples that show how to use the public `cel-ts` API.
 - `protobuf-type.ts`: resolve message types via protobuf descriptors.
 - `global-overload.ts`: register a global overload.
 - `member-overload.ts`: register a member overload.
+- `unknowns.ts`: evaluate with partial state using unknowns.
+
+The protobuf example reads `examples/protos/acme/person.proto`.
