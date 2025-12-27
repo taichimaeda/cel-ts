@@ -7,7 +7,7 @@ import type { LintContext, LintDiagnostic, LintLocation, LintRule } from "./type
 /**
  * Public linter type exports.
  */
-export type { LintContext, LintDiagnostic, LintFix, LintRule, LintSeverity } from "./types";
+export type { LintContext, LintDiagnostic, LintRule, LintSeverity } from "./types";
 
 /**
  * Linter runs CEL lint rules over an AST.

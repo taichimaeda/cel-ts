@@ -6,8 +6,5 @@ for (const diagnostic of diagnostics) {
   const location = diagnostic.location
     ? `${diagnostic.location.line}:${diagnostic.location.column}`
     : "unknown";
-  const fix = diagnostic.fix
-    ? ` fix: ${diagnostic.fix.title} -> ${diagnostic.fix.replacement}`
-    : "";
-  console.info(`[${diagnostic.severity}] ${location} ${diagnostic.message}${fix}`);
+  console.info(`[${diagnostic.severity}] ${location} ${diagnostic.message}`);
 }

@@ -7,14 +7,6 @@ import type { SourceInfo } from "../common/source";
 export type LintSeverity = "info" | "warning";
 
 /**
- * Optional fix for a lint diagnostic.
- */
-export type LintFix = {
-  title: string;
-  replacement: string;
-};
-
-/**
  * Source location for a diagnostic.
  */
 export type LintLocation = {
@@ -30,7 +22,6 @@ export type LintDiagnostic = {
   message: string;
   severity: LintSeverity;
   location?: LintLocation;
-  fix?: LintFix;
 };
 
 /**
