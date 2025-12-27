@@ -9,6 +9,7 @@ import {
   Function,
   IntType,
   IntValue,
+  ListType,
   MemberOverload,
   Overload,
   ParseError,
@@ -17,7 +18,7 @@ import {
   StringType,
   StringValue,
   Struct,
-  Types,
+  StructType,
   Variable,
   isUnknownValue,
 } from "../src/api";
@@ -68,7 +69,7 @@ describe("CEL API", () => {
   });
 
   test("builds type helpers", () => {
-    const listType = Types.list(IntType);
+    const listType = new ListType(IntType);
 
     expect(listType.toString()).toBe("list(int)");
   });
@@ -88,7 +89,7 @@ describe("CEL API", () => {
 
   test("runs list macros like exists()", () => {
     const env = new Env({
-      variables: [new Variable("nums", Types.list(IntType))],
+      variables: [new Variable("nums", new ListType(IntType))],
     });
     const ast = env.compile("nums.exists(n, n % 2 == 0)");
     const program = env.program(ast);
@@ -100,7 +101,7 @@ describe("CEL API", () => {
     const env = new Env({
       variables: [
         new Variable("x", IntType),
-        new Variable("items", Types.list(IntType)),
+        new Variable("items", new ListType(IntType)),
       ],
     });
     const parsed = env.parse("x in items && x > 0");
@@ -117,7 +118,7 @@ describe("CEL API", () => {
           age: IntType,
         }),
       ],
-      variables: [new Variable("person", Types.object("Person"))],
+      variables: [new Variable("person", new StructType("Person"))],
     });
     const ast = env.compile('person.age >= 21 && person.name != ""');
     const program = env.program(ast);
@@ -180,7 +181,7 @@ describe("CEL API", () => {
     const root = protobuf.loadSync([decodeURIComponent(protoPath.pathname)]);
     const env = new Env({
       typeProvider: new ProtobufTypeProvider(root),
-      variables: [new Variable("person", Types.object("acme.Person"))],
+      variables: [new Variable("person", new StructType("acme.Person"))],
     });
     const ast = env.compile('"Hello, " + person.name');
     const program = env.program(ast);

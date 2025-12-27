@@ -87,57 +87,18 @@ export {
   DynType,
   ErrorType,
   IntType,
+  ListType,
+  MapType,
   NullType,
+  OptionalType,
+  PolymorphicTypeType,
+  StructType,
   StringType,
   TimestampType,
+  Type,
   TypeType,
   UintType
 } from "./checker/types";
-
-/**
- * TypeBuilder provides a fluent, class-based API for creating CEL types.
- */
-export class TypeBuilder {
-  /**
-   * Create a List type.
-   */
-  list(elemType: Type): Type {
-    return new ListType(elemType);
-  }
-
-  /**
-   * Create a Map type.
-   */
-  map(keyType: Type, valueType: Type): Type {
-    return new MapType(keyType, valueType);
-  }
-
-  /**
-   * Create an Optional type.
-   */
-  optional(type: Type): Type {
-    return new OptionalType(type);
-  }
-
-  /**
-   * Create a Type type (type of types).
-   */
-  type(type: Type): Type {
-    return new PolymorphicTypeType(type);
-  }
-
-  /**
-   * Create an Object type (message type).
-   */
-  object(typeName: string): Type {
-    return new StructType(typeName);
-  }
-}
-
-/**
- * Singleton TypeBuilder instance for convenience.
- */
-export const Types = new TypeBuilder();
 
 // ============================================================================
 // Issues - Error/Warning Collection
@@ -795,7 +756,6 @@ class EnvConfig {
 // ============================================================================
 
 export { ProtobufTypeProvider } from "./checker/provider";
-export { StructType, Type } from "./checker/types";
 export {
   EmptyActivation,
   HierarchicalActivation,

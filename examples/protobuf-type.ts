@@ -7,7 +7,7 @@ const protoPath = decodeURIComponent(
 const root = protobuf.loadSync([protoPath]);
 const env = new cel.Env({
   typeProvider: new cel.ProtobufTypeProvider(root),
-  variables: [new cel.Variable("person", cel.Types.object("acme.Person"))],
+  variables: [new cel.Variable("person", new cel.StructType("acme.Person"))],
 });
 
 const ast = env.compile('"Hello, " + person.name + "!"');

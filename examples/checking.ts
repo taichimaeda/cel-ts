@@ -3,7 +3,7 @@ import * as cel from "../src";
 const env = new cel.Env({
   variables: [
     new cel.Variable("x", cel.IntType),
-    new cel.Variable("items", cel.Types.list(cel.IntType)),
+    new cel.Variable("items", new cel.ListType(cel.IntType)),
   ],
 });
 

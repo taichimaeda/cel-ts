@@ -7,7 +7,7 @@ const env = new cel.Env({
       age: cel.IntType,
     }),
   ],
-  variables: [new cel.Variable("person", cel.Types.object("Person"))],
+  variables: [new cel.Variable("person", new cel.StructType("Person"))],
 });
 
 const ast = env.compile("person.age >= 21 && person.name != ''");

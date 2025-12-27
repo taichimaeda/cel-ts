@@ -1,7 +1,7 @@
 import * as cel from "../src";
 
 const env = new cel.Env({
-  variables: [new cel.Variable("nums", cel.Types.list(cel.IntType))],
+  variables: [new cel.Variable("nums", new cel.ListType(cel.IntType))],
 });
 
 const ast = env.compile("nums.exists(n, n % 2 == 0)");
