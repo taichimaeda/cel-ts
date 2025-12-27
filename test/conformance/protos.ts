@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as protobuf from "protobufjs";
-import { ProtobufTypeProvider } from "../../src/cel";
+import { ProtobufTypeProvider } from "../../src/api";
 
 export type RunStats = {
   total: number;

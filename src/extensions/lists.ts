@@ -5,7 +5,7 @@ import {
   IntType,
   MemberOverload,
   Overload,
-} from "../cel";
+} from "../api";
 import { ListType, type Type, TypeParamType } from "../checker/types";
 import { CallExpr, ComprehensionExpr, IdentExpr, ListExpr, SelectExpr } from "../common/ast";
 import {

@@ -3,7 +3,7 @@ import { parse as marcbachmannParse } from "@marcbachmann/cel-js";
 import { evaluate as chromeggEvaluate, parse as chromeggParse } from "cel-js";
 import type { CstNode } from "chevrotain";
 import { bench, do_not_optimize, run, summary } from "mitata";
-import { DynType, Env, type EnvOptions, type Program, type Type, Variable } from "../../src/cel";
+import { DynType, Env, type EnvOptions, type Program, type Type, Variable } from "../../src/api";
 import { ListType, MapType, builtinTypeNameToType } from "../../src/checker/types";
 import { StringsExtension, applyExtensions } from "../../src/extensions";
 import { type BenchmarkCase, type BenchmarkEngineId, cases } from "./cases";

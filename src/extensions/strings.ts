@@ -6,7 +6,7 @@ import {
   MemberOverload,
   Overload,
   StringType,
-} from "../cel";
+} from "../api";
 import { ListType } from "../checker/types";
 import {
   ErrorValue,

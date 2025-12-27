@@ -5,7 +5,7 @@ import {
   IntType,
   MemberOverload,
   Overload,
-} from "../cel";
+} from "../api";
 import { ListType, MapType, OptionalType, TypeParamType } from "../checker/types";
 import { Operators } from "../common/ast";
 import {

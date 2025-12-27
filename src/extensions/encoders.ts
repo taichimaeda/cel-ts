@@ -1,4 +1,4 @@
-import { BytesType, Function as CelFunction, type EnvOptions, Overload, StringType } from "../cel";
+import { BytesType, Function as CelFunction, type EnvOptions, Overload, StringType } from "../api";
 import {
   BytesValue,
   ErrorValue,

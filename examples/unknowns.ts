@@ -1,4 +1,4 @@
-import * as cel from "../src/cel";
+import * as cel from "../src";
 
 const env = new cel.Env({
   variables: [

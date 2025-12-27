@@ -7,7 +7,7 @@ import {
   Overload,
   Struct,
   Variable,
-} from "../../src/cel";
+} from "../../src/api";
 import { DynType, type Type } from "../../src/checker/types";
 import {
   BindingsExtension,

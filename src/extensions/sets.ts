@@ -1,4 +1,4 @@
-import { BoolType, Function as CelFunction, type EnvOptions, Overload } from "../cel";
+import { BoolType, Function as CelFunction, type EnvOptions, Overload } from "../api";
 import { ListType, TypeParamType } from "../checker/types";
 import {
   BoolValue,

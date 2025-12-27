@@ -1,4 +1,4 @@
-import { Function as CelFunction, type EnvOptions, Overload } from "../cel";
+import { Function as CelFunction, type EnvOptions, Overload } from "../api";
 import { MapType, TypeParamType } from "../checker/types";
 import { AccumulatorName, Operators } from "../common/ast";
 import { ErrorValue, type MapEntry, MapValue, type Value, isMapValue } from "../interpreter/values";

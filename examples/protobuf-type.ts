@@ -1,5 +1,5 @@
 import * as protobuf from "protobufjs";
-import * as cel from "../src/cel";
+import * as cel from "../src";
 
 const protoPath = decodeURIComponent(
   new URL("./protos/acme/person.proto", import.meta.url).pathname

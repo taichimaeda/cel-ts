@@ -1,4 +1,4 @@
-import { type EnvOptions, mergeEnvOptions } from "../cel";
+import { type EnvOptions, mergeEnvOptions } from "../api";
 
 /**
  * Extension interface for CEL environment plugins.

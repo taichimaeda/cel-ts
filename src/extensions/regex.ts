@@ -1,4 +1,4 @@
-import { Function as CelFunction, type EnvOptions, IntType, Overload, StringType } from "../cel";
+import { Function as CelFunction, type EnvOptions, IntType, Overload, StringType } from "../api";
 import { ListType, OptionalType } from "../checker/types";
 import {
   ErrorValue,

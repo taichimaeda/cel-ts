@@ -31,7 +31,7 @@
 export { VERSION } from "./version";
 
 // CEL API (cel-go compatible) - Recommended API
-export * from "./cel";
+export * from "./api";
 
 // Low-level modules (internal implementation details)
 // Note: These conflict with cel.ts names, import individually if needed

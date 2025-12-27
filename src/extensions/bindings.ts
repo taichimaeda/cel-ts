@@ -1,4 +1,4 @@
-import { Function as CelFunction, type EnvOptions, Overload, Variable } from "../cel";
+import { Function as CelFunction, type EnvOptions, Overload, Variable } from "../api";
 import { DynType, ListType, TypeParamType } from "../checker/types";
 import { type Expr, ListExpr, LiteralExpr } from "../common/ast";
 import { type Macro, MacroError, ReceiverMacro } from "../parser";

@@ -1,4 +1,4 @@
-import { Env } from "../cel";
+import { Env } from "../api";
 import type { SourceInfo } from "../common/source";
 import { ExprVisitor } from "../common/visitor";
 import { defaultRules } from "./rules";

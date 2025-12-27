@@ -7,7 +7,7 @@ import {
   IntType,
   Overload,
   UintType,
-} from "../cel";
+} from "../api";
 import { ListType } from "../checker/types";
 import {
   BoolValue,
