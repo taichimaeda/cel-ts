@@ -7,7 +7,7 @@ import {
   IntType,
   ListType,
   MapType,
-  PolymorphicTypeType,
+  TypeType,
   type Type,
   builtinTypeNameToType,
 } from "./types";
@@ -301,7 +301,7 @@ export class CheckerEnv {
       if (builtinType !== undefined) {
         return {
           name: candidate,
-          type: new PolymorphicTypeType(this.coerceEnumToInt(builtinType)),
+          type: new TypeType(this.coerceEnumToInt(builtinType)),
           kind: "type",
         };
       }
@@ -311,7 +311,7 @@ export class CheckerEnv {
       if (structType !== undefined) {
         return {
           name: candidate,
-          type: new PolymorphicTypeType(this.coerceEnumToInt(structType)),
+          type: new TypeType(this.coerceEnumToInt(structType)),
           kind: "type",
         };
       }
@@ -320,7 +320,7 @@ export class CheckerEnv {
       if (enumType !== undefined) {
         return {
           name: candidate,
-          type: new PolymorphicTypeType(enumType), // Do not coerce enum to int here
+          type: new TypeType(enumType), // Do not coerce enum to int here
           kind: "type",
         };
       }

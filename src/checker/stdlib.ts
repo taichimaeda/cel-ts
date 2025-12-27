@@ -13,10 +13,10 @@ import {
   IntType,
   ListType,
   MapType,
-  PolymorphicTypeType,
   StringType,
   TimestampType,
   TypeParamType,
+  TypeType,
   UintType,
 } from "./types";
 
@@ -251,7 +251,7 @@ class StandardLibraryImpl {
 
     // type(dyn) -> type
     funcDecl.addOverload(
-      new FunctionOverloadDecl("type_dyn", [DynType], new PolymorphicTypeType(DynType), [])
+      new FunctionOverloadDecl("type_dyn", [DynType], new TypeType(DynType), [])
     );
 
     return funcDecl;

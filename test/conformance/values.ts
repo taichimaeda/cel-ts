@@ -11,12 +11,12 @@ import {
   MapType,
   NullType,
   OpaqueType,
-  PolymorphicTypeType,
   StringType,
   StructType,
   TimestampType,
   type Type,
   TypeParamType,
+  TypeType,
   UintType,
 } from "../../src/checker/types";
 import {
@@ -639,7 +639,7 @@ export function protoToType(type: ProtoObject): Type | null {
       return new TypeParamType(String(protoFieldToValue(type, "type_param") ?? ""));
     case "type": {
       const nested = protoToType(protoFieldToValue(type, "type") as ProtoObject);
-      return new PolymorphicTypeType(nested ?? DynType);
+      return new TypeType(nested ?? DynType);
     }
     case "opaque":
     case "abstract_type": {

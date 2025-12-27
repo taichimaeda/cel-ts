@@ -195,8 +195,6 @@ export const TimestampType = new PrimitiveType("timestamp", "google.protobuf.Tim
 export const DynType = new PrimitiveType("dyn", "dyn");
 /** Error type singleton. */
 export const ErrorType = new PrimitiveType("error", "error");
-/** Type-of-type singleton. */
-export const TypeType = new PrimitiveType("type", "type");
 /** Any type singleton. */
 export const AnyType = new PrimitiveType("any", "any");
 
@@ -293,9 +291,9 @@ export class OptionalType extends Type {
 /**
  * Polymorphic type representing type(T) where T is a type parameter.
  */
-export class PolymorphicTypeType extends Type {
-  constructor(param: Type) {
-    super("type", "type", [param]);
+export class TypeType extends Type {
+  constructor(param?: Type) {
+    super("type", "type", param ? [param] : []);
   }
 
   override toString(): string {
@@ -303,6 +301,9 @@ export class PolymorphicTypeType extends Type {
     return param ? `type(${param.toString()})` : "type";
   }
 }
+
+/** Dynamic type-of-type singleton. */
+export const DynTypeType = new TypeType();
 
 /** List type with dyn element type. */
 export const DynListType = new ListType(DynType);
@@ -542,7 +543,7 @@ const BuiltinNameToType = new Map<BuiltinTypeName, Type>([
   ["null_type", NullType],
   ["list", DynListType],
   ["map", DynMapType],
-  ["type", TypeType],
+  ["type", DynTypeType],
   ["optional_type", new OptionalType(DynType)],
   ["google.protobuf.Timestamp", TimestampType],
   ["google.protobuf.Duration", DurationType],

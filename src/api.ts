@@ -15,15 +15,7 @@ import {
 import { Container as CheckerContainer, CheckerEnv } from "./checker/env";
 import { Errors } from "./checker/errors";
 import { CompositeTypeProvider, StructTypeProvider, type TypeProvider } from "./checker/provider";
-import {
-  DynType,
-  ListType,
-  MapType,
-  OptionalType,
-  PolymorphicTypeType,
-  StructType,
-  type Type,
-} from "./checker/types";
+import { DynType, ListType, MapType, OptionalType, StructType, type Type } from "./checker/types";
 import type { AST as CommonAST } from "./common/ast";
 import type { SourceInfo } from "./common/source";
 import { standardFunctions } from "./interpreter";
@@ -85,13 +77,13 @@ export {
   DoubleType,
   DurationType,
   DynType,
+  DynTypeType,
   ErrorType,
   IntType,
   ListType,
   MapType,
   NullType,
   OptionalType,
-  PolymorphicTypeType,
   StructType,
   StringType,
   TimestampType,

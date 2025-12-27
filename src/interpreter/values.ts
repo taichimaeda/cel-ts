@@ -17,7 +17,7 @@ import {
   OpaqueType,
   StringType,
   TimestampType,
-  TypeType,
+  DynTypeType,
   UintType,
 } from "../checker/types";
 import type { ExprId } from "../common/ast";
@@ -1078,7 +1078,7 @@ export class TypeValue extends BaseValue {
   static readonly NullType = new TypeValue(NullType);
   static readonly ListType = new TypeValue(GenericListType);
   static readonly MapType = new TypeValue(GenericMapType);
-  static readonly TypeType = new TypeValue(TypeType);
+  static readonly TypeType = new TypeValue(DynTypeType);
   static readonly DurationType = new TypeValue(DurationType);
   static readonly TimestampType = new TypeValue(TimestampType);
   readonly kind: ValueKind = "type";
@@ -1092,7 +1092,7 @@ export class TypeValue extends BaseValue {
   }
 
   type(): RuntimeType {
-    return TypeType;
+    return DynTypeType;
   }
 
   toString(): string {
@@ -1127,7 +1127,7 @@ export function toTypeValue(type: RuntimeType): TypeValue {
   if (type === NullType) return TypeValue.NullType;
   if (type === GenericListType) return TypeValue.ListType;
   if (type === GenericMapType) return TypeValue.MapType;
-  if (type === TypeType) return TypeValue.TypeType;
+  if (type === DynTypeType) return TypeValue.TypeType;
   if (type === DurationType) return TypeValue.DurationType;
   if (type === TimestampType) return TypeValue.TimestampType;
   if (type === RuntimeOptionalType) {

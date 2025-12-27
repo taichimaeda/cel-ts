@@ -6,8 +6,8 @@ import {
   ListType,
   MapType,
   OpaqueType,
-  PolymorphicTypeType,
   type Type,
+  TypeType,
   wellKnownTypeToNative,
   wrapperTypeToPrimitive,
 } from "./types";
@@ -234,7 +234,7 @@ export class TypeMapping {
       return type;
     }
     const newParam = this.substituteType(param, typeParamToDyn);
-    return newParam === param ? type : new PolymorphicTypeType(newParam);
+    return newParam === param ? type : new TypeType(newParam);
   }
 }
 
